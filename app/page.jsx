@@ -92,7 +92,7 @@ export default function Home() {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <img src="/images/icon-oscuro.jpg" alt="Carolina" className="h-7 w-7 rounded-md object-cover" />
+          <img src="/images/perfil/perfil_carolina_oscuro.jpg" alt="Carolina" className="h-7 w-7 rounded-md object-cover" />
           <span className="text-sm font-bold text-card-foreground">CarolinaOS</span>
           <span className="ml-auto text-xs text-muted-foreground">{user.name}</span>
         </div>
