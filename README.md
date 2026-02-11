@@ -15,11 +15,12 @@ Pensado para salones de eventos que necesitan trazabilidad completa: desde el pr
 | Forms      | React Hook Form + Zod               |
 | ORM        | Sequelize 6.37.7                    |
 | Base datos | PostgreSQL (local, puerto 5432)     |
-| Auth       | localStorage (pendiente JWT/sessions)|
+| Auth       | bcryptjs + registro con aprobación admin |
 | Package    | pnpm                                |
 
 ### Dependencias clave (package.json)
 - `sequelize` + `pg` + `pg-hstore` + `dotenv` → ORM y conexión PostgreSQL
+- `bcryptjs` → Hash de contraseñas (registro e inicio de sesión)
 - `next` 16.1.6 → Framework fullstack
 - `react` 19 + `react-dom` 19
 - `@radix-ui/*` → Primitivos UI accesibles (57 componentes shadcn/ui)
@@ -64,6 +65,8 @@ LaCarolina/
 │       ├── events/[id]/route.js      # PUT
 │       ├── tasks/route.js            # GET (con includes), POST
 │       ├── tasks/[id]/route.js       # PUT, DELETE
+│       ├── auth/login/route.js        # POST (login con bcrypt)
+│       ├── auth/register/route.js    # POST (registro con hash, activo=false)
 │       ├── users/route.js            # GET (sin password_hash)
 │       └── seed/route.js             # POST (seed usuarios demo si tabla vacía)
 │
@@ -74,7 +77,11 @@ LaCarolina/
 │   ├── calendar-view.jsx             # Calendario: gestión de fechas, estados (conectado a API)
 │   ├── proposals-view.jsx            # Listado/gestión de propuestas comerciales (conectado a API)
 │   ├── tasks-view.jsx                # Panel Kanban (Pendiente / En Proceso / Hecho) (conectado a API)
-│   ├── landing-page.jsx              # Landing pública + login
+│   ├── landing-page.jsx              # Landing pública + router auth views
+│   ├── auth/                         # === Componentes de autenticación ===
+│   │   ├── login-form.jsx            # Login con email/password contra API + bcrypt
+│   │   ├── register-form.jsx         # Registro con validaciones en tiempo real
+│   │   └── pending-approval.jsx      # Pantalla post-registro (cuenta pendiente de aprobación)
 │   └── ui/                           # 57 componentes shadcn/ui (button, dialog, table, etc.)
 │
 ├── hooks/
@@ -83,6 +90,7 @@ LaCarolina/
 │
 ├── lib/
 │   ├── api.js                        # Cliente API: funciones fetch wrapper + constantes del negocio
+│   ├── db.js                         # Exporta sequelize + todos los modelos (entry point backend)
 │   ├── store.js                      # ⚠️ DEPRECADO - Store in-memory con localStorage (ya no se usa)
 │   ├── utils.ts                      # cn() helper (clsx + tailwind-merge)
 │   └── models/                       # Modelos Sequelize (PostgreSQL)
@@ -182,8 +190,9 @@ Todos los componentes siguen este patrón:
 | nombre        | STRING  | NOT NULL           |
 | email         | STRING  | NOT NULL, UNIQUE   |
 | password_hash | STRING  | NOT NULL           |
-| rol           | ENUM    | Admin, Comercial, Operaciones, Viewer |
+| rol           | STRING  | Admin, Comercial, Operaciones, Viewer (validado en app) |
 | activo        | BOOLEAN | default: true      |
+| ultimo_acceso | DATE    | nullable           |
 
 ### leads
 | Campo              | Tipo    | Restricción       |
@@ -369,6 +378,7 @@ LEAD_STATES = [
 ]
 
 CALENDAR_STATES = ["Disponible", "Bloqueada", "Reservada", "Confirmada"]
+// + "Tentativa" (visual en calendario, derivado de lead.fecha_tentativa, no es un estado de CalendarDate)
 
 CANALES = ["WhatsApp", "Web", "Referido", "Instagram", "Facebook", "Telefono"]
 
@@ -404,10 +414,13 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
 13. **GET /api/reservations**: Incluye relaciones (lead, calendar_date).
 14. **GET /api/events**: Incluye relaciones (lead, calendar_date).
 15. **Seed de usuarios** (POST /api/seed): Crea 3 usuarios demo si la tabla users está vacía. Se ejecuta automáticamente en page.jsx al cargar la app.
+16. **Registro** (POST /api/auth/register): Hash con bcrypt (salt 10), `activo: false` por defecto. Email único (409).
+17. **Login** (POST /api/auth/login): Compara password con bcrypt. Rechaza si `activo: false` (403). Retorna user sin password_hash.
+18. **Calendario tentativas**: Los leads con `fecha_tentativa` se muestran automáticamente en el calendario como marcadores purple. Al seleccionar un lead tentativo desde el modal, se sugiere estado "Reservada" y se pre-asocia el lead.
 
 ---
 
-## API Endpoints (18 rutas + seed, todas en app/api/)
+## API Endpoints (20 rutas + seed, todas en app/api/)
 
 Todas las rutas importan modelos desde `@/lib/models/associations` y usan `NextResponse.json()`.
 Todas envuelven la lógica en try/catch y devuelven `{ error: message }` con status 500 en caso de error.
@@ -468,6 +481,12 @@ DELETE /api/tasks/:id                → Eliminar tarea
 GET    /api/users                    → Listar todos. Campos: id, nombre, email, rol, activo (SIN password_hash). Order: nombre ASC
 ```
 
+### Auth
+```
+POST   /api/auth/login               → Body: { email, password }. Valida contra bcrypt. Retorna user (sin password_hash). Error 401 si credenciales inválidas. Error 403 si cuenta no activada
+POST   /api/auth/register            → Body: { nombre, email, password, rol? }. Hash con bcrypt (salt 10). Crea usuario con activo=false. Valida email único (409). Retorna user creado
+```
+
 ### Seed
 ```
 POST   /api/seed                     → Crea 3 usuarios demo si la tabla está vacía (Carolina/Admin, Maria/Comercial, Luis/Operaciones). Retorna { seeded: true/false }
@@ -479,10 +498,10 @@ POST   /api/seed                     → Crea 3 usuarios demo si la tabla está 
 
 | Vista           | Componente           | Fuente de datos          | Descripción                                      |
 |-----------------|----------------------|--------------------------|--------------------------------------------------|
-| Landing/Login   | landing-page.jsx     | localStorage             | Página pública + login con email/password        |
+| Landing/Auth    | landing-page.jsx + auth/* | API /auth/login, /auth/register | Landing pública + Login + Registro + Pending approval |
 | Dashboard       | dashboard-view.jsx   | 5 fetches en paralelo    | Métricas: leads por estado, pipeline, gráficos recharts |
 | Leads           | leads-view.jsx       | fetchLeads + fetchLeadById | CRUD completo + detalle slideout con tabs (timeline, interacciones, propuestas) |
-| Calendario      | calendar-view.jsx    | fetchCalendarDates       | Gestión de fechas, estados, bloqueos por día     |
+| Calendario      | calendar-view.jsx    | fetchCalendarDates + fetchLeads | Gestión de fechas + fechas tentativas de leads (purple) |
 | Propuestas      | proposals-view.jsx   | fetchAllProposals        | Grid de propuestas con acciones (enviar, aceptar, rechazar) |
 | Tareas          | tasks-view.jsx       | fetchTasks               | Panel Kanban 4 columnas (Pendiente/En Proceso/Hecho/Cancelado) |
 
@@ -506,6 +525,12 @@ POST   /api/seed                     → Crea 3 usuarios demo si la tabla está 
 **calendar-view.jsx**
 - Carga: `fetchCalendarDates()` + `fetchLeads()` en paralelo
 - Convierte array de fechas a mapa `{ "YYYY-MM-DD": calendarDate }` con useMemo
+- **Fechas tentativas**: Mapea `lead.fecha_tentativa` → muestra marcadores purple "Tentativa" en el calendario
+  - Si un lead tiene `fecha_tentativa`, aparece en el día correspondiente con el nombre del lead
+  - Al hacer click, el modal muestra las tentativas y permite seleccionar un lead para asociarlo a la fecha
+  - Al seleccionar un lead tentativo, auto-sugiere estado "Reservada"
+  - Tentativas que ya tienen CalendarDate con el mismo lead no se duplican
+- 5 colores de estado: Disponible (emerald), Bloqueada (amber), Reservada (blue), Confirmada (green), Tentativa (purple)
 - `DateFormModal`: Crear/editar/liberar fechas con `apiSetCalendarDate`/`apiRemoveCalendarDate`
 - Errores del API (409 conflict) se muestran inline
 
@@ -525,10 +550,16 @@ POST   /api/seed                     → Crea 3 usuarios demo si la tabla está 
 - **Mobile**: Hamburger menu con overlay
 - **Entry point**: `app/page.jsx` → si no hay user → LandingPage, si hay → App con sidebar
 
-### Login y Sesión
+### Autenticación (Login + Registro)
+- **Landing page** (`landing-page.jsx`): Router de vistas auth (null → login → register → pending)
+- **Login** (`auth/login-form.jsx`): Email + password → POST /api/auth/login → bcrypt.compare → guarda user en localStorage
+- **Registro** (`auth/register-form.jsx`): Nombre + email + password → POST /api/auth/register → bcrypt.hash → crea usuario con `activo: false`
+  - Validaciones en tiempo real: nombre (min 2 chars), email formato, password (min 6), passwords coinciden
+  - Al registrarse exitosamente → redirige a pantalla de "cuenta pendiente de aprobación"
+- **Pending approval** (`auth/pending-approval.jsx`): Pantalla informativa post-registro
+- **Flujo de aprobación**: Los usuarios registrados quedan con `activo: false`. Un admin debe activarlos manualmente
+- **Sesión**: localStorage (`carolina_user`) - persistencia client-side
 - `page.jsx` → useEffect: lee user de localStorage, llama POST /api/seed para crear usuarios demo
-- `landing-page.jsx` → form email/password → `onLogin({ name, email })` → guarda en localStorage
-- Sin autenticación real (pendiente JWT/sessions)
 
 ### Seed de Usuarios Demo
 Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
@@ -544,29 +575,36 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
 
 ### Hecho
 - [x] Landing page con login
+- [x] **Login real** con email/password contra PostgreSQL + bcrypt
+- [x] **Registro de usuarios** con validaciones en tiempo real + hash bcrypt + flujo de aprobación admin
+- [x] **Pantalla pending approval** post-registro (activo=false hasta que admin active)
 - [x] Todas las vistas del frontend (Dashboard, Leads, Calendar, Proposals, Tasks)
+- [x] **Calendario con fechas tentativas** - leads con fecha_tentativa aparecen en purple como "Tentativa"
 - [x] Componentes UI completos (57 shadcn/ui)
 - [x] Modelos Sequelize definidos (10 tablas) con UUID
 - [x] Asociaciones entre modelos definidas (associations.js)
 - [x] Base de datos PostgreSQL creada con tablas sincronizadas
-- [x] **18 API Routes creadas** (app/api/) - CRUD real contra PostgreSQL
+- [x] **20 API Routes creadas** (app/api/) - CRUD real contra PostgreSQL (incluye auth/login y auth/register)
 - [x] Reglas de negocio implementadas en las API routes
 - [x] **lib/api.js creado** - Cliente fetch wrapper con todas las funciones + constantes
+- [x] **lib/db.js creado** - Entry point backend que exporta sequelize + todos los modelos
 - [x] **5 componentes migrados** de store.js a API (leads, tasks, calendar, proposals, dashboard)
 - [x] **page.jsx migrado** - Sin dependencia de store.js, seed via API
 - [x] **Endpoint seed** (POST /api/seed) para crear usuarios demo
-- [x] Build exitoso (next build compila 18 rutas API + seed + página estática)
+- [x] Build exitoso (next build compila 20 rutas API + seed + página estática)
 - [x] next.config.mjs configurado con serverExternalPackages
 - [x] pg-hstore instalado (dependencia de Sequelize para PostgreSQL)
+- [x] **User.rol migrado de ENUM a STRING** - evita conflictos de tipo en PostgreSQL, validación en app
 
 ### Pendiente (próximos pasos)
-- [ ] Autenticación real (JWT o NextAuth) - reemplazar login demo por auth server-side
+- [ ] Conectar a Supabase (PostgreSQL remoto) via .env.local
+- [ ] Sesiones server-side (JWT o NextAuth) - actualmente usa localStorage
+- [ ] Panel admin para activar/desactivar usuarios registrados
 - [ ] Pasar user_id real al cambiar estado de lead (actualmente pasa null)
 - [ ] Migraciones de BD (actualmente usa sequelize.sync({ alter: true }))
 - [ ] Validaciones server-side con Zod en las API routes
 - [ ] Tests (unit + integration)
 - [ ] Eliminar `lib/store.js` (ya no se usa, pero queda como referencia)
-- [ ] Hash real de passwords (actualmente se guardan en texto plano)
 
 ---
 

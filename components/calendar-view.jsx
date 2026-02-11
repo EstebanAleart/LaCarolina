@@ -21,6 +21,7 @@ const STATE_COLORS = {
   Bloqueada: "bg-amber-200 text-amber-900",
   Reservada: "bg-blue-200 text-blue-900",
   Confirmada: "bg-green-300 text-green-900",
+  Tentativa: "bg-purple-200 text-purple-900",
 }
 
 const STATE_DOT_COLORS = {
@@ -28,6 +29,7 @@ const STATE_DOT_COLORS = {
   Bloqueada: "bg-amber-500",
   Reservada: "bg-blue-500",
   Confirmada: "bg-green-600",
+  Tentativa: "bg-purple-500",
 }
 
 function getDaysInMonth(year, month) {
@@ -76,6 +78,19 @@ export default function CalendarView() {
     return map
   }, [calendarDatesRaw])
 
+  // Mapa de fechas tentativas de leads (solo las que NO tienen ya una CalendarDate)
+  const tentativeMap = useMemo(() => {
+    const map = {}
+    leads.forEach((l) => {
+      if (l.fecha_tentativa) {
+        const dateStr = l.fecha_tentativa.substring(0, 10)
+        if (!map[dateStr]) map[dateStr] = []
+        map[dateStr].push(l)
+      }
+    })
+    return map
+  }, [leads])
+
   const daysInMonth = getDaysInMonth(currentYear, currentMonth)
   const firstDay = getFirstDayOfMonth(currentYear, currentMonth)
 
@@ -118,6 +133,11 @@ export default function CalendarView() {
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = formatDate(day)
     const calEntry = calendarDates[dateStr]
+    const tentativeLeads = tentativeMap[dateStr] || []
+    // Solo mostrar tentativas que no tengan ya un CalendarDate con lead asociado
+    const filteredTentative = tentativeLeads.filter(
+      (l) => !calEntry || calEntry.lead_id !== l.id
+    )
     const isToday =
       day === today.getDate() &&
       currentMonth === today.getMonth() &&
@@ -140,11 +160,18 @@ export default function CalendarView() {
         >
           {day}
         </span>
-        {calEntry && (
-          <div className={cn("mt-auto w-full rounded px-1 py-0.5 text-[10px] font-medium truncate", STATE_COLORS[calEntry.estado_fecha])}>
-            {calEntry.estado_fecha}
-          </div>
-        )}
+        <div className="mt-auto w-full flex flex-col gap-0.5">
+          {filteredTentative.map((l) => (
+            <div key={l.id} className={cn("w-full rounded px-1 py-0.5 text-[10px] font-medium truncate", STATE_COLORS.Tentativa)}>
+              {l.nombre}
+            </div>
+          ))}
+          {calEntry && (
+            <div className={cn("w-full rounded px-1 py-0.5 text-[10px] font-medium truncate", STATE_COLORS[calEntry.estado_fecha])}>
+              {calEntry.estado_fecha}
+            </div>
+          )}
+        </div>
       </button>
     )
   }
@@ -164,8 +191,8 @@ export default function CalendarView() {
           <h1 className="text-2xl font-bold text-foreground">Calendario Unico</h1>
           <p className="text-sm text-muted-foreground">Fuente de verdad para fechas y disponibilidad</p>
         </div>
-        <div className="flex items-center gap-3">
-          {CALENDAR_STATES.map((s) => (
+        <div className="flex items-center gap-3 flex-wrap">
+          {[...CALENDAR_STATES, "Tentativa"].map((s) => (
             <div key={s} className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className={cn("h-2.5 w-2.5 rounded-full", STATE_DOT_COLORS[s])} />
               {s}
@@ -205,6 +232,7 @@ export default function CalendarView() {
           date={selectedDate}
           existing={calendarDates[selectedDate] || null}
           leads={leads}
+          tentativeLeads={tentativeMap[selectedDate] || []}
           onClose={() => { setShowForm(false); setSelectedDate(null) }}
           onSave={async () => { setShowForm(false); setSelectedDate(null); await loadData() }}
         />
@@ -213,7 +241,7 @@ export default function CalendarView() {
   )
 }
 
-function DateFormModal({ date, existing, leads, onClose, onSave }) {
+function DateFormModal({ date, existing, leads, tentativeLeads = [], onClose, onSave }) {
   const [estado, setEstado] = useState(existing?.estado_fecha || "Bloqueada")
   const [leadId, setLeadId] = useState(existing?.lead_id || "")
   const [nota, setNota] = useState(existing?.nota || "")
@@ -244,6 +272,11 @@ function DateFormModal({ date, existing, leads, onClose, onSave }) {
     }
   }
 
+  function handleSelectTentative(lead) {
+    setLeadId(lead.id)
+    if (!existing) setEstado("Reservada")
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-foreground/20" onClick={onClose} />
@@ -261,6 +294,31 @@ function DateFormModal({ date, existing, leads, onClose, onSave }) {
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Leads con fecha tentativa en este día */}
+        {tentativeLeads.length > 0 && (
+          <div className="mb-4 rounded-md border border-purple-300 bg-purple-50 dark:bg-purple-950/30 dark:border-purple-800 p-3">
+            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 mb-2">Fechas tentativas de leads:</p>
+            <div className="flex flex-col gap-1.5">
+              {tentativeLeads.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => handleSelectTentative(l)}
+                  className={cn(
+                    "flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors text-left",
+                    leadId === l.id
+                      ? "bg-purple-200 dark:bg-purple-800 text-purple-900 dark:text-purple-100 font-semibold"
+                      : "bg-white dark:bg-card hover:bg-purple-100 dark:hover:bg-purple-900/50 text-foreground"
+                  )}
+                >
+                  <span>{l.nombre} - {l.tipo_evento || "Sin tipo"}</span>
+                  {leadId === l.id && <span className="text-purple-600 dark:text-purple-300 text-[10px]">seleccionado</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
