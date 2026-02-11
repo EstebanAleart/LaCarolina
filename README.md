@@ -14,9 +14,10 @@ Pensado para salones de eventos que necesitan trazabilidad completa: desde el pr
 | UI         | shadcn/ui + Radix UI + Tailwind 3   |
 | Forms      | React Hook Form + Zod               |
 | ORM        | Sequelize 6.37.7                    |
-| Base datos | PostgreSQL (local, puerto 5432)     |
+| Base datos | PostgreSQL (Supabase remoto)        |
 | Auth       | bcryptjs + registro con aprobación admin |
-| Package    | pnpm                                |
+| Hosting    | Vercel (serverless)                 |
+| Package    | pnpm (node-linker=hoisted)          |
 
 ### Dependencias clave (package.json)
 - `sequelize` + `pg` + `pg-hstore` + `dotenv` → ORM y conexión PostgreSQL
@@ -553,8 +554,10 @@ POST   /api/seed                     → Crea 3 usuarios demo si la tabla está 
 ### Autenticación (Login + Registro)
 - **Landing page** (`landing-page.jsx`): Router de vistas auth (null → login → register → pending)
 - **Login** (`auth/login-form.jsx`): Email + password → POST /api/auth/login → bcrypt.compare → guarda user en localStorage
+  - Toggle mostrar/ocultar contraseña (icono ojo)
 - **Registro** (`auth/register-form.jsx`): Nombre + email + password → POST /api/auth/register → bcrypt.hash → crea usuario con `activo: false`
   - Validaciones en tiempo real: nombre (min 2 chars), email formato, password (min 6), passwords coinciden
+  - Toggle mostrar/ocultar en ambos campos de contraseña
   - Al registrarse exitosamente → redirige a pantalla de "cuenta pendiente de aprobación"
 - **Pending approval** (`auth/pending-approval.jsx`): Pantalla informativa post-registro
 - **Flujo de aprobación**: Los usuarios registrados quedan con `activo: false`. Un admin debe activarlos manualmente
@@ -595,9 +598,15 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
 - [x] next.config.mjs configurado con serverExternalPackages
 - [x] pg-hstore instalado (dependencia de Sequelize para PostgreSQL)
 - [x] **User.rol migrado de ENUM a STRING** - evita conflictos de tipo en PostgreSQL, validación en app
+- [x] **Conectado a Supabase** (PostgreSQL remoto) via .env.local con SSL automático
+- [x] **Deploy en Vercel** funcionando - serverless con pg, sequelize, pg-hstore
+- [x] **`.npmrc` con `node-linker=hoisted`** - elimina symlinks de pnpm para compatibilidad con Vercel
+- [x] **`require('pg')` explícito + `outputFileTracingIncludes`** - fuerza inclusión de pg en funciones serverless
+- [x] **URL placeholder en Sequelize** para que `next build` no crashee sin DATABASE_URL
+- [x] **`.env` removido del historial git** - filter-branch + force push por seguridad
+- [x] **Toggle mostrar/ocultar password** en login y registro (icono ojo)
 
 ### Pendiente (próximos pasos)
-- [ ] Conectar a Supabase (PostgreSQL remoto) via .env.local
 - [ ] Sesiones server-side (JWT o NextAuth) - actualmente usa localStorage
 - [ ] Panel admin para activar/desactivar usuarios registrados
 - [ ] Pasar user_id real al cambiar estado de lead (actualmente pasa null)
@@ -616,21 +625,26 @@ git clone <repo-url>
 cd LaCarolina
 pnpm install
 
-# 2. Configurar .env
-# Crear archivo .env en la raíz con:
-# DATABASE_URL=postgres://usuario:password@localhost:5432/nombre_db
+# 2. Configurar .env.local (NO .env)
+# Crear archivo .env.local en la raíz con:
+# DATABASE_URL=postgresql://usuario:password@host:puerto/db?sslmode=require
+# NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 
-# 3. Crear la base de datos en PostgreSQL
-# psql -U postgres -c "CREATE DATABASE \"nombre_db\";"
-
-# 4. Sincronizar modelos (crea las tablas automáticamente)
+# 3. Sincronizar modelos (crea las tablas automáticamente)
 node -e "const { initModels } = require('./lib/models/init'); initModels();"
 
-# 5. Iniciar dev server
+# 4. Iniciar dev server
 pnpm dev
 # Abre http://localhost:3000
 # Los usuarios demo se crean automáticamente al cargar la app
 ```
+
+### Deploy en Vercel
+- Las env vars (DATABASE_URL, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY) se configuran en Vercel > Settings > Environment Variables
+- `.npmrc` con `node-linker=hoisted` es OBLIGATORIO para que pnpm funcione en Vercel (elimina symlinks)
+- `serverExternalPackages` + `outputFileTracingIncludes` + `require('pg')` explícito aseguran que pg se incluya en las funciones serverless
+- `lib/models/index.js` usa URL placeholder (`postgres://build:build@localhost:5432/build`) durante build para que Sequelize no crashee sin DATABASE_URL
 
 ---
 
@@ -665,10 +679,14 @@ pnpm dev
 - Tasks normaliza: `task.due_date.substring(0, 10)` para display y comparación
 - Calendar usa fechas en formato "YYYY-MM-DD" consistentemente
 
-### Modelos con timestamps: false
-- Todos los modelos tienen `timestamps: false` en Sequelize
-- Los campos `created_at` y `updated_at` se manejan manualmente con `defaultValue: DataTypes.NOW`
-- Esto evita que Sequelize auto-genere `createdAt`/`updatedAt` con camelCase
+### Modelos con timestamps
+- Los modelos usan `timestamps: true` con `createdAt: 'created_at'` y `updatedAt: 'updated_at'`
+- Excepción: User tiene `timestamps: true` con mapeo explícito a snake_case
+
+### Conexión a Supabase
+- `lib/models/index.js` detecta Supabase automáticamente por el dominio en DATABASE_URL
+- Si la URL contiene `supabase.com`, activa SSL: `{ require: true, rejectUnauthorized: false }`
+- En build sin DATABASE_URL, usa placeholder para que `.define()` no crashee
 
 ---
 
