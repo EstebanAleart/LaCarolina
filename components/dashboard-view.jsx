@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useState, useEffect } from "react"
 import {
   Users,
   CalendarDays,
@@ -13,13 +13,13 @@ import {
   FileText,
 } from "lucide-react"
 import {
-  getLeads,
-  getCalendarDates,
-  getTasks,
-  getEvents,
-  getAllProposals,
+  fetchLeads,
+  fetchCalendarDates,
+  fetchTasks,
+  fetchEvents,
+  fetchAllProposals,
   LEAD_STATES,
-} from "@/lib/store"
+} from "@/lib/api"
 import {
   BarChart,
   Bar,
@@ -64,64 +64,83 @@ function StatCard({ icon: Icon, label, value, sublabel, color }) {
 }
 
 export default function DashboardView() {
-  const stats = useMemo(() => {
-    const leads = getLeads()
-    const calendar = getCalendarDates()
-    const tasks = getTasks()
-    const events = getEvents()
-    const proposals = getAllProposals()
+  const [stats, setStats] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-    const byState = {}
-    LEAD_STATES.forEach((s) => (byState[s] = 0))
-    leads.forEach((l) => {
-      byState[l.estado_actual] = (byState[l.estado_actual] || 0) + 1
-    })
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const [leads, calendar, tasks, events, proposals] = await Promise.all([
+          fetchLeads(),
+          fetchCalendarDates(),
+          fetchTasks(),
+          fetchEvents(),
+          fetchAllProposals(),
+        ])
 
-    const pipelineData = LEAD_STATES.map((s) => ({
-      name: s.length > 14 ? s.substring(0, 12) + ".." : s,
-      fullName: s,
-      count: byState[s] || 0,
-      fill: PIPELINE_COLORS[s],
-    }))
+        const byState = {}
+        LEAD_STATES.forEach((s) => (byState[s] = 0))
+        leads.forEach((l) => {
+          byState[l.estado_actual] = (byState[l.estado_actual] || 0) + 1
+        })
 
-    const byChannel = {}
-    leads.forEach((l) => {
-      byChannel[l.canal_origen] = (byChannel[l.canal_origen] || 0) + 1
-    })
-    const channelData = Object.entries(byChannel).map(([name, value]) => ({
-      name,
-      value,
-    }))
+        const pipelineData = LEAD_STATES.map((s) => ({
+          name: s.length > 14 ? s.substring(0, 12) + ".." : s,
+          fullName: s,
+          count: byState[s] || 0,
+          fill: PIPELINE_COLORS[s],
+        }))
 
-    const totalValue = leads.reduce((acc, l) => acc + (l.valor_estimado || 0), 0)
-    const confirmedDates = calendar.filter(
-      (c) => c.estado_fecha === "Confirmada" || c.estado_fecha === "Reservada"
-    ).length
-    const pendingTasks = tasks.filter((t) => t.estado === "Pendiente").length
-    const overdueTasks = tasks.filter(
-      (t) => t.estado === "Pendiente" && t.due_date && new Date(t.due_date) < new Date()
-    ).length
+        const byChannel = {}
+        leads.forEach((l) => {
+          byChannel[l.canal_origen] = (byChannel[l.canal_origen] || 0) + 1
+        })
+        const channelData = Object.entries(byChannel).map(([name, value]) => ({
+          name,
+          value,
+        }))
 
-    const conversionRate =
-      leads.length > 0
-        ? Math.round((events.length / leads.length) * 100)
-        : 0
+        const totalValue = leads.reduce((acc, l) => acc + (l.valor_estimado || 0), 0)
+        const confirmedDates = calendar.filter(
+          (c) => c.estado_fecha === "Confirmada" || c.estado_fecha === "Reservada"
+        ).length
+        const pendingTasks = tasks.filter((t) => t.estado === "Pendiente").length
+        const overdueTasks = tasks.filter(
+          (t) => t.estado === "Pendiente" && t.due_date && new Date(t.due_date) < new Date()
+        ).length
 
-    return {
-      totalLeads: leads.length,
-      totalEvents: events.length,
-      totalValue,
-      confirmedDates,
-      pendingTasks,
-      overdueTasks,
-      conversionRate,
-      pipelineData,
-      channelData,
-      totalProposals: proposals.length,
+        const conversionRate =
+          leads.length > 0
+            ? Math.round((events.length / leads.length) * 100)
+            : 0
+
+        setStats({
+          totalLeads: leads.length,
+          totalEvents: events.length,
+          totalValue,
+          confirmedDates,
+          pendingTasks,
+          overdueTasks,
+          conversionRate,
+          pipelineData,
+          channelData,
+          totalProposals: proposals.length,
+        })
+      } catch (err) { console.error(err) }
+      finally { setLoading(false) }
     }
+    loadStats()
   }, [])
 
   const PIE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#f97316", "#06b6d4"]
+
+  if (loading || !stats) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-muted-foreground">Cargando dashboard...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
   Plus,
   X,
@@ -12,15 +12,15 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  getTasks,
-  createTask,
-  updateTask,
-  deleteTask,
-  getLeads,
-  getUsers,
+  fetchTasks,
+  apiCreateTask,
+  apiUpdateTask,
+  apiDeleteTask,
+  fetchLeads,
+  fetchUsers,
   TASK_STATES,
   TASK_PRIORITIES,
-} from "@/lib/store"
+} from "@/lib/api"
 
 const STATE_ICONS = {
   Pendiente: Circle,
@@ -36,21 +36,35 @@ const PRIORITY_COLORS = {
 }
 
 export default function TasksView() {
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [tasks, setTasks] = useState([])
+  const [leads, setLeads] = useState([])
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filterState, setFilterState] = useState("")
   const [filterUser, setFilterUser] = useState("")
 
-  function refresh() {
-    setRefreshKey((k) => k + 1)
+  async function loadData() {
+    try {
+      const [t, l, u] = await Promise.all([
+        fetchTasks(),
+        fetchLeads(),
+        fetchUsers()
+      ])
+      setTasks(t)
+      setLeads(l)
+      setUsers(u)
+    } catch (err) { console.error(err) }
+    finally { setLoading(false) }
   }
 
-  const tasks = useMemo(() => {
-    let result = getTasks()
+  useEffect(() => { loadData() }, [])
+
+  const filteredTasks = useMemo(() => {
+    let result = tasks
     if (filterState) result = result.filter((t) => t.estado === filterState)
     if (filterUser) result = result.filter((t) => t.assigned_to_user_id === filterUser)
     return result.sort((a, b) => {
-      // Sort by: overdue first, then by due_date
       const aOverdue = a.due_date && new Date(a.due_date) < new Date() && a.estado === "Pendiente"
       const bOverdue = b.due_date && new Date(b.due_date) < new Date() && b.estado === "Pendiente"
       if (aOverdue && !bOverdue) return -1
@@ -58,30 +72,17 @@ export default function TasksView() {
       if (a.due_date && b.due_date) return new Date(a.due_date) - new Date(b.due_date)
       return 0
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey, filterState, filterUser])
+  }, [tasks, filterState, filterUser])
 
-  const leads = useMemo(() => getLeads(), [refreshKey])
-  const users = useMemo(() => getUsers(), [])
-
-  function getLeadName(leadId) {
-    if (!leadId) return null
-    const lead = leads.find((l) => l.id === leadId)
-    return lead ? lead.nombre : null
+  async function handleCreateTask(data) {
+    try {
+      await apiCreateTask(data)
+      setShowForm(false)
+      await loadData()
+    } catch (err) { console.error(err) }
   }
 
-  function getUserName(userId) {
-    const user = users.find((u) => u.id === userId)
-    return user ? user.nombre : "---"
-  }
-
-  function handleCreateTask(data) {
-    createTask(data)
-    setShowForm(false)
-    refresh()
-  }
-
-  function handleToggleState(task) {
+  async function handleToggleState(task) {
     const nextState =
       task.estado === "Pendiente"
         ? "En Proceso"
@@ -90,23 +91,35 @@ export default function TasksView() {
         : task.estado === "Hecho"
         ? "Pendiente"
         : "Pendiente"
-    updateTask(task.id, { estado: nextState })
-    refresh()
+    try {
+      await apiUpdateTask(task.id, { estado: nextState })
+      await loadData()
+    } catch (err) { console.error(err) }
   }
 
-  function handleDelete(id) {
-    deleteTask(id)
-    refresh()
+  async function handleDelete(id) {
+    try {
+      await apiDeleteTask(id)
+      await loadData()
+    } catch (err) { console.error(err) }
   }
 
   const grouped = useMemo(() => {
     const groups = {}
     TASK_STATES.forEach((s) => (groups[s] = []))
-    tasks.forEach((t) => {
+    filteredTasks.forEach((t) => {
       if (groups[t.estado]) groups[t.estado].push(t)
     })
     return groups
-  }, [tasks])
+  }, [filteredTasks])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-muted-foreground">Cargando tareas...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -156,8 +169,10 @@ export default function TasksView() {
               </div>
               <div className="flex flex-col gap-2 p-2 max-h-[60vh] overflow-y-auto">
                 {stateTasks.map((task) => {
-                  const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.estado === "Pendiente"
-                  const leadName = getLeadName(task.lead_id)
+                  const dueDate = task.due_date ? task.due_date.substring(0, 10) : null
+                  const isOverdue = dueDate && new Date(dueDate) < new Date() && task.estado === "Pendiente"
+                  const leadName = task.lead?.nombre || null
+                  const userName = task.assigned_user?.nombre || "---"
                   return (
                     <div
                       key={task.id}
@@ -197,11 +212,11 @@ export default function TasksView() {
                         )}
                       </div>
                       <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
-                        <span>{getUserName(task.assigned_to_user_id)}</span>
-                        {task.due_date && (
+                        <span>{userName}</span>
+                        {dueDate && (
                           <span className={cn("flex items-center gap-0.5", isOverdue && "text-destructive font-medium")}>
                             {isOverdue && <AlertTriangle className="h-3 w-3" />}
-                            {new Date(task.due_date + "T12:00:00").toLocaleDateString("es-AR")}
+                            {new Date(dueDate + "T12:00:00").toLocaleDateString("es-AR")}
                           </span>
                         )}
                       </div>
@@ -235,7 +250,7 @@ function TaskForm({ leads, users, onSubmit, onClose }) {
     titulo: "",
     descripcion: "",
     lead_id: "",
-    assigned_to_user_id: "u1",
+    assigned_to_user_id: users[0]?.id || "",
     prioridad: "Media",
     due_date: "",
   })
@@ -296,6 +311,7 @@ function TaskForm({ leads, users, onSubmit, onClose }) {
                 onChange={(e) => setForm((f) => ({ ...f, assigned_to_user_id: e.target.value }))}
                 className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               >
+                <option value="">Sin asignar</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
               </select>
             </div>
