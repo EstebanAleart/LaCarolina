@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Check, X } from "lucide-react"
+import { Check, X, Eye, EyeOff } from "lucide-react"
 
 export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, onBack }) {
   const [nombre, setNombre] = useState("")
@@ -11,6 +11,8 @@ export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, onBac
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   // Validaciones en tiempo real
   const validations = {
@@ -206,20 +208,34 @@ export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, onBac
             >
               Contraseña
             </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError("") }}
-              placeholder="Mínimo 6 caracteres"
-              disabled={success}
-              className="w-full px-4 py-3 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all disabled:opacity-50"
-              style={{
-                backgroundColor: "#282637",
-                borderColor: validations.passwordLength && password ? "#4ade80" : "#3a3850",
-                color: "#f2ece6",
-              }}
-            />
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError("") }}
+                placeholder="Mínimo 6 caracteres"
+                disabled={success}
+                className="w-full px-4 py-3 pr-12 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all disabled:opacity-50"
+                style={{
+                  backgroundColor: "#282637",
+                  borderColor: validations.passwordLength && password ? "#4ade80" : "#3a3850",
+                  color: "#f2ece6",
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md transition-colors hover:opacity-80"
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" style={{ color: "#6b6580" }} />
+                ) : (
+                  <Eye className="h-4 w-4" style={{ color: "#6b6580" }} />
+                )}
+              </button>
+            </div>
             {password && (
               <div className="mt-2">
                 <ValidationIndicator 
@@ -238,20 +254,34 @@ export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, onBac
             >
               Confirmar Contraseña
             </label>
-            <input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => { setConfirmPassword(e.target.value); setError("") }}
-              placeholder="Repite tu contraseña"
-              disabled={success}
-              className="w-full px-4 py-3 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all disabled:opacity-50"
-              style={{
-                backgroundColor: "#282637",
-                borderColor: validations.passwordsMatch && confirmPassword ? "#4ade80" : "#3a3850",
-                color: "#f2ece6",
-              }}
-            />
+            <div className="relative">
+              <input
+                id="confirmPassword"
+                type={showConfirm ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => { setConfirmPassword(e.target.value); setError("") }}
+                placeholder="Repite tu contraseña"
+                disabled={success}
+                className="w-full px-4 py-3 pr-12 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all disabled:opacity-50"
+                style={{
+                  backgroundColor: "#282637",
+                  borderColor: validations.passwordsMatch && confirmPassword ? "#4ade80" : "#3a3850",
+                  color: "#f2ece6",
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirm(!showConfirm)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md transition-colors hover:opacity-80"
+                tabIndex={-1}
+              >
+                {showConfirm ? (
+                  <EyeOff className="h-4 w-4" style={{ color: "#6b6580" }} />
+                ) : (
+                  <Eye className="h-4 w-4" style={{ color: "#6b6580" }} />
+                )}
+              </button>
+            </div>
             {confirmPassword && (
               <div className="mt-2">
                 <ValidationIndicator 

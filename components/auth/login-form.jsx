@@ -1,13 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Lock } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
 
 export default function LoginForm({ onLogin, onSwitchToRegister, onBack }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   async function handleSubmit(e) {
   e.preventDefault()
@@ -94,20 +95,34 @@ export default function LoginForm({ onLogin, onSwitchToRegister, onBack }) {
             >
               Contraseña
             </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError("") }}
-              placeholder="********"
-              required
-              className="w-full px-4 py-3 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all"
-              style={{
-                backgroundColor: "#282637",
-                borderColor: "#3a3850",
-                color: "#f2ece6",
-              }}
-            />
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError("") }}
+                placeholder="********"
+                required
+                className="w-full px-4 py-3 pr-12 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all"
+                style={{
+                  backgroundColor: "#282637",
+                  borderColor: "#3a3850",
+                  color: "#f2ece6",
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md transition-colors hover:opacity-80"
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" style={{ color: "#6b6580" }} />
+                ) : (
+                  <Eye className="h-4 w-4" style={{ color: "#6b6580" }} />
+                )}
+              </button>
+            </div>
           </div>
 
           {error && (
