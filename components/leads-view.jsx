@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import {
   Plus,
   Search,
@@ -19,22 +19,18 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  getLeads,
-  createLead,
-  updateLead,
-  changeLeadStatus,
-  deleteLead,
-  getInteractionsByLead,
-  createInteraction,
-  getVisitsByLead,
-  createVisit,
-  getProposalsByLead,
-  getLeadStatusHistory,
-  getUsers,
+  fetchLeads,
+  apiCreateLead,
+  apiUpdateLead,
+  apiChangeLeadStatus,
+  apiDeleteLead,
+  fetchLeadById,
+  fetchUsers,
+  apiCreateInteraction,
   LEAD_STATES,
   CANALES,
   TIPOS_EVENTO,
-} from "@/lib/store"
+} from "@/lib/api"
 
 const STATE_COLORS = {
   "Consulta inicial": "bg-blue-100 text-blue-800",
@@ -48,8 +44,17 @@ const STATE_COLORS = {
 }
 
 function LeadForm({ onSubmit, onCancel, initial }) {
-  const [form, setForm] = useState(
-    initial || {
+  const [form, setForm] = useState(() => {
+    if (initial) {
+      return {
+        ...initial,
+        fecha_tentativa: initial.fecha_tentativa ? initial.fecha_tentativa.substring(0, 10) : "",
+        valor_estimado: initial.valor_estimado || 0,
+        anio_evento: initial.anio_evento || new Date().getFullYear(),
+        notas: initial.notas || "",
+      }
+    }
+    return {
       nombre: "",
       telefono: "",
       email: "",
@@ -60,7 +65,7 @@ function LeadForm({ onSubmit, onCancel, initial }) {
       valor_estimado: 0,
       notas: "",
     }
-  )
+  })
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -124,43 +129,64 @@ function LeadForm({ onSubmit, onCancel, initial }) {
   )
 }
 
-function LeadDetail({ lead, onClose, onRefresh }) {
+function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
+  const [leadFull, setLeadFull] = useState(null)
+  const [users, setUsers] = useState([])
   const [tab, setTab] = useState("timeline")
   const [showStatusChange, setShowStatusChange] = useState(false)
   const [lostMotivo, setLostMotivo] = useState("")
   const [selectedStatus, setSelectedStatus] = useState("")
   const [intForm, setIntForm] = useState({ tipo: "WhatsApp", descripcion: "" })
 
-  const interactions = useMemo(() => getInteractionsByLead(lead.id), [lead.id])
-  const visits = useMemo(() => getVisitsByLead(lead.id), [lead.id])
-  const proposals = useMemo(() => getProposalsByLead(lead.id), [lead.id])
-  const history = useMemo(() => getLeadStatusHistory(lead.id), [lead.id])
-  const users = useMemo(() => getUsers(), [])
+  const loadDetail = useCallback(async () => {
+    try {
+      const [full, usrs] = await Promise.all([
+        fetchLeadById(initialLead.id),
+        fetchUsers()
+      ])
+      setLeadFull(full)
+      setUsers(usrs)
+    } catch (err) { console.error(err) }
+  }, [initialLead.id])
+
+  useEffect(() => { loadDetail() }, [loadDetail])
+
+  const lead = leadFull || initialLead
+  const interactions = leadFull?.interactions || []
+  const visits = leadFull?.visits || []
+  const proposals = leadFull?.proposals || []
+  const history = leadFull?.status_history || []
 
   function getUserName(uid) {
     const u = users.find((u) => u.id === uid)
     return u ? u.nombre : "Sistema"
   }
 
-  function handleStatusChange() {
+  async function handleStatusChange() {
     if (!selectedStatus) return
     if (selectedStatus === "Perdido" && !lostMotivo.trim()) {
       alert("Motivo obligatorio para marcar como Perdido")
       return
     }
-    changeLeadStatus(lead.id, selectedStatus, "u1", lostMotivo || null)
-    setShowStatusChange(false)
-    setSelectedStatus("")
-    setLostMotivo("")
-    onRefresh()
+    try {
+      await apiChangeLeadStatus(lead.id, selectedStatus, lostMotivo || null, null)
+      setShowStatusChange(false)
+      setSelectedStatus("")
+      setLostMotivo("")
+      await loadDetail()
+      onRefresh()
+    } catch (err) { console.error(err) }
   }
 
-  function handleAddInteraction(e) {
+  async function handleAddInteraction(e) {
     e.preventDefault()
     if (!intForm.descripcion.trim()) return
-    createInteraction({ lead_id: lead.id, ...intForm })
-    setIntForm({ tipo: "WhatsApp", descripcion: "" })
-    onRefresh()
+    try {
+      await apiCreateInteraction(lead.id, intForm)
+      setIntForm({ tipo: "WhatsApp", descripcion: "" })
+      await loadDetail()
+      onRefresh()
+    } catch (err) { console.error(err) }
   }
 
   const timeline = useMemo(() => {
@@ -178,7 +204,7 @@ function LeadDetail({ lead, onClose, onRefresh }) {
       items.push({ date: p.created_at, type: "proposal", data: p })
     )
     return items.sort((a, b) => new Date(b.date) - new Date(a.date))
-  }, [interactions, visits, history, proposals])
+  }, [leadFull])
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end">
@@ -395,7 +421,8 @@ function LeadDetail({ lead, onClose, onRefresh }) {
 }
 
 export default function LeadsView() {
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [leads, setLeads] = useState([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [filterYear, setFilterYear] = useState("")
   const [filterState, setFilterState] = useState("")
@@ -403,61 +430,79 @@ export default function LeadsView() {
   const [showForm, setShowForm] = useState(false)
   const [editLead, setEditLead] = useState(null)
   const [detailLead, setDetailLead] = useState(null)
-  const [viewMode, setViewMode] = useState("table") // "table" or "kanban"
+  const [viewMode, setViewMode] = useState("table")
 
-  function refresh() {
-    setRefreshKey((k) => k + 1)
-    // Re-fetch detail lead if open
-    if (detailLead) {
-      const updated = getLeads().find((l) => l.id === detailLead.id)
-      if (updated) setDetailLead(updated)
-      else setDetailLead(null)
-    }
+  async function loadLeads() {
+    try {
+      const data = await fetchLeads()
+      setLeads(data)
+    } catch (err) { console.error(err) }
+    finally { setLoading(false) }
   }
 
-  const leads = useMemo(() => {
-    let result = getLeads()
+  useEffect(() => { loadLeads() }, [])
+
+  async function handleRefresh() {
+    await loadLeads()
+  }
+
+  const filteredLeads = useMemo(() => {
+    let result = leads
     if (search) {
       const q = search.toLowerCase()
       result = result.filter(
         (l) =>
           l.nombre.toLowerCase().includes(q) ||
-          l.email.toLowerCase().includes(q) ||
-          l.telefono.includes(q)
+          (l.email || "").toLowerCase().includes(q) ||
+          (l.telefono || "").includes(q)
       )
     }
     if (filterYear) result = result.filter((l) => String(l.anio_evento) === filterYear)
     if (filterState) result = result.filter((l) => l.estado_actual === filterState)
     if (filterChannel) result = result.filter((l) => l.canal_origen === filterChannel)
     return result
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, filterYear, filterState, filterChannel, refreshKey])
+  }, [leads, search, filterYear, filterState, filterChannel])
 
-  function handleCreate(formData) {
-    createLead(formData)
-    setShowForm(false)
-    refresh()
+  async function handleCreate(formData) {
+    try {
+      await apiCreateLead(formData)
+      setShowForm(false)
+      await loadLeads()
+    } catch (err) { console.error(err) }
   }
 
-  function handleUpdate(formData) {
+  async function handleUpdate(formData) {
     if (editLead) {
-      updateLead(editLead.id, formData)
-      setEditLead(null)
-      refresh()
+      try {
+        await apiUpdateLead(editLead.id, formData)
+        setEditLead(null)
+        await loadLeads()
+      } catch (err) { console.error(err) }
     }
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     if (confirm("Eliminar este lead y toda su informacion asociada?")) {
-      deleteLead(id)
-      refresh()
+      try {
+        await apiDeleteLead(id)
+        if (detailLead?.id === id) setDetailLead(null)
+        await loadLeads()
+      } catch (err) { console.error(err) }
     }
   }
 
   const years = useMemo(() => {
-    const y = new Set(getLeads().map((l) => l.anio_evento))
+    const y = new Set(leads.map((l) => l.anio_evento))
     return [...y].sort()
-  }, [refreshKey])
+  }, [leads])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-muted-foreground">Cargando leads...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -539,12 +584,12 @@ export default function LeadsView() {
               </tr>
             </thead>
             <tbody>
-              {leads.length === 0 && (
+              {filteredLeads.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No hay leads que coincidan con los filtros</td>
                 </tr>
               )}
-              {leads.map((lead) => (
+              {filteredLeads.map((lead) => (
                 <tr key={lead.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
                   <td className="px-4 py-3">
                     <button onClick={() => setDetailLead(lead)} className="text-left">
@@ -586,7 +631,7 @@ export default function LeadsView() {
       {viewMode === "kanban" && (
         <div className="flex gap-3 overflow-x-auto pb-4">
           {LEAD_STATES.filter((s) => s !== "Perdido").map((state) => {
-            const stateLeads = leads.filter((l) => l.estado_actual === state)
+            const stateLeads = filteredLeads.filter((l) => l.estado_actual === state)
             return (
               <div key={state} className="flex w-64 shrink-0 flex-col rounded-lg border border-border bg-secondary/50">
                 <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
@@ -619,7 +664,7 @@ export default function LeadsView() {
 
       {/* Detail Slideout */}
       {detailLead && (
-        <LeadDetail lead={detailLead} onClose={() => setDetailLead(null)} onRefresh={refresh} />
+        <LeadDetail lead={detailLead} onClose={() => setDetailLead(null)} onRefresh={handleRefresh} />
       )}
     </div>
   )
