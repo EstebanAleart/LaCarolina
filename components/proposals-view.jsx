@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
   Plus,
   X,
@@ -11,11 +11,11 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  getAllProposals,
-  getLeads,
-  createProposal,
-  updateProposal,
-} from "@/lib/store"
+  fetchAllProposals,
+  fetchLeads,
+  apiCreateProposal,
+  apiUpdateProposal,
+} from "@/lib/api"
 
 const STATUS_STYLES = {
   Borrador: "bg-secondary text-secondary-foreground",
@@ -25,37 +25,53 @@ const STATUS_STYLES = {
 }
 
 export default function ProposalsView() {
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [proposals, setProposals] = useState([])
+  const [leads, setLeads] = useState([])
+  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filterStatus, setFilterStatus] = useState("")
 
-  function refresh() {
-    setRefreshKey((k) => k + 1)
+  async function loadData() {
+    try {
+      const [props, lds] = await Promise.all([
+        fetchAllProposals(),
+        fetchLeads()
+      ])
+      setProposals(props)
+      setLeads(lds)
+    } catch (err) { console.error(err) }
+    finally { setLoading(false) }
   }
 
-  const proposals = useMemo(() => {
-    let result = getAllProposals()
+  useEffect(() => { loadData() }, [])
+
+  const filteredProposals = useMemo(() => {
+    let result = proposals
     if (filterStatus) result = result.filter((p) => p.estado === filterStatus)
     return result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey, filterStatus])
+  }, [proposals, filterStatus])
 
-  const leads = useMemo(() => getLeads(), [refreshKey])
-
-  function getLeadName(leadId) {
-    const lead = leads.find((l) => l.id === leadId)
-    return lead ? lead.nombre : "Desconocido"
+  async function handleCreateProposal(data) {
+    try {
+      await apiCreateProposal(data.lead_id, data)
+      setShowForm(false)
+      await loadData()
+    } catch (err) { console.error(err) }
   }
 
-  function handleCreateProposal(data) {
-    createProposal(data)
-    setShowForm(false)
-    refresh()
+  async function handleStatusUpdate(id, newStatus) {
+    try {
+      await apiUpdateProposal(id, { estado: newStatus })
+      await loadData()
+    } catch (err) { console.error(err) }
   }
 
-  function handleStatusUpdate(id, newStatus) {
-    updateProposal(id, { estado: newStatus })
-    refresh()
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-muted-foreground">Cargando propuestas...</p>
+      </div>
+    )
   }
 
   return (
@@ -89,17 +105,17 @@ export default function ProposalsView() {
 
       {/* Grid */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {proposals.length === 0 && (
+        {filteredProposals.length === 0 && (
           <div className="col-span-full flex flex-col items-center justify-center py-12 text-muted-foreground">
             <FileText className="h-12 w-12 mb-2 opacity-30" />
             <p className="text-sm">No hay propuestas</p>
           </div>
         )}
-        {proposals.map((p) => (
+        {filteredProposals.map((p) => (
           <div key={p.id} className="flex flex-col rounded-lg border border-border bg-card overflow-hidden">
             <div className="flex items-center justify-between border-b border-border px-4 py-3 bg-secondary/30">
               <div>
-                <p className="text-sm font-bold text-card-foreground">{getLeadName(p.lead_id)}</p>
+                <p className="text-sm font-bold text-card-foreground">{p.lead?.nombre || "Desconocido"}</p>
                 <p className="text-xs text-muted-foreground">Version {p.version}</p>
               </div>
               <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_STYLES[p.estado])}>

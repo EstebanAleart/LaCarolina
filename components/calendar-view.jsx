@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
   ChevronLeft,
   ChevronRight,
@@ -9,18 +9,19 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  getCalendarDates,
-  setCalendarDate,
-  removeCalendarDate,
-  getLeads,
+  fetchCalendarDates,
+  apiSetCalendarDate,
+  apiRemoveCalendarDate,
+  fetchLeads,
   CALENDAR_STATES,
-} from "@/lib/store"
+} from "@/lib/api"
 
 const STATE_COLORS = {
   Disponible: "bg-emerald-200 text-emerald-900",
   Bloqueada: "bg-amber-200 text-amber-900",
   Reservada: "bg-blue-200 text-blue-900",
   Confirmada: "bg-green-300 text-green-900",
+  Tentativa: "bg-purple-200 text-purple-900",
 }
 
 const STATE_DOT_COLORS = {
@@ -28,6 +29,7 @@ const STATE_DOT_COLORS = {
   Bloqueada: "bg-amber-500",
   Reservada: "bg-blue-500",
   Confirmada: "bg-green-600",
+  Tentativa: "bg-purple-500",
 }
 
 function getDaysInMonth(year, month) {
@@ -52,21 +54,42 @@ export default function CalendarView() {
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
   const [selectedDate, setSelectedDate] = useState(null)
   const [showForm, setShowForm] = useState(false)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [calendarDatesRaw, setCalendarDatesRaw] = useState([])
+  const [leads, setLeads] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  function refresh() {
-    setRefreshKey((k) => k + 1)
+  async function loadData() {
+    try {
+      const [dates, lds] = await Promise.all([
+        fetchCalendarDates(),
+        fetchLeads()
+      ])
+      setCalendarDatesRaw(dates)
+      setLeads(lds)
+    } catch (err) { console.error(err) }
+    finally { setLoading(false) }
   }
 
-  const calendarDates = useMemo(() => {
-    const dates = getCalendarDates()
-    const map = {}
-    dates.forEach((d) => (map[d.fecha] = d))
-    return map
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey])
+  useEffect(() => { loadData() }, [])
 
-  const leads = useMemo(() => getLeads(), [refreshKey])
+  const calendarDates = useMemo(() => {
+    const map = {}
+    calendarDatesRaw.forEach((d) => (map[d.fecha ? d.fecha.substring(0, 10) : ""] = d))
+    return map
+  }, [calendarDatesRaw])
+
+  // Mapa de fechas tentativas de leads (solo las que NO tienen ya una CalendarDate)
+  const tentativeMap = useMemo(() => {
+    const map = {}
+    leads.forEach((l) => {
+      if (l.fecha_tentativa) {
+        const dateStr = l.fecha_tentativa.substring(0, 10)
+        if (!map[dateStr]) map[dateStr] = []
+        map[dateStr].push(l)
+      }
+    })
+    return map
+  }, [leads])
 
   const daysInMonth = getDaysInMonth(currentYear, currentMonth)
   const firstDay = getFirstDayOfMonth(currentYear, currentMonth)
@@ -110,6 +133,11 @@ export default function CalendarView() {
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = formatDate(day)
     const calEntry = calendarDates[dateStr]
+    const tentativeLeads = tentativeMap[dateStr] || []
+    // Solo mostrar tentativas que no tengan ya un CalendarDate con lead asociado
+    const filteredTentative = tentativeLeads.filter(
+      (l) => !calEntry || calEntry.lead_id !== l.id
+    )
     const isToday =
       day === today.getDate() &&
       currentMonth === today.getMonth() &&
@@ -132,12 +160,27 @@ export default function CalendarView() {
         >
           {day}
         </span>
-        {calEntry && (
-          <div className={cn("mt-auto w-full rounded px-1 py-0.5 text-[10px] font-medium truncate", STATE_COLORS[calEntry.estado_fecha])}>
-            {calEntry.estado_fecha}
-          </div>
-        )}
+        <div className="mt-auto w-full flex flex-col gap-0.5">
+          {filteredTentative.map((l) => (
+            <div key={l.id} className={cn("w-full rounded px-1 py-0.5 text-[10px] font-medium truncate", STATE_COLORS.Tentativa)}>
+              {l.nombre}
+            </div>
+          ))}
+          {calEntry && (
+            <div className={cn("w-full rounded px-1 py-0.5 text-[10px] font-medium truncate", STATE_COLORS[calEntry.estado_fecha])}>
+              {calEntry.estado_fecha}
+            </div>
+          )}
+        </div>
       </button>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-muted-foreground">Cargando calendario...</p>
+      </div>
     )
   }
 
@@ -148,8 +191,8 @@ export default function CalendarView() {
           <h1 className="text-2xl font-bold text-foreground">Calendario Unico</h1>
           <p className="text-sm text-muted-foreground">Fuente de verdad para fechas y disponibilidad</p>
         </div>
-        <div className="flex items-center gap-3">
-          {CALENDAR_STATES.map((s) => (
+        <div className="flex items-center gap-3 flex-wrap">
+          {[...CALENDAR_STATES, "Tentativa"].map((s) => (
             <div key={s} className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className={cn("h-2.5 w-2.5 rounded-full", STATE_DOT_COLORS[s])} />
               {s}
@@ -189,39 +232,49 @@ export default function CalendarView() {
           date={selectedDate}
           existing={calendarDates[selectedDate] || null}
           leads={leads}
+          tentativeLeads={tentativeMap[selectedDate] || []}
           onClose={() => { setShowForm(false); setSelectedDate(null) }}
-          onSave={() => { setShowForm(false); setSelectedDate(null); refresh() }}
+          onSave={async () => { setShowForm(false); setSelectedDate(null); await loadData() }}
         />
       )}
     </div>
   )
 }
 
-function DateFormModal({ date, existing, leads, onClose, onSave }) {
+function DateFormModal({ date, existing, leads, tentativeLeads = [], onClose, onSave }) {
   const [estado, setEstado] = useState(existing?.estado_fecha || "Bloqueada")
   const [leadId, setLeadId] = useState(existing?.lead_id || "")
   const [nota, setNota] = useState(existing?.nota || "")
   const [error, setError] = useState("")
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    const result = setCalendarDate({
-      fecha: date,
-      estado_fecha: estado,
-      lead_id: leadId || null,
-      nota,
-      fuente: "CRM",
-    })
-    if (result?.error) {
-      setError(result.error)
-      return
+    try {
+      await apiSetCalendarDate({
+        fecha: date,
+        estado_fecha: estado,
+        lead_id: leadId || null,
+        nota,
+        fuente: "CRM",
+      })
+      onSave()
+    } catch (err) {
+      setError(err.message)
     }
-    onSave()
   }
 
-  function handleRemove() {
-    removeCalendarDate(date)
-    onSave()
+  async function handleRemove() {
+    try {
+      await apiRemoveCalendarDate(date)
+      onSave()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  function handleSelectTentative(lead) {
+    setLeadId(lead.id)
+    if (!existing) setEstado("Reservada")
   }
 
   return (
@@ -241,6 +294,31 @@ function DateFormModal({ date, existing, leads, onClose, onSave }) {
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Leads con fecha tentativa en este día */}
+        {tentativeLeads.length > 0 && (
+          <div className="mb-4 rounded-md border border-purple-300 bg-purple-50 dark:bg-purple-950/30 dark:border-purple-800 p-3">
+            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 mb-2">Fechas tentativas de leads:</p>
+            <div className="flex flex-col gap-1.5">
+              {tentativeLeads.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => handleSelectTentative(l)}
+                  className={cn(
+                    "flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors text-left",
+                    leadId === l.id
+                      ? "bg-purple-200 dark:bg-purple-800 text-purple-900 dark:text-purple-100 font-semibold"
+                      : "bg-white dark:bg-card hover:bg-purple-100 dark:hover:bg-purple-900/50 text-foreground"
+                  )}
+                >
+                  <span>{l.nombre} - {l.tipo_evento || "Sin tipo"}</span>
+                  {leadId === l.id && <span className="text-purple-600 dark:text-purple-300 text-[10px]">seleccionado</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">

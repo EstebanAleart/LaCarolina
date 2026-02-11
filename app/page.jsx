@@ -8,7 +8,6 @@ import CalendarView from "@/components/calendar-view"
 import ProposalsView from "@/components/proposals-view"
 import TasksView from "@/components/tasks-view"
 import LandingPage from "@/components/landing-page"
-import { seedDemoData } from "@/lib/store"
 import { Menu } from "lucide-react"
 
 export default function Home() {
@@ -24,7 +23,8 @@ export default function Home() {
     if (saved) {
       try { setUser(JSON.parse(saved)) } catch { /* ignore */ }
     }
-    seedDemoData()
+    // Seed usuarios demo si la tabla está vacía
+    fetch('/api/seed', { method: 'POST' }).catch(() => {})
     setReady(true)
   }, [])
 
