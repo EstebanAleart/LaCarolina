@@ -2,120 +2,46 @@
 
 import { useState } from "react"
 import { ArrowRight, Calendar, Users, FileText, BarChart3, CheckCircle, Lock } from "lucide-react"
+import LoginForm from "@/components/auth/login-form"
+import RegisterForm from "@/components/auth/register-form"
+import PendingApproval from "@/components/auth/pending-approval"
 
 export default function LandingPage({ onLogin }) {
-  const [showLogin, setShowLogin] = useState(false)
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
+  const [authView, setAuthView] = useState(null) // null | 'login' | 'register' | "pending"
 
-  function handleSubmit(e) {
-    e.preventDefault()
-    // Demo credentials
-    if (email === "admin@carolina.com" && password === "admin123") {
-      onLogin({ name: "Carolina", email })
-    } else if (email && password) {
-      // Accept any non-empty credentials for demo
-      onLogin({ name: email.split("@")[0], email })
-    } else {
-      setError("Por favor ingresa tu email y contrasena")
-    }
+
+  //Vista de cuenta pendiente
+  if (authView === 'pending') {
+  return (
+    <PendingApproval
+      onBack={() => setAuthView(null)}
+    />
+  )
   }
 
-  if (showLogin) {
+  // Vista de Login
+  if (authView === 'login') {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#1e1c2e" }}>
-        <div className="w-full max-w-md px-6">
-          <div className="flex flex-col items-center mb-10">
-            <img
-              src="/images/perfil/perfil_carolina_oscuro.jpg"
-              alt="Carolina Eventos"
-              className="w-32 h-32 rounded-2xl mb-6 object-cover"
-            />
-            <p className="text-sm tracking-widest uppercase" style={{ color: "#c8bfb3" }}>
-              Sistema de Gestion
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-xs font-medium tracking-wide uppercase mb-2"
-                style={{ color: "#a09888" }}
-              >
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); setError("") }}
-                placeholder="tu@email.com"
-                className="w-full px-4 py-3 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all"
-                style={{
-                  backgroundColor: "#282637",
-                  borderColor: "#3a3850",
-                  color: "#f2ece6",
-                }}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-xs font-medium tracking-wide uppercase mb-2"
-                style={{ color: "#a09888" }}
-              >
-                Contrasena
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError("") }}
-                placeholder="********"
-                className="w-full px-4 py-3 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all"
-                style={{
-                  backgroundColor: "#282637",
-                  borderColor: "#3a3850",
-                  color: "#f2ece6",
-                }}
-              />
-            </div>
-
-            {error && (
-              <p className="text-sm" style={{ color: "#e55b5b" }}>{error}</p>
-            )}
-
-            <button
-              type="submit"
-              className="w-full py-3 rounded-lg text-sm font-semibold tracking-wide uppercase transition-all hover:opacity-90"
-              style={{
-                backgroundColor: "#f2ece6",
-                color: "#1e1c2e",
-              }}
-            >
-              Iniciar Sesion
-            </button>
-
-            <p className="text-center text-xs mt-4" style={{ color: "#6b6580" }}>
-              Demo: admin@carolina.com / admin123
-            </p>
-          </form>
-
-          <button
-            onClick={() => setShowLogin(false)}
-            className="mt-8 w-full text-center text-xs tracking-wide uppercase transition-colors hover:opacity-80"
-            style={{ color: "#6b6580" }}
-          >
-            Volver al inicio
-          </button>
-        </div>
-      </div>
+      <LoginForm
+        onLogin={onLogin}
+        onSwitchToRegister={() => setAuthView('register')}
+        onBack={() => setAuthView(null)}
+      />
     )
   }
 
+  // Vista de Registro
+  if (authView === 'register') {
+  return (
+    <RegisterForm
+      onRegisterSuccess={() => setAuthView('pending')}  
+      onSwitchToLogin={() => setAuthView('login')}
+      onBack={() => setAuthView(null)}
+    />
+  )
+  }
+
+  // Landing principal
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f2ece6] via-[#f7f3ee] to-[#e6e0d3]">
       {/* Navbar */}
@@ -127,13 +53,22 @@ export default function LandingPage({ onLogin }) {
             className="h-10 lg:h-12 object-contain drop-shadow-md"
           />
         </div>
-        <button
-          onClick={() => setShowLogin(true)}
-          className="flex items-center gap-2 px-6 py-2.5 rounded-full text-base font-semibold tracking-wide shadow-md bg-gradient-to-r from-[#2d2b3d] to-[#5c5650] text-[#f2ece6] hover:opacity-90 transition-all"
-        >
-          <Lock className="h-5 w-5" />
-          Acceder
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setAuthView('register')}
+            className="px-5 py-2 rounded-full text-sm font-medium tracking-wide transition-all hover:bg-[#2d2b3d]/10"
+            style={{ color: "#2d2b3d" }}
+          >
+            Registrarse
+          </button>
+          <button
+            onClick={() => setAuthView('login')}
+            className="flex items-center gap-2 px-6 py-2.5 rounded-full text-base font-semibold tracking-wide shadow-md bg-gradient-to-r from-[#2d2b3d] to-[#5c5650] text-[#f2ece6] hover:opacity-90 transition-all"
+          >
+            <Lock className="h-5 w-5" />
+            Acceder
+          </button>
+        </div>
       </nav>
 
       {/* Hero */}
@@ -159,11 +94,18 @@ export default function LandingPage({ onLogin }) {
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <button
-                onClick={() => setShowLogin(true)}
+                onClick={() => setAuthView('register')}
                 className="flex items-center justify-center gap-2 px-10 py-4 rounded-full text-lg font-bold tracking-wide shadow-lg bg-gradient-to-r from-[#2d2b3d] to-[#5c5650] text-[#f2ece6] hover:scale-105 hover:opacity-90 transition-all"
               >
-                Entrar al sistema
+                Comenzar gratis
                 <ArrowRight className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => setAuthView('login')}
+                className="flex items-center justify-center gap-2 px-10 py-4 rounded-full text-lg font-bold tracking-wide shadow-md border-2 hover:bg-[#2d2b3d]/5 transition-all"
+                style={{ borderColor: "#2d2b3d", color: "#2d2b3d" }}
+              >
+                Iniciar sesión
               </button>
             </div>
           </div>
@@ -192,7 +134,7 @@ export default function LandingPage({ onLogin }) {
           className="text-xs font-medium tracking-[0.3em] uppercase mb-12"
           style={{ color: "#7a7062" }}
         >
-          Modulos
+          Módulos
         </p>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[
@@ -204,7 +146,7 @@ export default function LandingPage({ onLogin }) {
             },
             {
               icon: Calendar,
-              title: "Calendario Unico",
+              title: "Calendario Único",
               description:
                 "Una sola fuente de verdad para todas tus fechas. Controla disponibilidad, bloqueos, reservas y confirmaciones.",
             },
@@ -212,25 +154,25 @@ export default function LandingPage({ onLogin }) {
               icon: FileText,
               title: "Propuestas Versionadas",
               description:
-                "Crea cotizaciones con versiones. Envia, rastrea aceptaciones y vincula propuestas directamente con cada lead.",
+                "Crea cotizaciones con versiones. Envía, rastrea aceptaciones y vincula propuestas directamente con cada lead.",
             },
             {
               icon: CheckCircle,
-              title: "Gestion de Tareas",
+              title: "Gestión de Tareas",
               description:
-                "Panel Kanban con prioridades, asignaciones y fechas limite. Automatizaciones crean tareas cuando un lead avanza.",
+                "Panel Kanban con prioridades, asignaciones y fechas límite. Automatizaciones crean tareas cuando un lead avanza.",
             },
             {
               icon: BarChart3,
               title: "Dashboard Ejecutivo",
               description:
-                "Metricas clave del pipeline, eventos por mes, valor estimado, tasa de conversion y tareas vencidas en tiempo real.",
+                "Métricas clave del pipeline, eventos por mes, valor estimado, tasa de conversión y tareas vencidas en tiempo real.",
             },
             {
               icon: Lock,
               title: "Acceso Seguro",
               description:
-                "Sistema de roles con permisos por modulo. Cada usuario accede solo a lo que necesita para operar.",
+                "Sistema de roles con permisos por módulo. Cada usuario accede solo a lo que necesita para operar.",
             },
           ].map((feature) => (
             <div
@@ -270,8 +212,8 @@ export default function LandingPage({ onLogin }) {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
             {[
               { value: "100%", label: "Tus fechas centralizadas" },
-              { value: "5", label: "Modulos integrados" },
-              { value: "360", label: "Vision completa del lead" },
+              { value: "5", label: "Módulos integrados" },
+              { value: "360°", label: "Visión completa del lead" },
               { value: "24/7", label: "Acceso desde cualquier lugar" },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
@@ -305,7 +247,7 @@ export default function LandingPage({ onLogin }) {
             className="text-2xl lg:text-4xl font-light mb-6 text-balance"
             style={{ color: "#2d2b3d" }}
           >
-            Listo para organizar tu operacion
+            Listo para organizar tu operación
           </h2>
           <p
             className="text-sm leading-relaxed mb-8"
@@ -315,14 +257,14 @@ export default function LandingPage({ onLogin }) {
             desde una sola plataforma.
           </p>
           <button
-            onClick={() => setShowLogin(true)}
+            onClick={() => setAuthView('register')}
             className="flex items-center gap-2 px-8 py-3.5 rounded-lg text-sm font-semibold tracking-wide transition-all hover:opacity-90"
             style={{
               backgroundColor: "#2d2b3d",
               color: "#f2ece6",
             }}
           >
-            Iniciar Sesion
+            Comenzar ahora
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
