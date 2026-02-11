@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
   ChevronLeft,
   ChevronRight,
@@ -9,12 +9,12 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  getCalendarDates,
-  setCalendarDate,
-  removeCalendarDate,
-  getLeads,
+  fetchCalendarDates,
+  apiSetCalendarDate,
+  apiRemoveCalendarDate,
+  fetchLeads,
   CALENDAR_STATES,
-} from "@/lib/store"
+} from "@/lib/api"
 
 const STATE_COLORS = {
   Disponible: "bg-emerald-200 text-emerald-900",
@@ -52,21 +52,29 @@ export default function CalendarView() {
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
   const [selectedDate, setSelectedDate] = useState(null)
   const [showForm, setShowForm] = useState(false)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [calendarDatesRaw, setCalendarDatesRaw] = useState([])
+  const [leads, setLeads] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  function refresh() {
-    setRefreshKey((k) => k + 1)
+  async function loadData() {
+    try {
+      const [dates, lds] = await Promise.all([
+        fetchCalendarDates(),
+        fetchLeads()
+      ])
+      setCalendarDatesRaw(dates)
+      setLeads(lds)
+    } catch (err) { console.error(err) }
+    finally { setLoading(false) }
   }
 
-  const calendarDates = useMemo(() => {
-    const dates = getCalendarDates()
-    const map = {}
-    dates.forEach((d) => (map[d.fecha] = d))
-    return map
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey])
+  useEffect(() => { loadData() }, [])
 
-  const leads = useMemo(() => getLeads(), [refreshKey])
+  const calendarDates = useMemo(() => {
+    const map = {}
+    calendarDatesRaw.forEach((d) => (map[d.fecha ? d.fecha.substring(0, 10) : ""] = d))
+    return map
+  }, [calendarDatesRaw])
 
   const daysInMonth = getDaysInMonth(currentYear, currentMonth)
   const firstDay = getFirstDayOfMonth(currentYear, currentMonth)
@@ -141,6 +149,14 @@ export default function CalendarView() {
     )
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-muted-foreground">Cargando calendario...</p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -190,7 +206,7 @@ export default function CalendarView() {
           existing={calendarDates[selectedDate] || null}
           leads={leads}
           onClose={() => { setShowForm(false); setSelectedDate(null) }}
-          onSave={() => { setShowForm(false); setSelectedDate(null); refresh() }}
+          onSave={async () => { setShowForm(false); setSelectedDate(null); await loadData() }}
         />
       )}
     </div>
@@ -203,25 +219,29 @@ function DateFormModal({ date, existing, leads, onClose, onSave }) {
   const [nota, setNota] = useState(existing?.nota || "")
   const [error, setError] = useState("")
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    const result = setCalendarDate({
-      fecha: date,
-      estado_fecha: estado,
-      lead_id: leadId || null,
-      nota,
-      fuente: "CRM",
-    })
-    if (result?.error) {
-      setError(result.error)
-      return
+    try {
+      await apiSetCalendarDate({
+        fecha: date,
+        estado_fecha: estado,
+        lead_id: leadId || null,
+        nota,
+        fuente: "CRM",
+      })
+      onSave()
+    } catch (err) {
+      setError(err.message)
     }
-    onSave()
   }
 
-  function handleRemove() {
-    removeCalendarDate(date)
-    onSave()
+  async function handleRemove() {
+    try {
+      await apiRemoveCalendarDate(date)
+      onSave()
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   return (

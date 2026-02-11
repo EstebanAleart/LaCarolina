@@ -14,7 +14,7 @@ Pensado para salones de eventos que necesitan trazabilidad completa: desde el pr
 | UI         | shadcn/ui + Radix UI + Tailwind 3   |
 | Forms      | React Hook Form + Zod               |
 | ORM        | Sequelize 6.37.7                    |
-| Base datos | PostgreSQL (local, puerto 5432, db: laCarolina) |
+| Base datos | PostgreSQL (local, puerto 5432)     |
 | Auth       | localStorage (pendiente JWT/sessions)|
 | Package    | pnpm                                |
 
@@ -47,13 +47,14 @@ LaCarolina/
 │   ├── layout.jsx                    # Root layout (metadata, fuente Inter)
 │   ├── page.jsx                      # Entry point: Landing → Login → App
 │   ├── globals.css                   # Estilos globales + CSS variables
-│   └── api/                          # === API Routes backend (HECHO) ===
+│   └── api/                          # === API Routes backend ===
 │       ├── leads/route.js            # GET (listar+filtros), POST (crear)
 │       ├── leads/[id]/route.js       # GET (detalle+includes), PUT, DELETE (cascade)
 │       ├── leads/[id]/status/route.js       # PUT (cambiar estado + historial + auto-task)
 │       ├── leads/[id]/interactions/route.js # GET, POST
 │       ├── leads/[id]/visits/route.js       # GET, POST
 │       ├── leads/[id]/proposals/route.js    # GET, POST (version auto-incrementa)
+│       ├── proposals/route.js        # GET (todas las propuestas con includes lead+creator)
 │       ├── proposals/[id]/route.js   # PUT (actualizar, auto fecha_envio)
 │       ├── calendar/route.js         # GET (todas), POST (crear/actualizar con validación)
 │       ├── calendar/[fecha]/route.js # DELETE (liberar fecha)
@@ -63,16 +64,17 @@ LaCarolina/
 │       ├── events/[id]/route.js      # PUT
 │       ├── tasks/route.js            # GET (con includes), POST
 │       ├── tasks/[id]/route.js       # PUT, DELETE
-│       └── users/route.js            # GET (sin password_hash)
+│       ├── users/route.js            # GET (sin password_hash)
+│       └── seed/route.js             # POST (seed usuarios demo si tabla vacía)
 │
 ├── components/                       # Componentes React (frontend)
 │   ├── app-sidebar.jsx               # Sidebar navegación (desktop colapsable + mobile overlay)
-│   ├── dashboard-view.jsx            # Dashboard: métricas, pipeline, gráficos
-│   ├── leads-view.jsx                # CRUD leads + detalle con tabs (interacciones, visitas, propuestas, historial)
-│   ├── calendar-view.jsx             # Calendario: gestión de fechas, estados, bloqueos
-│   ├── proposals-view.jsx            # Listado/gestión de propuestas comerciales
-│   ├── tasks-view.jsx                # Panel Kanban (Pendiente / En Proceso / Hecho)
-│   ├── landing-page.jsx              # Landing pública + login (selección de usuario demo)
+│   ├── dashboard-view.jsx            # Dashboard: métricas, pipeline, gráficos (conectado a API)
+│   ├── leads-view.jsx                # CRUD leads + detalle con tabs (conectado a API)
+│   ├── calendar-view.jsx             # Calendario: gestión de fechas, estados (conectado a API)
+│   ├── proposals-view.jsx            # Listado/gestión de propuestas comerciales (conectado a API)
+│   ├── tasks-view.jsx                # Panel Kanban (Pendiente / En Proceso / Hecho) (conectado a API)
+│   ├── landing-page.jsx              # Landing pública + login
 │   └── ui/                           # 57 componentes shadcn/ui (button, dialog, table, etc.)
 │
 ├── hooks/
@@ -80,8 +82,8 @@ LaCarolina/
 │   └── use-toast.ts                  # Hook sistema de notificaciones
 │
 ├── lib/
-│   ├── store.js                      # ⚠️ Store in-memory con localStorage (FRONTEND ACTUAL)
-│   │                                 #    El frontend TODAVÍA usa esto. Próximo paso: reemplazar por fetch a /api/*
+│   ├── api.js                        # Cliente API: funciones fetch wrapper + constantes del negocio
+│   ├── store.js                      # ⚠️ DEPRECADO - Store in-memory con localStorage (ya no se usa)
 │   ├── utils.ts                      # cn() helper (clsx + tailwind-merge)
 │   └── models/                       # Modelos Sequelize (PostgreSQL)
 │       ├── index.js                  # Conexión BD: new Sequelize(process.env.DATABASE_URL)
@@ -99,7 +101,7 @@ LaCarolina/
 │       └── lead_status_history.js    # Tabla: lead_status_history
 │
 ├── public/images/                    # Assets estáticos (logos, fotos salón)
-├── .env                              # DATABASE_URL=postgres://postgres:***@localhost:5432/laCarolina
+├── .env                              # DATABASE_URL (no commitear, ver Setup)
 ├── .gitignore                        # node_modules, .next, .env*.local, .DS_Store, .claude
 ├── package.json
 ├── pnpm-lock.yaml
@@ -108,6 +110,64 @@ LaCarolina/
 ├── tsconfig.json                     # paths: @/* → ./*
 └── components.json                   # Config shadcn/ui
 ```
+
+---
+
+## Flujo de Datos (Arquitectura Actual)
+
+```
+FRONTEND (components/*.jsx)
+    │
+    │  import { fetchLeads, apiCreateLead, ... } from "@/lib/api"
+    │
+    └──→ lib/api.js (cliente fetch)
+              │
+              │  fetch('/api/leads', { method: 'POST', body: ... })
+              │
+              └──→ API Routes (app/api/*)
+                        │
+                        │  const { Lead } = require('@/lib/models/associations')
+                        │  await Lead.findAll(...)
+                        │
+                        └──→ Sequelize Models (lib/models/*)
+                                  │
+                                  └──→ PostgreSQL (base de datos)
+```
+
+### lib/api.js - Cliente API del Frontend
+
+Archivo central que reemplaza a `lib/store.js`. Contiene:
+
+1. **request()** - Wrapper de fetch con error handling
+2. **Funciones async** para cada endpoint (fetchLeads, apiCreateLead, etc.)
+3. **Constantes del negocio** (LEAD_STATES, CANALES, etc.)
+
+```
+Funciones exportadas:
+├── Leads: fetchLeads, fetchLeadById, apiCreateLead, apiUpdateLead, apiDeleteLead, apiChangeLeadStatus
+├── Interactions: fetchInteractionsByLead, apiCreateInteraction
+├── Visits: fetchVisitsByLead, apiCreateVisit
+├── Proposals: fetchProposalsByLead, fetchAllProposals, apiCreateProposal, apiUpdateProposal
+├── Calendar: fetchCalendarDates, apiSetCalendarDate, apiRemoveCalendarDate
+├── Reservations: fetchReservations, apiCreateReservation, apiUpdateReservation
+├── Events: fetchEvents, apiCreateEvent, apiUpdateEvent
+├── Tasks: fetchTasks, apiCreateTask, apiUpdateTask, apiDeleteTask
+├── Users: fetchUsers
+└── Constantes: LEAD_STATES, CALENDAR_STATES, CANALES, TIPOS_EVENTO, TASK_STATES, TASK_PRIORITIES
+```
+
+### Patrón de migración frontend (store → API)
+
+Todos los componentes siguen este patrón:
+
+| Antes (store.js)                                | Después (api.js)                                      |
+|--------------------------------------------------|-------------------------------------------------------|
+| `import { getLeads } from "@/lib/store"`         | `import { fetchLeads } from "@/lib/api"`              |
+| `useMemo(() => getLeads(), [refreshKey])`        | `useState([]) + useEffect(() => loadData(), [])`      |
+| `function handleCreate(d) { createLead(d) }`     | `async function handleCreate(d) { await apiCreateLead(d) }` |
+| `refresh()` (incrementa refreshKey)              | `await loadData()` (re-fetch desde API)               |
+| Sin loading state                                | `useState(true)` → muestra "Cargando..."              |
+| Datos planos (IDs sueltos)                       | Includes del API (task.lead?.nombre, p.lead?.nombre)  |
 
 ---
 
@@ -139,7 +199,7 @@ LaCarolina/
 | estado_actual      | STRING  |                    |
 | valor_estimado     | FLOAT   |                    |
 | notas              | TEXT    |                    |
-| managed_by_user_id | UUID    | FK → users (auto por asociación) |
+| managed_by_user_id | UUID    | FK → users         |
 | created_at         | DATE    | default: NOW       |
 | updated_at         | DATE    | default: NOW       |
 
@@ -211,7 +271,7 @@ LaCarolina/
 | servicios_contratados | JSON    | (array de servicios)   |
 | estado_operativo      | STRING  | (Pendiente, En preparación, Listo, Realizado) |
 | contrato_url          | STRING  |                        |
-| calendar_date_id      | UUID    | FK → calendar_dates (auto por asociación) |
+| calendar_date_id      | UUID    | FK → calendar_dates    |
 | created_at            | DATE    | default: NOW           |
 
 ### tasks
@@ -294,7 +354,7 @@ LeadStatusHistory ──┬── belongsTo ──→ Lead (lead_id)
 
 ## Constantes del Negocio
 
-Definidas en `lib/store.js` (usadas por el frontend):
+Definidas en `lib/api.js` (exportadas y usadas por todos los componentes frontend):
 
 ```js
 LEAD_STATES = [
@@ -343,10 +403,11 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
 12. **GET /api/tasks**: Incluye relaciones (lead, event, assigned_user).
 13. **GET /api/reservations**: Incluye relaciones (lead, calendar_date).
 14. **GET /api/events**: Incluye relaciones (lead, calendar_date).
+15. **Seed de usuarios** (POST /api/seed): Crea 3 usuarios demo si la tabla users está vacía. Se ejecuta automáticamente en page.jsx al cargar la app.
 
 ---
 
-## API Endpoints (17 rutas, todas en app/api/)
+## API Endpoints (18 rutas + seed, todas en app/api/)
 
 Todas las rutas importan modelos desde `@/lib/models/associations` y usan `NextResponse.json()`.
 Todas envuelven la lógica en try/catch y devuelven `{ error: message }` con status 500 en caso de error.
@@ -369,6 +430,7 @@ POST   /api/leads/:id/proposals      → Body: { contenido_html/contenido, preci
 
 ### Proposals
 ```
+GET    /api/proposals                → Todas las propuestas con includes: lead, creator. Order: created_at DESC
 PUT    /api/proposals/:id            → Body: campos a actualizar. Si estado → "Enviada" y no tenía fecha_envio, la auto-registra
 ```
 
@@ -406,85 +468,105 @@ DELETE /api/tasks/:id                → Eliminar tarea
 GET    /api/users                    → Listar todos. Campos: id, nombre, email, rol, activo (SIN password_hash). Order: nombre ASC
 ```
 
----
-
-## Flujo de Datos Actual
-
+### Seed
 ```
-FRONTEND (components/*.jsx)
-    │
-    ├── ACTUALMENTE usa ──→ lib/store.js (localStorage in-memory)
-    │                        Tiene toda la lógica de negocio duplicada
-    │
-    └── PRÓXIMO PASO ──→ fetch('/api/*') ──→ API Routes (app/api/*)
-                                                  │
-                                                  └──→ Sequelize Models (lib/models/*)
-                                                            │
-                                                            └──→ PostgreSQL (laCarolina)
+POST   /api/seed                     → Crea 3 usuarios demo si la tabla está vacía (Carolina/Admin, Maria/Comercial, Luis/Operaciones). Retorna { seeded: true/false }
 ```
-
-### Para conectar frontend a API (próximo paso):
-1. Crear `lib/api.js` con funciones wrapper para cada endpoint (fetch + error handling)
-2. Reemplazar imports de `store.js` en cada componente por calls a `lib/api.js`
-3. Los componentes que usan `store.js`:
-   - `app/page.jsx` → usa `seedDemoData`, `getUsers` (login demo)
-   - `components/leads-view.jsx` → usa CRUD de leads, interactions, visits, proposals, status
-   - `components/calendar-view.jsx` → usa calendar dates
-   - `components/proposals-view.jsx` → usa proposals
-   - `components/tasks-view.jsx` → usa tasks
-   - `components/dashboard-view.jsx` → usa leads, tasks, events (métricas)
 
 ---
 
 ## Vistas del Frontend
 
-| Vista           | Componente           | Descripción                                      |
-|-----------------|----------------------|--------------------------------------------------|
-| Landing/Login   | landing-page.jsx     | Página pública + login (selección de usuario demo)|
-| Dashboard       | dashboard-view.jsx   | Métricas: leads por estado, pipeline, gráficos recharts |
-| Leads           | leads-view.jsx       | CRUD completo, detalle con tabs (interacciones, visitas, propuestas, historial) |
-| Calendario      | calendar-view.jsx    | Gestión de fechas, estados, bloqueos             |
-| Propuestas      | proposals-view.jsx   | Listado/gestión de propuestas comerciales        |
-| Tareas          | tasks-view.jsx       | Panel Kanban (Pendiente/En Proceso/Hecho)        |
+| Vista           | Componente           | Fuente de datos          | Descripción                                      |
+|-----------------|----------------------|--------------------------|--------------------------------------------------|
+| Landing/Login   | landing-page.jsx     | localStorage             | Página pública + login con email/password        |
+| Dashboard       | dashboard-view.jsx   | 5 fetches en paralelo    | Métricas: leads por estado, pipeline, gráficos recharts |
+| Leads           | leads-view.jsx       | fetchLeads + fetchLeadById | CRUD completo + detalle slideout con tabs (timeline, interacciones, propuestas) |
+| Calendario      | calendar-view.jsx    | fetchCalendarDates       | Gestión de fechas, estados, bloqueos por día     |
+| Propuestas      | proposals-view.jsx   | fetchAllProposals        | Grid de propuestas con acciones (enviar, aceptar, rechazar) |
+| Tareas          | tasks-view.jsx       | fetchTasks               | Panel Kanban 4 columnas (Pendiente/En Proceso/Hecho/Cancelado) |
+
+### Detalle de cada componente migrado
+
+**leads-view.jsx** (componente más complejo)
+- `LeadsView`: Carga leads con `fetchLeads()`, filtra client-side (search, año, estado, canal)
+- `LeadDetail`: Carga lead completo con `fetchLeadById(id)` que trae todas las asociaciones incluidas
+- `LeadForm`: Formulario de crear/editar con normalización de fechas ISO → YYYY-MM-DD
+- Vista tabla y vista Kanban por estado
+- Handlers async: handleCreate, handleUpdate, handleDelete, handleStatusChange, handleAddInteraction
+
+**tasks-view.jsx**
+- Carga en paralelo: `fetchTasks()`, `fetchLeads()`, `fetchUsers()`
+- Usa asociaciones incluidas del API: `task.lead?.nombre`, `task.assigned_user?.nombre`
+- Filtros: por estado y por usuario asignado
+- Vista Kanban con 4 columnas por TASK_STATES
+- Toggle estado cíclico: Pendiente → En Proceso → Hecho → Pendiente
+- Normalización de dates: `task.due_date.substring(0, 10)` para manejar ISO strings
+
+**calendar-view.jsx**
+- Carga: `fetchCalendarDates()` + `fetchLeads()` en paralelo
+- Convierte array de fechas a mapa `{ "YYYY-MM-DD": calendarDate }` con useMemo
+- `DateFormModal`: Crear/editar/liberar fechas con `apiSetCalendarDate`/`apiRemoveCalendarDate`
+- Errores del API (409 conflict) se muestran inline
+
+**proposals-view.jsx**
+- Carga: `fetchAllProposals()` + `fetchLeads()` en paralelo
+- GET /api/proposals incluye lead y creator → usa `p.lead?.nombre` directo
+- `apiCreateProposal(leadId, data)` - leadId va como path param
+- Acciones por estado: Borrador→Enviar, Enviada→Aceptar/Rechazar
+
+**dashboard-view.jsx**
+- Carga 5 endpoints en paralelo con `Promise.all()`: leads, calendar, tasks, events, proposals
+- Computa estadísticas client-side: pipeline, canales, conversion rate, tareas vencidas
+- Gráficos recharts: BarChart (pipeline) + PieChart (canales)
 
 ### Navegación
 - **Desktop**: Sidebar colapsable a la izquierda (app-sidebar.jsx)
 - **Mobile**: Hamburger menu con overlay
 - **Entry point**: `app/page.jsx` → si no hay user → LandingPage, si hay → App con sidebar
 
-### Seed Data (store.js → seedDemoData)
-- 3 usuarios demo: Carolina (Admin), Maria (Comercial), Luis (Operaciones)
-- 8 leads demo con diferentes estados
-- Interacciones, propuestas, tareas y fechas de calendario de ejemplo
+### Login y Sesión
+- `page.jsx` → useEffect: lee user de localStorage, llama POST /api/seed para crear usuarios demo
+- `landing-page.jsx` → form email/password → `onLogin({ name, email })` → guarda en localStorage
+- Sin autenticación real (pendiente JWT/sessions)
+
+### Seed de Usuarios Demo
+Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
+- Si la tabla `users` está vacía, crea 3 usuarios:
+  - Carolina (Admin)
+  - Maria (Comercial)
+  - Luis (Operaciones)
+- Si ya hay usuarios, no hace nada (idempotente)
 
 ---
 
 ## Estado Actual del Proyecto
 
 ### Hecho
-- [x] Landing page con login demo
+- [x] Landing page con login
 - [x] Todas las vistas del frontend (Dashboard, Leads, Calendar, Proposals, Tasks)
 - [x] Componentes UI completos (57 shadcn/ui)
-- [x] Store in-memory con localStorage (lib/store.js) con toda la lógica de negocio
-- [x] Seed data para demo (8 leads, interacciones, propuestas, tareas, calendario)
 - [x] Modelos Sequelize definidos (10 tablas) con UUID
 - [x] Asociaciones entre modelos definidas (associations.js)
 - [x] Base de datos PostgreSQL creada con tablas sincronizadas
-- [x] **17 API Routes creadas** (app/api/) - CRUD real contra PostgreSQL
+- [x] **18 API Routes creadas** (app/api/) - CRUD real contra PostgreSQL
 - [x] Reglas de negocio implementadas en las API routes
-- [x] Build exitoso (next build compila todas las rutas)
-- [x] API probada: POST /api/leads crea lead real con UUID en PostgreSQL
+- [x] **lib/api.js creado** - Cliente fetch wrapper con todas las funciones + constantes
+- [x] **5 componentes migrados** de store.js a API (leads, tasks, calendar, proposals, dashboard)
+- [x] **page.jsx migrado** - Sin dependencia de store.js, seed via API
+- [x] **Endpoint seed** (POST /api/seed) para crear usuarios demo
+- [x] Build exitoso (next build compila 18 rutas API + seed + página estática)
 - [x] next.config.mjs configurado con serverExternalPackages
 - [x] pg-hstore instalado (dependencia de Sequelize para PostgreSQL)
 
 ### Pendiente (próximos pasos)
-- [ ] **Crear lib/api.js** → funciones fetch wrapper para cada endpoint
-- [ ] **Conectar frontend a API** → reemplazar store.js por fetch en cada componente
-- [ ] **Seed de usuarios** en PostgreSQL (los 3 usuarios demo: Carolina, Maria, Luis)
-- [ ] Autenticación real (JWT o NextAuth)
+- [ ] Autenticación real (JWT o NextAuth) - reemplazar login demo por auth server-side
+- [ ] Pasar user_id real al cambiar estado de lead (actualmente pasa null)
 - [ ] Migraciones de BD (actualmente usa sequelize.sync({ alter: true }))
-- [ ] Validaciones server-side con Zod
-- [ ] Tests
+- [ ] Validaciones server-side con Zod en las API routes
+- [ ] Tests (unit + integration)
+- [ ] Eliminar `lib/store.js` (ya no se usa, pero queda como referencia)
+- [ ] Hash real de passwords (actualmente se guardan en texto plano)
 
 ---
 
@@ -497,11 +579,11 @@ cd LaCarolina
 pnpm install
 
 # 2. Configurar .env
-# Crear archivo .env con:
-DATABASE_URL=postgres://usuario:password@localhost:5432/laCarolina
+# Crear archivo .env en la raíz con:
+# DATABASE_URL=postgres://usuario:password@localhost:5432/nombre_db
 
 # 3. Crear la base de datos en PostgreSQL
-psql -U postgres -c "CREATE DATABASE \"laCarolina\";"
+# psql -U postgres -c "CREATE DATABASE \"nombre_db\";"
 
 # 4. Sincronizar modelos (crea las tablas automáticamente)
 node -e "const { initModels } = require('./lib/models/init'); initModels();"
@@ -509,6 +591,7 @@ node -e "const { initModels } = require('./lib/models/init'); initModels();"
 # 5. Iniciar dev server
 pnpm dev
 # Abre http://localhost:3000
+# Los usuarios demo se crean automáticamente al cargar la app
 ```
 
 ---
@@ -526,6 +609,28 @@ pnpm dev
 | chore    | Tareas de mantenimiento              | chore: actualizar dependencias                |
 | test     | Tests                                | test: agregar tests para API de leads         |
 | build    | Cambios de build/deploy              | build: configurar variables de Vercel         |
+
+---
+
+## Notas Técnicas
+
+### Interop CommonJS/ESM
+- Los modelos Sequelize usan CommonJS (`require`/`module.exports`) porque Sequelize no soporta ESM nativo
+- Las API routes usan ESM (`import`/`export`) como requiere Next.js App Router
+- El interop funciona via `const { Model } = require('@/lib/models/associations')` dentro de archivos ESM
+- Next.js resuelve esto con webpack/turbopack automáticamente
+
+### Manejo de Fechas
+- PostgreSQL `DATE` → Sequelize retorna ISO strings ("2025-06-15T00:00:00.000Z")
+- Los inputs HTML `type="date"` esperan "YYYY-MM-DD"
+- LeadForm normaliza: `initial.fecha_tentativa.substring(0, 10)`
+- Tasks normaliza: `task.due_date.substring(0, 10)` para display y comparación
+- Calendar usa fechas en formato "YYYY-MM-DD" consistentemente
+
+### Modelos con timestamps: false
+- Todos los modelos tienen `timestamps: false` en Sequelize
+- Los campos `created_at` y `updated_at` se manejan manualmente con `defaultValue: DataTypes.NOW`
+- Esto evita que Sequelize auto-genere `createdAt`/`updatedAt` con camelCase
 
 ---
 
