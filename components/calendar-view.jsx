@@ -266,15 +266,27 @@ function DateFormModal({ date, existing, leads, tentativeLeads = [], onClose, on
     }
   }
 
-  async function handleRemove() {
-    try {
-      await apiRemoveCalendarDate(date)
-      toast.success("Fecha liberada")
-      onSave()
-    } catch (err) {
-      setError(err.message)
-      toast.error("Error al liberar fecha")
-    }
+  function handleRemove() {
+    toast('¿Seguro que quieres liberar/eliminar esta fecha?', {
+      description: existing?.lead_id ? 'Se eliminará la fecha y su asociación con el lead' : 'Se eliminará la fecha del calendario',
+      action: {
+        label: 'Sí, eliminar',
+        onClick: async () => {
+          try {
+            await apiRemoveCalendarDate(date)
+            toast.success("Fecha liberada")
+            onSave()
+          } catch (err) {
+            setError(err.message)
+            toast.error("Error al liberar fecha")
+          }
+        },
+      },
+      cancel: {
+        label: 'Cancelar',
+      },
+      duration: 10000,
+    })
   }
 
   function handleSelectTentative(lead) {
