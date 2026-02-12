@@ -6,14 +6,20 @@ export async function DELETE(request, { params }) {
   try {
     const { fecha } = await params;
 
-    const deleted = await CalendarDate.destroy({
-      where: { fecha },
-    });
+    // Buscar por fecha exacta o por substring (por si hay timestamp)
+    let record = await CalendarDate.findOne({ where: { fecha } });
 
-    if (!deleted) {
+    if (!record) {
+      // Fallback: buscar todas y comparar por substring YYYY-MM-DD
+      const all = await CalendarDate.findAll();
+      record = all.find(d => d.fecha && d.fecha.toString().substring(0, 10) === fecha);
+    }
+
+    if (!record) {
       return NextResponse.json({ error: 'Fecha no encontrada' }, { status: 404 });
     }
 
+    await record.destroy();
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
