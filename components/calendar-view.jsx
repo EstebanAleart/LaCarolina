@@ -7,6 +7,7 @@ import {
   X,
   Plus,
 } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
   fetchCalendarDates,
@@ -257,18 +258,22 @@ function DateFormModal({ date, existing, leads, tentativeLeads = [], onClose, on
         nota,
         fuente: "CRM",
       })
+      toast.success(`Fecha ${existing ? "actualizada" : "guardada"} como ${estado}`)
       onSave()
     } catch (err) {
       setError(err.message)
+      toast.error("Error al guardar fecha")
     }
   }
 
   async function handleRemove() {
     try {
       await apiRemoveCalendarDate(date)
+      toast.success("Fecha liberada")
       onSave()
     } catch (err) {
       setError(err.message)
+      toast.error("Error al liberar fecha")
     }
   }
 

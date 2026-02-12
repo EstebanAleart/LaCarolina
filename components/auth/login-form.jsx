@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { toast } from "sonner"
 import { Eye, EyeOff } from "lucide-react"
 
 export default function LoginForm({ onLogin, onSwitchToRegister, onBack }) {
@@ -25,12 +26,11 @@ export default function LoginForm({ onLogin, onSwitchToRegister, onBack }) {
     const data = await res.json()
 
     if (!res.ok) {
-      // Si es cuenta pendiente, mostrar vista especial
       if (data.pending) {
-        // Aquí podrías redirigir a la vista de pending
-        // Por ahora solo mostramos el error
+        toast.warning("Cuenta pendiente de aprobacion")
         setError(data.error || "Cuenta pendiente de aprobación")
       } else {
+        toast.error(data.error || "Error al iniciar sesión")
         setError(data.error || "Error al iniciar sesión")
       }
       setLoading(false)
@@ -38,9 +38,11 @@ export default function LoginForm({ onLogin, onSwitchToRegister, onBack }) {
     }
 
     if (data.success && data.user) {
+      toast.success(`Bienvenido, ${data.user.nombre}`)
       onLogin(data.user)
     }
   } catch (err) {
+    toast.error("Error de conexion")
     setError("Error de conexión. Intenta de nuevo.")
     setLoading(false)
   }
