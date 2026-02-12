@@ -32,10 +32,11 @@ Pensado para salones de eventos que necesitan trazabilidad completa: desde el pr
 - `cmdk` → Command palette
 - `sonner` → Toasts/notificaciones
 - `next-themes` → Dark mode
+- `googleapis` → Google Calendar API (service account JWT)
 
 ### Config Next.js (next.config.mjs)
 ```js
-serverExternalPackages: ['sequelize', 'pg', 'pg-hstore']
+serverExternalPackages: ['sequelize', 'pg', 'pg-hstore', 'googleapis']
 // Necesario para que Turbopack no intente bundlear estos paquetes nativos
 ```
 
@@ -66,6 +67,10 @@ LaCarolina/
 │       ├── events/[id]/route.js      # PUT
 │       ├── tasks/route.js            # GET (con includes), POST
 │       ├── tasks/[id]/route.js       # PUT, DELETE
+│       ├── google-calendar/route.js          # GET (test conexion Google Calendar)
+│       ├── google-calendar/webhook/route.js  # POST (receptor push notifications)
+│       ├── google-calendar/setup/route.js    # POST/DELETE (registrar/detener webhook)
+│       ├── google-calendar/sync/route.js     # POST (sync manual/completo)
 │       ├── auth/login/route.js        # POST (login con bcrypt)
 │       ├── auth/register/route.js    # POST (registro con hash, activo=false)
 │       ├── users/route.js            # GET (sin password_hash)
@@ -93,6 +98,7 @@ LaCarolina/
 ├── lib/
 │   ├── api.js                        # Cliente API: funciones fetch wrapper + constantes del negocio
 │   ├── db.js                         # Exporta sequelize + todos los modelos (entry point backend)
+│   ├── googleCalendar.js             # Servicio Google Calendar (JWT auth, CRUD eventos, webhooks)
 │   ├── store.js                      # ⚠️ DEPRECADO - Store in-memory con localStorage (ya no se usa)
 │   ├── utils.ts                      # cn() helper (clsx + tailwind-merge)
 │   └── models/                       # Modelos Sequelize (PostgreSQL)
@@ -248,16 +254,17 @@ Todos los componentes siguen este patrón:
 | created_at         | DATE    | default: NOW|
 
 ### calendar_dates
-| Campo        | Tipo   | Restricción       |
-|--------------|--------|-------------------|
-| id           | UUID   | PK, auto          |
-| fecha        | DATE   | NOT NULL, UNIQUE   |
-| estado_fecha | STRING | (Disponible, Bloqueada, Reservada, Confirmada) |
-| fuente       | STRING |                    |
-| lead_id      | UUID   | FK → leads (nullable) |
-| evento_id    | UUID   | FK → events (nullable)|
-| nota         | TEXT   |                    |
-| created_at   | DATE   | default: NOW       |
+| Campo           | Tipo   | Restricción       |
+|-----------------|--------|-------------------|
+| id              | UUID   | PK, auto          |
+| fecha           | DATE   | NOT NULL, UNIQUE   |
+| estado_fecha    | STRING | (Disponible, Bloqueada, Reservada, Confirmada) |
+| fuente          | STRING |                    |
+| lead_id         | UUID   | FK → leads (nullable) |
+| evento_id       | UUID   | FK → events (nullable)|
+| nota            | TEXT   |                    |
+| google_event_id | STRING | ID del evento en Google Calendar (nullable) |
+| created_at      | DATE   | default: NOW       |
 
 ### reservations
 | Campo            | Tipo   | Restricción            |
@@ -427,10 +434,13 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
 16. **Registro** (POST /api/auth/register): Hash con bcrypt (salt 10), `activo: false` por defecto. Email único (409).
 17. **Login** (POST /api/auth/login): Compara password con bcrypt. Rechaza si `activo: false` (403). Retorna user sin password_hash.
 18. **Calendario tentativas**: Los leads con `fecha_tentativa` se muestran automáticamente en el calendario como marcadores purple. Al seleccionar un lead tentativo desde el modal, se sugiere estado "Reservada" y se pre-asocia el lead.
+19. **Google Calendar Sync (App → Google)**: Al crear/actualizar CalendarDate con estado Reservada/Confirmada → crea/actualiza evento en Google Calendar. Al liberar/eliminar → elimina de Google Calendar. Fallo de Google no rompe la operación local.
+20. **Google Calendar Sync (Google → App)**: Webhook recibe push notifications. Evento creado en Google sin carolinaId → crea CalendarDate "Bloqueada". Evento eliminado → libera CalendarDate. Evento movido → actualiza fecha.
+21. **Google Calendar colores**: Reservada=azul(9), Confirmada=verde(10), Bloqueada=amarillo(5). Eventos con lead muestran nombre+tipo_evento como summary.
 
 ---
 
-## API Endpoints (20 rutas + seed, todas en app/api/)
+## API Endpoints (25 rutas + seed, todas en app/api/)
 
 Todas las rutas importan modelos desde `@/lib/models/associations` y usan `NextResponse.json()`.
 Todas envuelven la lógica en try/catch y devuelven `{ error: message }` con status 500 en caso de error.
@@ -484,6 +494,15 @@ GET    /api/tasks                    → Todas con includes: lead, event, assign
 POST   /api/tasks                    → Body: { titulo, descripcion?, lead_id?, evento_id?, assigned_to_user_id?, prioridad?, due_date? }. Estado: "Pendiente"
 PUT    /api/tasks/:id                → Body: campos a actualizar
 DELETE /api/tasks/:id                → Eliminar tarea
+```
+
+### Google Calendar
+```
+GET    /api/google-calendar          → Test de conexión. Retorna ok + últimos eventos
+POST   /api/google-calendar/webhook  → Receptor de push notifications de Google. Procesa cambios: crear/actualizar/eliminar CalendarDate
+POST   /api/google-calendar/setup    → Registrar webhook. Body: { baseUrl? }. Retorna channelId, resourceId, expiration
+DELETE /api/google-calendar/setup    → Detener webhook. Body: { channelId, resourceId }
+POST   /api/google-calendar/sync     → Sync manual/completo. Compara eventos Google ↔ CalendarDates en DB. Crea, linkea y limpia según diferencias
 ```
 
 ### Users
@@ -597,7 +616,7 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
 - [x] Modelos Sequelize definidos (10 tablas) con UUID
 - [x] Asociaciones entre modelos definidas (associations.js)
 - [x] Base de datos PostgreSQL creada con tablas sincronizadas
-- [x] **20 API Routes creadas** (app/api/) - CRUD real contra PostgreSQL (incluye auth/login y auth/register)
+- [x] **25 API Routes creadas** (app/api/) - CRUD real contra PostgreSQL (incluye auth, Google Calendar)
 - [x] Reglas de negocio implementadas en las API routes
 - [x] **lib/api.js creado** - Cliente fetch wrapper con todas las funciones + constantes
 - [x] **lib/db.js creado** - Entry point backend que exporta sequelize + todos los modelos
@@ -625,6 +644,13 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
 - [x] **Sidebar actualizado** - nueva entrada "Eventos" con icono Sparkles
 - [x] **Auto-sync Propuestas ↔ Lead status** - Reserva/Confirmado → propuesta "Aceptada", Perdido → propuesta "Rechazada"
 - [x] **Guía de usuario** (GUIA_USUARIO.md) - documentación completa para usuarios finales
+- [x] **Guía integrada en la plataforma** (guide-view.jsx) - accesible desde el sidebar "Guía"
+- [x] **Google Calendar bidireccional** - sync con Google Calendar via service account (JWT)
+  - `lib/googleCalendar.js` - servicio central (auth, CRUD eventos, webhooks)
+  - App → Google: crear/actualizar/eliminar eventos al reservar/confirmar/liberar fechas
+  - Google → App: webhook receptor + sync manual para cambios externos
+  - Colores por estado: Reservada=azul, Confirmada=verde, Bloqueada=amarillo
+  - `google_event_id` en CalendarDate para trackeo bidireccional
 
 ### Pendiente (próximos pasos)
 - [ ] **Optimistic Result + Redux** (refactor plataforma) - patrón optimistic UI con Redux global state para respuesta instantánea en toda la app (si falla la petición se revierte)
@@ -651,6 +677,9 @@ pnpm install
 # DATABASE_URL=postgresql://usuario:password@host:puerto/db?sslmode=require
 # NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
 # NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+# GOOGLE_CALENDAR_ID=xxx@group.calendar.google.com
+# GOOGLE_SERVICE_ACCOUNT_EMAIL=xxx@proyecto.iam.gserviceaccount.com
+# GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 
 # 3. Sincronizar modelos (crea las tablas automáticamente)
 node -e "const { initModels } = require('./lib/models/init'); initModels();"
@@ -662,7 +691,7 @@ pnpm dev
 ```
 
 ### Deploy en Vercel
-- Las env vars (DATABASE_URL, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY) se configuran en Vercel > Settings > Environment Variables
+- Las env vars (DATABASE_URL, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, GOOGLE_CALENDAR_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY) se configuran en Vercel > Settings > Environment Variables
 - `.npmrc` con `node-linker=hoisted` es OBLIGATORIO para que pnpm funcione en Vercel (elimina symlinks)
 - `serverExternalPackages` + `outputFileTracingIncludes` + `require('pg')` explícito aseguran que pg se incluya en las funciones serverless
 - `lib/models/index.js` usa URL placeholder (`postgres://build:build@localhost:5432/build`) durante build para que Sequelize no crashee sin DATABASE_URL
@@ -714,6 +743,15 @@ pnpm dev
   - `toast.warning("Motivo obligatorio")` → validación / advertencia
   - `toast("Mensaje", { action: { label: "Confirmar", onClick: fn }, cancel: { label: "Cancelar" } })` → reemplaza `confirm()` nativo
 - **Todos los componentes** (leads, calendar, tasks, proposals, auth) ya usan Sonner
+
+### Google Calendar (Service Account)
+- Usa JWT auth con service account (no OAuth del usuario)
+- `lib/googleCalendar.js` encapsula toda la interacción con Google Calendar API v3
+- `google.auth.JWT` usa constructor con objeto `{email, key, scopes}` (NO parámetros posicionales)
+- Next.js `.env.local` convierte `\n` en double-quoted strings a newlines reales, por lo que la private key se parsea condicionalmente: `key.includes('\\n') ? key.replace(/\\n/g, '\n') : key`
+- Import resiliente con try/catch: si `googleapis` falla, las rutas siguen funcionando sin sync
+- Webhooks de Google expiran cada ~30 días, necesitan renovación via `POST /api/google-calendar/setup`
+- Colores: Reservada=9(azul), Confirmada=10(verde), Bloqueada=5(amarillo)
 
 ### Conexión a Supabase
 - `lib/models/index.js` detecta Supabase automáticamente por el dominio en DATABASE_URL

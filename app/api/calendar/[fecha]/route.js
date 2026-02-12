@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 const { CalendarDate } = require('@/lib/models/associations');
-const { deleteGoogleEvent } = require('@/lib/googleCalendar');
+let deleteGoogleEvent;
+try {
+  deleteGoogleEvent = require('@/lib/googleCalendar').deleteGoogleEvent;
+} catch (e) {
+  deleteGoogleEvent = async () => {};
+}
 
 // DELETE /api/calendar/:fecha - Liberar/eliminar una fecha
 export async function DELETE(request, { params }) {
