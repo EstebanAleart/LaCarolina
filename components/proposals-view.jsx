@@ -9,6 +9,7 @@ import {
   XCircle,
   FileText,
 } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
   fetchAllProposals,
@@ -56,14 +57,16 @@ export default function ProposalsView() {
       await apiCreateProposal(data.lead_id, data)
       setShowForm(false)
       await loadData()
-    } catch (err) { console.error(err) }
+      toast.success("Propuesta creada")
+    } catch (err) { console.error(err); toast.error("Error al crear propuesta") }
   }
 
   async function handleStatusUpdate(id, newStatus) {
     try {
       await apiUpdateProposal(id, { estado: newStatus })
       await loadData()
-    } catch (err) { console.error(err) }
+      toast.success(`Propuesta marcada como ${newStatus}`)
+    } catch (err) { console.error(err); toast.error("Error al actualizar propuesta") }
   }
 
   if (loading) {
