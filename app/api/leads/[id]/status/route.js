@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-const { Lead, LeadStatusHistory, Task } = require('@/lib/models/associations');
+const { Lead, LeadStatusHistory, Task, Proposal } = require('@/lib/models/associations');
 
 // PUT /api/leads/:id/status - Cambiar estado del lead con historial
 export async function PUT(request, { params }) {
@@ -51,6 +51,30 @@ export async function PUT(request, { params }) {
         prioridad: 'Alta',
         due_date: dueDate,
       });
+    }
+
+    // Auto-actualizar última propuesta según nuevo estado del lead
+    if (estado === 'Reserva tomada' || estado === 'Evento confirmado') {
+      const lastProposal = await Proposal.findOne({
+        where: { lead_id: id },
+        order: [['created_at', 'DESC']],
+      });
+      if (lastProposal && lastProposal.estado !== 'Aceptada') {
+        await lastProposal.update({
+          estado: 'Aceptada',
+          fecha_envio: lastProposal.fecha_envio || new Date(),
+        });
+      }
+    }
+
+    if (estado === 'Perdido') {
+      const lastProposal = await Proposal.findOne({
+        where: { lead_id: id },
+        order: [['created_at', 'DESC']],
+      });
+      if (lastProposal && lastProposal.estado !== 'Rechazada' && lastProposal.estado !== 'Aceptada') {
+        await lastProposal.update({ estado: 'Rechazada' });
+      }
     }
 
     return NextResponse.json(lead);

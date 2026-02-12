@@ -17,6 +17,7 @@ import {
   Clock,
   FileText,
 } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
   fetchLeads,
@@ -165,7 +166,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
   async function handleStatusChange() {
     if (!selectedStatus) return
     if (selectedStatus === "Perdido" && !lostMotivo.trim()) {
-      alert("Motivo obligatorio para marcar como Perdido")
+      toast.warning("Motivo obligatorio para marcar como Perdido")
       return
     }
     try {
@@ -175,7 +176,8 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
       setLostMotivo("")
       await loadDetail()
       onRefresh()
-    } catch (err) { console.error(err) }
+      toast.success(`Estado cambiado a "${selectedStatus}"`)
+    } catch (err) { console.error(err); toast.error("Error al cambiar estado") }
   }
 
   async function handleAddInteraction(e) {
@@ -186,7 +188,8 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
       setIntForm({ tipo: "WhatsApp", descripcion: "" })
       await loadDetail()
       onRefresh()
-    } catch (err) { console.error(err) }
+      toast.success("Interaccion registrada")
+    } catch (err) { console.error(err); toast.error("Error al registrar interaccion") }
   }
 
   const timeline = useMemo(() => {
@@ -468,7 +471,8 @@ export default function LeadsView() {
       await apiCreateLead(formData)
       setShowForm(false)
       await loadLeads()
-    } catch (err) { console.error(err) }
+      toast.success("Lead creado exitosamente")
+    } catch (err) { console.error(err); toast.error("Error al crear lead") }
   }
 
   async function handleUpdate(formData) {
@@ -477,18 +481,26 @@ export default function LeadsView() {
         await apiUpdateLead(editLead.id, formData)
         setEditLead(null)
         await loadLeads()
-      } catch (err) { console.error(err) }
+        toast.success("Lead actualizado")
+      } catch (err) { console.error(err); toast.error("Error al actualizar lead") }
     }
   }
 
   async function handleDelete(id) {
-    if (confirm("Eliminar este lead y toda su informacion asociada?")) {
-      try {
-        await apiDeleteLead(id)
-        if (detailLead?.id === id) setDetailLead(null)
-        await loadLeads()
-      } catch (err) { console.error(err) }
-    }
+    toast("Eliminar este lead y toda su informacion asociada?", {
+      action: {
+        label: "Eliminar",
+        onClick: async () => {
+          try {
+            await apiDeleteLead(id)
+            if (detailLead?.id === id) setDetailLead(null)
+            await loadLeads()
+            toast.success("Lead eliminado")
+          } catch (err) { console.error(err); toast.error("Error al eliminar lead") }
+        },
+      },
+      cancel: { label: "Cancelar" },
+    })
   }
 
   const years = useMemo(() => {
@@ -556,7 +568,7 @@ export default function LeadsView() {
       {(showForm || editLead) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-foreground/20" onClick={() => { setShowForm(false); setEditLead(null) }} />
-          <div className="relative z-10 w-full max-w-lg rounded-lg border border-border bg-card p-6 shadow-lg mx-4">
+          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-card p-6 shadow-lg mx-4">
             <h3 className="text-lg font-bold text-card-foreground mb-4">
               {editLead ? "Editar Lead" : "Nuevo Lead"}
             </h3>

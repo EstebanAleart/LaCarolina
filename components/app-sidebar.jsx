@@ -9,7 +9,8 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
-  Sparkles, // Import Sparkles here
+  Sparkles,
+  BookOpen,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -18,7 +19,9 @@ const NAV_ITEMS = [
   { id: "leads", label: "CRM Leads", icon: Users },
   { id: "calendar", label: "Calendario", icon: CalendarDays },
   { id: "proposals", label: "Propuestas", icon: FileText },
+  { id: "events", label: "Eventos", icon: Sparkles },
   { id: "tasks", label: "Tareas", icon: CheckSquare },
+  { id: "guide", label: "Guia", icon: BookOpen },
 ]
 
 export default function AppSidebar({ activeView, onNavigate, collapsed, onToggle, user, onLogout }) {

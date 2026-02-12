@@ -77,6 +77,7 @@ LaCarolina/
 │   ├── leads-view.jsx                # CRUD leads + detalle con tabs (conectado a API)
 │   ├── calendar-view.jsx             # Calendario: gestión de fechas, estados (conectado a API)
 │   ├── proposals-view.jsx            # Listado/gestión de propuestas comerciales (conectado a API)
+│   ├── events-view.jsx              # Vista de eventos confirmados con estado operativo (conectado a API)
 │   ├── tasks-view.jsx                # Panel Kanban (Pendiente / En Proceso / Hecho) (conectado a API)
 │   ├── landing-page.jsx              # Landing pública + router auth views
 │   ├── auth/                         # === Componentes de autenticación ===
@@ -383,7 +384,7 @@ CALENDAR_STATES = ["Disponible", "Bloqueada", "Reservada", "Confirmada"]
 
 CANALES = ["WhatsApp", "Web", "Referido", "Instagram", "Facebook", "Telefono"]
 
-TIPOS_EVENTO = ["Boda", "15 anos", "18 anos", "Corporativo", "Baby Shower", "Cumpleanos", "Otro"]
+TIPOS_EVENTO = ["Fiesta de 15", "Egresados", "Casamiento", "Evento Corporativo", "Otro"]
 
 TASK_STATES = ["Pendiente", "En Proceso", "Hecho", "Cancelado"]
 
@@ -405,6 +406,14 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
    - Crea/actualiza CalendarDate a "Confirmada" con el `lead_id` y `evento_id`
    - Crea registro en LeadStatusHistory
    - Actualiza lead a `estado_actual: "Evento confirmado"`
+6b. **CalendarDate → Lead sync bidireccional** (POST /api/calendar): Automáticamente:
+   - Si `estado_fecha` = "Reservada" + `lead_id` → Lead pasa a `"Reserva tomada"` + limpia `fecha_tentativa` + historial + **auto-crea Reservation** si no existe
+   - Si `estado_fecha` = "Confirmada" + `lead_id` → Lead pasa a `"Evento confirmado"` + limpia `fecha_tentativa` + historial + **auto-crea Event** si no existe (con tipo_evento del lead)
+   - En ambos casos: última propuesta del lead pasa a **"Aceptada"** automáticamente
+   - Al limpiar `fecha_tentativa`, el marcador purple "Tentativa" desaparece del calendario
+6c. **Lead → Propuesta auto-sync** (PUT /api/leads/:id/status):
+   - Lead → "Reserva tomada" o "Evento confirmado" → última propuesta pasa a **"Aceptada"**
+   - Lead → "Perdido" → última propuesta pasa a **"Rechazada"** (si no estaba Aceptada)
 7. **Proposal.version**: Se auto-incrementa contando `Proposal.count({ where: { lead_id } })`.
 8. **Proposal → "Enviada"** (PUT /api/proposals/:id): Auto-registra `fecha_envio` si no tenía.
 9. **Delete Lead** (DELETE /api/leads/:id): Cascade manual → destruye en orden:
@@ -451,7 +460,7 @@ PUT    /api/proposals/:id            → Body: campos a actualizar. Si estado �
 ### Calendar
 ```
 GET    /api/calendar                 → Todas las fechas. Order: fecha ASC
-POST   /api/calendar                 → Body: { fecha, estado_fecha, fuente?, lead_id?, evento_id?, nota? }. Si fecha existe → update. Valida conflicto Reservada/Confirmada (409)
+POST   /api/calendar                 → Body: { fecha, estado_fecha, fuente?, lead_id?, evento_id?, nota? }. Si fecha existe → update. Valida conflicto Reservada/Confirmada (409). Auto-sync: si Reservada+lead → lead pasa a "Reserva tomada" + limpia fecha_tentativa. Si Confirmada+lead → lead pasa a "Evento confirmado"
 DELETE /api/calendar/:fecha          → Eliminar/liberar fecha por valor de fecha
 ```
 
@@ -504,6 +513,7 @@ POST   /api/seed                     → Crea 3 usuarios demo si la tabla está 
 | Leads           | leads-view.jsx       | fetchLeads + fetchLeadById | CRUD completo + detalle slideout con tabs (timeline, interacciones, propuestas) |
 | Calendario      | calendar-view.jsx    | fetchCalendarDates + fetchLeads | Gestión de fechas + fechas tentativas de leads (purple) |
 | Propuestas      | proposals-view.jsx   | fetchAllProposals        | Grid de propuestas con acciones (enviar, aceptar, rechazar) |
+| Eventos         | events-view.jsx      | fetchEvents              | Lista expandible de eventos confirmados con estado operativo, servicios, detalle lead |
 | Tareas          | tasks-view.jsx       | fetchTasks               | Panel Kanban 4 columnas (Pendiente/En Proceso/Hecho/Cancelado) |
 
 ### Detalle de cada componente migrado
@@ -605,8 +615,19 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
 - [x] **URL placeholder en Sequelize** para que `next build` no crashee sin DATABASE_URL
 - [x] **`.env` removido del historial git** - filter-branch + force push por seguridad
 - [x] **Toggle mostrar/ocultar password** en login y registro (icono ojo)
+- [x] **Sync bidireccional Calendar ↔ Lead** - reservar/confirmar fecha desde calendario actualiza estado del lead + limpia fecha_tentativa
+- [x] **TIPOS_EVENTO actualizados** - Fiesta de 15, Egresados, Casamiento, Evento Corporativo, Otro
+- [x] **Sonner toasts en toda la app** - reemplaza alert/confirm nativos, feedback en todas las operaciones CRUD (leads, calendar, tasks, proposals, auth)
+- [x] **Modal responsive fix** - max-h-[90vh] + overflow-y-auto en modal de crear/editar lead
+- [x] **Auto-crear Reservation** al marcar fecha como "Reservada" + lead en calendario
+- [x] **Auto-crear Event** al marcar fecha como "Confirmada" + lead en calendario (con tipo_evento del lead)
+- [x] **Vista Eventos** (events-view.jsx) - lista expandible con estado operativo, tipo, invitados, servicios, detalle lead
+- [x] **Sidebar actualizado** - nueva entrada "Eventos" con icono Sparkles
+- [x] **Auto-sync Propuestas ↔ Lead status** - Reserva/Confirmado → propuesta "Aceptada", Perdido → propuesta "Rechazada"
+- [x] **Guía de usuario** (GUIA_USUARIO.md) - documentación completa para usuarios finales
 
 ### Pendiente (próximos pasos)
+- [ ] **Optimistic Result + Redux** (refactor plataforma) - patrón optimistic UI con Redux global state para respuesta instantánea en toda la app (si falla la petición se revierte)
 - [ ] Sesiones server-side (JWT o NextAuth) - actualmente usa localStorage
 - [ ] Panel admin para activar/desactivar usuarios registrados
 - [ ] Pasar user_id real al cambiar estado de lead (actualmente pasa null)
@@ -682,6 +703,17 @@ pnpm dev
 ### Modelos con timestamps
 - Los modelos usan `timestamps: true` con `createdAt: 'created_at'` y `updatedAt: 'updated_at'`
 - Excepción: User tiene `timestamps: true` con mapeo explícito a snake_case
+
+### Notificaciones (Sonner) — CONVENCIÓN OBLIGATORIA
+- **SIEMPRE usar Sonner** (`import { toast } from "sonner"`) para feedback al usuario. NUNCA usar `alert()`, `confirm()` ni `window.prompt()`
+- `<Toaster richColors position="top-right" />` está montado globalmente en `app/layout.jsx`
+- Componente wrapper: `components/ui/sonner.tsx` (shadcn/ui con soporte de tema)
+- **Patrones de uso:**
+  - `toast.success("Lead creado exitosamente")` → operación exitosa
+  - `toast.error("Error al crear lead")` → error en catch
+  - `toast.warning("Motivo obligatorio")` → validación / advertencia
+  - `toast("Mensaje", { action: { label: "Confirmar", onClick: fn }, cancel: { label: "Cancelar" } })` → reemplaza `confirm()` nativo
+- **Todos los componentes** (leads, calendar, tasks, proposals, auth) ya usan Sonner
 
 ### Conexión a Supabase
 - `lib/models/index.js` detecta Supabase automáticamente por el dominio en DATABASE_URL

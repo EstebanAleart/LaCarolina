@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { toast } from "sonner"
 import { Check, X, Eye, EyeOff } from "lucide-react"
 
 export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, onBack }) {
@@ -68,21 +69,21 @@ export default function RegisterForm({ onRegisterSuccess, onSwitchToLogin, onBac
       const data = await res.json()
 
       if (!res.ok) {
+        toast.error(data.error || "Error al registrarse")
         setError(data.error || "Error al registrarse")
         setLoading(false)
         return
       }
 
-      
-        // Mostrar mensaje de éxito
-        setSuccess(true)
-        setLoading(false)
-        // Esperar 3 segundos y luego volver al login
-        setTimeout(() => {
-          onRegisterSuccess() // Aquí podrías redirigir a la vista de pending
-        }, 3000)
-      
+      toast.success("Cuenta creada. Pendiente de aprobacion.")
+      setSuccess(true)
+      setLoading(false)
+      setTimeout(() => {
+        onRegisterSuccess()
+      }, 3000)
+
     } catch (err) {
+      toast.error("Error de conexion")
       setError("Error de conexión. Intenta de nuevo.")
       setLoading(false)
     }
