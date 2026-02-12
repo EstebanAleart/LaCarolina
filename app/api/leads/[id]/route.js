@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
-const { Lead, Interaction, Proposal, Visit, Reservation, Event, LeadStatusHistory, Task } = require('@/lib/models/associations');
+const { Lead, Interaction, Proposal, Visit, Reservation, Event, LeadStatusHistory, Task, CalendarDate } = require('@/lib/models/associations');
+let deleteGoogleEvent;
+try {
+  deleteGoogleEvent = require('@/lib/googleCalendar').deleteGoogleEvent;
+} catch (e) {
+  deleteGoogleEvent = async () => {};
+}
 
 // GET /api/leads/:id - Detalle de un lead con todas sus relaciones
 export async function GET(request, { params }) {
@@ -67,6 +73,16 @@ export async function DELETE(request, { params }) {
     await Reservation.destroy({ where: { lead_id: id } });
     await Task.destroy({ where: { lead_id: id } });
     await Event.destroy({ where: { lead_id: id } });
+
+    // Eliminar fechas del calendario asociadas al lead + borrar de Google Calendar
+    const calDates = await CalendarDate.findAll({ where: { lead_id: id } });
+    for (const cd of calDates) {
+      if (cd.google_event_id) {
+        try { await deleteGoogleEvent(cd.google_event_id); } catch (e) { /* ignore */ }
+      }
+      await cd.destroy();
+    }
+
     await lead.destroy();
 
     return NextResponse.json({ ok: true });

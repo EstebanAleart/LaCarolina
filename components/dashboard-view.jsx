@@ -70,13 +70,14 @@ export default function DashboardView() {
   useEffect(() => {
     async function loadStats() {
       try {
-        const [leads, calendar, tasks, events, proposals] = await Promise.all([
+        const results = await Promise.allSettled([
           fetchLeads(),
           fetchCalendarDates(),
           fetchTasks(),
           fetchEvents(),
           fetchAllProposals(),
         ])
+        const [leads, calendar, tasks, events, proposals] = results.map(r => r.status === 'fulfilled' ? r.value : [])
 
         const byState = {}
         LEAD_STATES.forEach((s) => (byState[s] = 0))
