@@ -1,7 +1,18 @@
 import { NextResponse } from 'next/server';
 const { Op } = require('sequelize');
 const { CalendarDate, Lead, LeadStatusHistory, Reservation, Event, Proposal } = require('@/lib/models/associations');
-const { createGoogleEvent, updateGoogleEvent, deleteGoogleEvent } = require('@/lib/googleCalendar');
+let createGoogleEvent, updateGoogleEvent, deleteGoogleEvent;
+try {
+  const gc = require('@/lib/googleCalendar');
+  createGoogleEvent = gc.createGoogleEvent;
+  updateGoogleEvent = gc.updateGoogleEvent;
+  deleteGoogleEvent = gc.deleteGoogleEvent;
+} catch (e) {
+  console.warn('Google Calendar module not available:', e.message);
+  createGoogleEvent = async () => null;
+  updateGoogleEvent = async () => {};
+  deleteGoogleEvent = async () => {};
+}
 
 // GET /api/calendar - Todas las fechas del calendario
 export async function GET() {
