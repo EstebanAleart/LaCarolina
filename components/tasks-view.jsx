@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Trash2,
 } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
   fetchTasks,
@@ -79,7 +80,8 @@ export default function TasksView() {
       await apiCreateTask(data)
       setShowForm(false)
       await loadData()
-    } catch (err) { console.error(err) }
+      toast.success("Tarea creada")
+    } catch (err) { console.error(err); toast.error("Error al crear tarea") }
   }
 
   async function handleToggleState(task) {
@@ -94,14 +96,15 @@ export default function TasksView() {
     try {
       await apiUpdateTask(task.id, { estado: nextState })
       await loadData()
-    } catch (err) { console.error(err) }
+    } catch (err) { console.error(err); toast.error("Error al actualizar tarea") }
   }
 
   async function handleDelete(id) {
     try {
       await apiDeleteTask(id)
       await loadData()
-    } catch (err) { console.error(err) }
+      toast.success("Tarea eliminada")
+    } catch (err) { console.error(err); toast.error("Error al eliminar tarea") }
   }
 
   const grouped = useMemo(() => {
