@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 const { CalendarDate } = require('@/lib/models/associations');
+const { deleteGoogleEvent } = require('@/lib/googleCalendar');
 
 // DELETE /api/calendar/:fecha - Liberar/eliminar una fecha
 export async function DELETE(request, { params }) {
@@ -17,6 +18,11 @@ export async function DELETE(request, { params }) {
 
     if (!record) {
       return NextResponse.json({ error: 'Fecha no encontrada' }, { status: 404 });
+    }
+
+    // Sync: eliminar de Google Calendar si existe
+    if (record.google_event_id) {
+      try { await deleteGoogleEvent(record.google_event_id); } catch (e) { console.error('Google delete error:', e.message); }
     }
 
     await record.destroy();

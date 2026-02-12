@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 const { Op } = require('sequelize');
 const { CalendarDate, Lead, LeadStatusHistory, Reservation, Event, Proposal } = require('@/lib/models/associations');
+const { createGoogleEvent, updateGoogleEvent, deleteGoogleEvent } = require('@/lib/googleCalendar');
 
 // GET /api/calendar - Todas las fechas del calendario
 export async function GET() {
@@ -137,6 +138,31 @@ export async function POST(request) {
           });
         }
       }
+    }
+
+    // === Google Calendar Sync ===
+    try {
+      const syncEstado = body.estado_fecha || (existing?.estado_fecha) || 'Bloqueada';
+      const syncLeadId = body.lead_id !== undefined ? body.lead_id : (existing?.lead_id || null);
+
+      if (syncEstado === 'Reservada' || syncEstado === 'Confirmada') {
+        const syncLead = syncLeadId ? await Lead.findByPk(syncLeadId) : null;
+        if (result.google_event_id) {
+          await updateGoogleEvent(result.google_event_id, result, syncLead);
+        } else {
+          const googleId = await createGoogleEvent(result, syncLead);
+          if (googleId) {
+            await result.update({ google_event_id: googleId });
+          }
+        }
+      } else if (syncEstado === 'Disponible' || syncEstado === 'Bloqueada') {
+        if (result.google_event_id) {
+          await deleteGoogleEvent(result.google_event_id);
+          await result.update({ google_event_id: null });
+        }
+      }
+    } catch (googleErr) {
+      console.error('Google Calendar sync error:', googleErr.message);
     }
 
     return NextResponse.json(result, { status: isNew ? 201 : 200 });
