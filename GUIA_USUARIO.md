@@ -1,6 +1,7 @@
 # CarolinaOS - Guia de Usuario
 
 Sistema de gestion para salones de eventos. Desde el primer contacto hasta el evento realizado.
+> La guia tambien esta disponible dentro de la plataforma en el menu lateral → **Guia**.
 
 ---
 
