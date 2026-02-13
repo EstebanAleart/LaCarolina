@@ -39,7 +39,7 @@ export async function POST() {
     const allDates = await CalendarDate.findAll();
 
     for (const cd of allDates) {
-      const fecha = cd.fecha?.toString().substring(0, 10);
+      const fecha = new Date(cd.fecha).toISOString().substring(0, 10);
 
       if (cd.google_event_id) {
         // Tiene referencia a Google - verificar que existe
@@ -74,7 +74,7 @@ export async function POST() {
     }
 
     // 3. Eventos en Google que no existen en nuestra DB
-    const dbFechas = new Set(allDates.map(d => d.fecha?.toString().substring(0, 10)));
+    const dbFechas = new Set(allDates.map(d => new Date(d.fecha).toISOString().substring(0, 10)));
 
     for (const gEvent of googleEvents) {
       if (gEvent.status === 'cancelled') continue;
