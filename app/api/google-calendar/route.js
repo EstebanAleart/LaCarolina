@@ -1,34 +1,20 @@
 import { NextResponse } from 'next/server';
+import { getCalendar, CALENDAR_ID } from '@/lib/googleCalendar';
 
 // GET /api/google-calendar - Test de conexion
 export async function GET() {
   try {
-    const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const rawKey = process.env.GOOGLE_PRIVATE_KEY;
-    const calId = process.env.GOOGLE_CALENDAR_ID;
-
-    if (!email || !rawKey || !calId) {
-      return NextResponse.json({ ok: false, error: 'Missing env vars' }, { status: 500 });
+    if (!CALENDAR_ID) {
+      return NextResponse.json({ ok: false, error: 'Missing GOOGLE_CALENDAR_ID' }, { status: 500 });
     }
 
-    const { google } = require('googleapis');
-
-    // Next.js ya convierte \n a newlines reales en .env.local
-    // Pero por si acaso, manejar ambos casos
-    const key = rawKey.includes('\\n') ? rawKey.replace(/\\n/g, '\n') : rawKey;
-
-    const auth = new google.auth.JWT({
-      email: email,
-      key: key,
-      scopes: ['https://www.googleapis.com/auth/calendar'],
-    });
-
-    await auth.authorize();
-
-    const calendar = google.calendar({ version: 'v3', auth });
+    const calendar = getCalendar();
+    if (!calendar) {
+      return NextResponse.json({ ok: false, error: 'Google Calendar auth failed (check GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY)' }, { status: 500 });
+    }
 
     const res = await calendar.events.list({
-      calendarId: calId,
+      calendarId: CALENDAR_ID,
       timeMin: new Date().toISOString(),
       timeMax: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
       singleEvents: true,
