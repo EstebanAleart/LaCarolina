@@ -652,14 +652,15 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
 - [x] **Guía de usuario** (GUIA_USUARIO.md) - documentación completa para usuarios finales
 - [x] **Guía integrada en la plataforma** (guide-view.jsx) - accesible desde el sidebar "Guía"
 - [x] **Google Calendar bidireccional** - sync con Google Calendar via service account (JWT)
-  - `lib/googleCalendar.js` - servicio central (auth, CRUD eventos, webhooks)
+  - `lib/googleCalendar.js` - servicio central ESM (auth, CRUD eventos, webhooks)
   - App → Google: crear/actualizar/eliminar eventos al reservar/confirmar/liberar fechas
   - Google → App: webhook receptor + sync manual para cambios externos
   - Colores por estado: Reservada=azul, Confirmada=verde, Bloqueada=amarillo
   - `google_event_id` en CalendarDate para trackeo bidireccional
+  - Fix: convertido de CommonJS a ESM (`import`/`export`) — `require()` en try/catch fallaba silenciosamente en Next.js App Router
+  - Fix: `fecha.toString()` en Date de Sequelize daba formato incorrecto → cambiado a `new Date(fecha).toISOString().substring(0,10)`
 
 ### Pendiente (próximos pasos)
-- [ ] **Google Calendar sync no impacta** - la conexión está verificada (GET /api/google-calendar retorna ok:true) pero al reservar/confirmar fechas los eventos no se crean en Google Calendar. Los logs `[GCal]` no aparecen en terminal. Posible causa: `require('@/lib/googleCalendar')` falla silenciosamente en el try/catch del calendar route y usa los fallbacks no-op. Investigar por qué el require falla en contexto de la ruta pero funciona en el endpoint de test.
 - [ ] **Optimistic Result + Redux** (refactor plataforma) - patrón optimistic UI con Redux global state para respuesta instantánea en toda la app (si falla la petición se revierte)
 - [ ] Sesiones server-side (JWT o NextAuth) - actualmente usa localStorage
 - [ ] Panel admin para activar/desactivar usuarios registrados
@@ -727,14 +728,19 @@ pnpm dev
 - Los modelos Sequelize usan CommonJS (`require`/`module.exports`) porque Sequelize no soporta ESM nativo
 - Las API routes usan ESM (`import`/`export`) como requiere Next.js App Router
 - El interop funciona via `const { Model } = require('@/lib/models/associations')` dentro de archivos ESM
-- Next.js resuelve esto con webpack/turbopack automáticamente
+- `lib/googleCalendar.js` usa ESM nativo (`import { google } from 'googleapis'` + `export async function`)
+- **IMPORTANTE**: NO usar `require()` con try/catch para módulos propios en App Router — falla silenciosamente y usa fallbacks. Usar `import` de ESM
+- Next.js resuelve el interop CJS↔ESM con webpack/turbopack automáticamente
 
 ### Manejo de Fechas
-- PostgreSQL `DATE` → Sequelize retorna ISO strings ("2025-06-15T00:00:00.000Z")
+- PostgreSQL `DATE`/`DATEONLY` → Sequelize puede retornar Date objects o ISO strings ("2025-06-15T00:00:00.000Z")
 - Los inputs HTML `type="date"` esperan "YYYY-MM-DD"
 - LeadForm normaliza: `initial.fecha_tentativa.substring(0, 10)`
 - Tasks normaliza: `task.due_date.substring(0, 10)` para display y comparación
+- Events normaliza: `evt.fecha_confirmada.toString().substring(0, 10)` antes de crear Date
 - Calendar usa fechas en formato "YYYY-MM-DD" consistentemente
+- Google Calendar sync: `new Date(fecha).toISOString().substring(0, 10)` — funciona tanto con Date objects como con strings ISO
+- **NUNCA** usar `.toString().substring(0, 10)` en Date objects de Sequelize (da "Thu Apr 25" en vez de "2026-04-25")
 
 ### Modelos con timestamps
 - Los modelos usan `timestamps: true` con `createdAt: 'created_at'` y `updatedAt: 'updated_at'`
@@ -753,12 +759,15 @@ pnpm dev
 
 ### Google Calendar (Service Account)
 - Usa JWT auth con service account (no OAuth del usuario)
-- `lib/googleCalendar.js` encapsula toda la interacción con Google Calendar API v3
+- `lib/googleCalendar.js` encapsula toda la interacción con Google Calendar API v3 (módulo ESM con `import`/`export`)
 - `google.auth.JWT` usa constructor con objeto `{email, key, scopes}` (NO parámetros posicionales)
 - Next.js `.env.local` convierte `\n` en double-quoted strings a newlines reales, por lo que la private key se parsea condicionalmente: `key.includes('\\n') ? key.replace(/\\n/g, '\n') : key`
-- Import resiliente con try/catch: si `googleapis` falla, las rutas siguen funcionando sin sync
+- Todas las rutas importan con ESM: `import { createGoogleEvent } from '@/lib/googleCalendar'` (NO usar `require()` con try/catch)
+- Fechas de Sequelize (Date objects) se normalizan con `new Date(fecha).toISOString().substring(0, 10)` para evitar "Invalid time value"
+- `extendedProperties.private` usa `String()` para IDs (Google Calendar API requiere strings)
 - Webhooks de Google expiran cada ~30 días, necesitan renovación via `POST /api/google-calendar/setup`
 - Colores: Reservada=9(azul), Confirmada=10(verde), Bloqueada=5(amarillo)
+- La respuesta de `POST /api/calendar` incluye `_googleSync` con el resultado del sync (debug)
 
 ### Conexión a Supabase
 - `lib/models/index.js` detecta Supabase automáticamente por el dominio en DATABASE_URL
