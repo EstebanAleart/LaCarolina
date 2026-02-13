@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
+import { listGoogleEvents } from '@/lib/googleCalendar';
 const { CalendarDate } = require('@/lib/models/associations');
-const { listGoogleEvents } = require('@/lib/googleCalendar');
 
 // POST /api/google-calendar/webhook - Recibe push notifications de Google Calendar
 export async function POST(request) {

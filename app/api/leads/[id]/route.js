@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server';
+import { deleteGoogleEvent } from '@/lib/googleCalendar';
 const { Lead, Interaction, Proposal, Visit, Reservation, Event, LeadStatusHistory, Task, CalendarDate } = require('@/lib/models/associations');
-let deleteGoogleEvent;
-try {
-  deleteGoogleEvent = require('@/lib/googleCalendar').deleteGoogleEvent;
-} catch (e) {
-  deleteGoogleEvent = async () => {};
-}
 
 // GET /api/leads/:id - Detalle de un lead con todas sus relaciones
 export async function GET(request, { params }) {

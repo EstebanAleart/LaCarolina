@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
+import { listGoogleEvents, createGoogleEvent, CALENDAR_ID } from '@/lib/googleCalendar';
 const { Op } = require('sequelize');
 const { CalendarDate } = require('@/lib/models/associations');
-const { listGoogleEvents, createGoogleEvent, CALENDAR_ID } = require('@/lib/googleCalendar');
 
 // POST /api/google-calendar/sync - Sync manual/completo entre app y Google Calendar
 export async function POST() {
@@ -39,7 +39,7 @@ export async function POST() {
     const allDates = await CalendarDate.findAll();
 
     for (const cd of allDates) {
-      const fecha = cd.fecha?.toString().substring(0, 10);
+      const fecha = new Date(cd.fecha).toISOString().substring(0, 10);
 
       if (cd.google_event_id) {
         // Tiene referencia a Google - verificar que existe
@@ -59,7 +59,7 @@ export async function POST() {
         } else {
           // No existe en Google → crear
           try {
-            const Lead = require('@/lib/models/associations').Lead;
+            const { Lead } = require('@/lib/models/associations');
             const lead = cd.lead_id ? await Lead.findByPk(cd.lead_id) : null;
             const googleId = await createGoogleEvent(cd, lead);
             if (googleId) {
@@ -74,7 +74,7 @@ export async function POST() {
     }
 
     // 3. Eventos en Google que no existen en nuestra DB
-    const dbFechas = new Set(allDates.map(d => d.fecha?.toString().substring(0, 10)));
+    const dbFechas = new Set(allDates.map(d => new Date(d.fecha).toISOString().substring(0, 10)));
 
     for (const gEvent of googleEvents) {
       if (gEvent.status === 'cancelled') continue;
