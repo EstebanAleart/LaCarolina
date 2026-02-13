@@ -659,6 +659,7 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
   - `google_event_id` en CalendarDate para trackeo bidireccional
 
 ### Pendiente (próximos pasos)
+- [ ] **Google Calendar sync no impacta** - la conexión está verificada (GET /api/google-calendar retorna ok:true) pero al reservar/confirmar fechas los eventos no se crean en Google Calendar. Los logs `[GCal]` no aparecen en terminal. Posible causa: `require('@/lib/googleCalendar')` falla silenciosamente en el try/catch del calendar route y usa los fallbacks no-op. Investigar por qué el require falla en contexto de la ruta pero funciona en el endpoint de test.
 - [ ] **Optimistic Result + Redux** (refactor plataforma) - patrón optimistic UI con Redux global state para respuesta instantánea en toda la app (si falla la petición se revierte)
 - [ ] Sesiones server-side (JWT o NextAuth) - actualmente usa localStorage
 - [ ] Panel admin para activar/desactivar usuarios registrados

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
+import { setupWebhook, stopWebhook } from '@/lib/googleCalendar';
 const { v4: uuidv4 } = require('uuid');
-const { setupWebhook, stopWebhook } = require('@/lib/googleCalendar');
 
 // POST /api/google-calendar/setup - Registrar webhook para push notifications
 export async function POST(request) {

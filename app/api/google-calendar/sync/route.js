@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
+import { listGoogleEvents, createGoogleEvent, CALENDAR_ID } from '@/lib/googleCalendar';
 const { Op } = require('sequelize');
 const { CalendarDate } = require('@/lib/models/associations');
-const { listGoogleEvents, createGoogleEvent, CALENDAR_ID } = require('@/lib/googleCalendar');
 
 // POST /api/google-calendar/sync - Sync manual/completo entre app y Google Calendar
 export async function POST() {
@@ -59,7 +59,7 @@ export async function POST() {
         } else {
           // No existe en Google → crear
           try {
-            const Lead = require('@/lib/models/associations').Lead;
+            const { Lead } = require('@/lib/models/associations');
             const lead = cd.lead_id ? await Lead.findByPk(cd.lead_id) : null;
             const googleId = await createGoogleEvent(cd, lead);
             if (googleId) {
