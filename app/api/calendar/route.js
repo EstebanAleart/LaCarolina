@@ -1,18 +1,7 @@
 import { NextResponse } from 'next/server';
+import { createGoogleEvent, updateGoogleEvent, deleteGoogleEvent } from '@/lib/googleCalendar';
 const { Op } = require('sequelize');
 const { CalendarDate, Lead, LeadStatusHistory, Reservation, Event, Proposal } = require('@/lib/models/associations');
-let createGoogleEvent, updateGoogleEvent, deleteGoogleEvent;
-try {
-  const gc = require('@/lib/googleCalendar');
-  createGoogleEvent = gc.createGoogleEvent;
-  updateGoogleEvent = gc.updateGoogleEvent;
-  deleteGoogleEvent = gc.deleteGoogleEvent;
-} catch (e) {
-  console.warn('Google Calendar module not available:', e.message);
-  createGoogleEvent = async () => null;
-  updateGoogleEvent = async () => {};
-  deleteGoogleEvent = async () => {};
-}
 
 // GET /api/calendar - Todas las fechas del calendario
 export async function GET() {
@@ -196,8 +185,13 @@ export async function POST(request) {
     }
     console.log('[GCal] sync result:', googleSync);
 
-    return NextResponse.json(result, { status: isNew ? 201 : 200 });
+    // Incluir info de sync en la respuesta para debug
+    const responseData = result.toJSON ? result.toJSON() : { ...result };
+    responseData._googleSync = googleSync;
+
+    return NextResponse.json(responseData, { status: isNew ? 201 : 200 });
   } catch (error) {
+    console.error('[Calendar POST] ERROR:', error.message, error.stack);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
