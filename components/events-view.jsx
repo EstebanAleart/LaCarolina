@@ -109,7 +109,8 @@ export default function EventsView() {
           const isExpanded = expandedId === evt.id
           const leadName = evt.lead?.nombre || "Sin lead"
           const leadTipo = evt.lead?.tipo_evento || evt.tipo_evento || "---"
-          const fecha = evt.fecha_confirmada ? new Date(evt.fecha_confirmada + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : "Sin fecha"
+          const fechaRaw = evt.fecha_confirmada ? evt.fecha_confirmada.toString().substring(0, 10) : null
+          const fecha = fechaRaw ? new Date(fechaRaw + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : "Sin fecha"
           const servicios = evt.servicios_contratados || []
 
           return (

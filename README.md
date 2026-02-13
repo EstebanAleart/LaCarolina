@@ -85,6 +85,7 @@ LaCarolina/
 │   ├── events-view.jsx              # Vista de eventos confirmados con estado operativo (conectado a API)
 │   ├── tasks-view.jsx                # Panel Kanban (Pendiente / En Proceso / Hecho) (conectado a API)
 │   ├── landing-page.jsx              # Landing pública + router auth views
+│   ├── guide-view.jsx                # Guía de usuario integrada en la plataforma (sidebar "Guía")
 │   ├── auth/                         # === Componentes de autenticación ===
 │   │   ├── login-form.jsx            # Login con email/password contra API + bcrypt
 │   │   ├── register-form.jsx         # Registro con validaciones en tiempo real
@@ -406,6 +407,8 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
 
 1. **Lead → Perdido**: Requiere `motivo` obligatorio (400 si falta).
 2. **Lead → "Propuesta enviada"**: Auto-crea Task de seguimiento con `prioridad: Alta` y `due_date: +3 días`.
+2b. **Lead → estados avanzados del pipeline**: Auto-crea Proposal si no existe. Estados: "Propuesta enviada"→Enviada, "Esperando respuesta"→Enviada, "Visita agendada"→Enviada, "En negociacion"→En negociación, "Reserva tomada"→Aceptada.
+2c. **CalendarDate Reservada/Confirmada + lead**: Auto-crea Proposal "Aceptada" si no existe (o actualiza la última a Aceptada).
 3. **CalendarDate**: No puede haber dos leads con estado Reservada/Confirmada en la misma fecha (409 conflict).
 4. **Reservation**: Un lead solo puede tener una reserva, `lead_id` es UNIQUE (409 si ya existe).
 5. **Event**: Un lead solo puede tener un evento, `lead_id` es UNIQUE (409 si ya existe).
@@ -424,7 +427,8 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
 7. **Proposal.version**: Se auto-incrementa contando `Proposal.count({ where: { lead_id } })`.
 8. **Proposal → "Enviada"** (PUT /api/proposals/:id): Auto-registra `fecha_envio` si no tenía.
 9. **Delete Lead** (DELETE /api/leads/:id): Cascade manual → destruye en orden:
-   - Interactions → Visits → Proposals → LeadStatusHistory → Reservations → Tasks → Events → Lead
+   - Interactions → Visits → Proposals → LeadStatusHistory → Reservations → Tasks → Events → CalendarDates (+ elimina de Google Calendar) → Lead
+9b. **Update Lead** (PUT /api/leads/:id): Sanitiza body (excluye id, estado_actual, created_at). Convierte fecha_tentativa vacía a null. Si cambia valor_estimado → actualiza precio_total de la última propuesta asociada.
 10. **GET /api/users**: Excluye `password_hash` del response (solo devuelve id, nombre, email, rol, activo).
 11. **GET /api/leads/:id**: Incluye todas las relaciones (interactions, visits, proposals, status_history, reservation, event).
 12. **GET /api/tasks**: Incluye relaciones (lead, event, assigned_user).
@@ -450,9 +454,9 @@ Todas envuelven la lógica en try/catch y devuelven `{ error: message }` con sta
 GET    /api/leads                    → Listar todos. Filtros: ?estado=X&anio=2026. Order: created_at DESC
 POST   /api/leads                    → Crear lead. Body: { nombre, telefono, email, canal_origen, tipo_evento, fecha_tentativa, anio_evento, valor_estimado, notas }. Estado inicial: "Consulta inicial"
 GET    /api/leads/:id                → Detalle con includes: interactions, visits, proposals, status_history, reservation, event
-PUT    /api/leads/:id                → Actualizar campos. Auto-setea updated_at
-DELETE /api/leads/:id                → Eliminar con cascade manual (interactions, visits, proposals, history, reservations, tasks, events)
-PUT    /api/leads/:id/status         → Body: { estado, motivo?, user_id? }. Crea LeadStatusHistory. Si "Propuesta enviada" → auto-crea Task
+PUT    /api/leads/:id                → Actualizar campos editables (sanitiza body: excluye id, estado_actual, created_at). fecha_tentativa="" → null. Si cambia valor_estimado → sync precio_total de última propuesta
+DELETE /api/leads/:id                → Eliminar con cascade manual (interactions, visits, proposals, history, reservations, tasks, events, calendar_dates + Google Calendar)
+PUT    /api/leads/:id/status         → Body: { estado, motivo?, user_id? }. Crea LeadStatusHistory. Si "Propuesta enviada" → auto-crea Task. Auto-crea Proposal si no existe para estados avanzados
 GET    /api/leads/:id/interactions   → Listar interacciones del lead. Order: fecha DESC
 POST   /api/leads/:id/interactions   → Body: { tipo, descripcion, fecha?, created_by_user_id? }
 GET    /api/leads/:id/visits         → Listar visitas del lead. Order: fecha_visita DESC
@@ -534,6 +538,7 @@ POST   /api/seed                     → Crea 3 usuarios demo si la tabla está 
 | Propuestas      | proposals-view.jsx   | fetchAllProposals        | Grid de propuestas con acciones (enviar, aceptar, rechazar) |
 | Eventos         | events-view.jsx      | fetchEvents              | Lista expandible de eventos confirmados con estado operativo, servicios, detalle lead |
 | Tareas          | tasks-view.jsx       | fetchTasks               | Panel Kanban 4 columnas (Pendiente/En Proceso/Hecho/Cancelado) |
+| Guía            | guide-view.jsx       | (estático)               | Guía de usuario integrada con secciones colapsables |
 
 ### Detalle de cada componente migrado
 
@@ -562,6 +567,7 @@ POST   /api/seed                     → Crea 3 usuarios demo si la tabla está 
   - Tentativas que ya tienen CalendarDate con el mismo lead no se duplican
 - 5 colores de estado: Disponible (emerald), Bloqueada (amber), Reservada (blue), Confirmada (green), Tentativa (purple)
 - `DateFormModal`: Crear/editar/liberar fechas con `apiSetCalendarDate`/`apiRemoveCalendarDate`
+- Confirmación Sonner antes de liberar/eliminar fecha (toast con botón "Sí, eliminar" + "Cancelar")
 - Errores del API (409 conflict) se muestran inline
 
 **proposals-view.jsx**
@@ -571,7 +577,7 @@ POST   /api/seed                     → Crea 3 usuarios demo si la tabla está 
 - Acciones por estado: Borrador→Enviar, Enviada→Aceptar/Rechazar
 
 **dashboard-view.jsx**
-- Carga 5 endpoints en paralelo con `Promise.all()`: leads, calendar, tasks, events, proposals
+- Carga 5 endpoints en paralelo con `Promise.allSettled()`: leads, calendar, tasks, events, proposals (resiliente: si un fetch falla, los demás cargan igual)
 - Computa estadísticas client-side: pipeline, canales, conversion rate, tareas vencidas
 - Gráficos recharts: BarChart (pipeline) + PieChart (canales)
 
