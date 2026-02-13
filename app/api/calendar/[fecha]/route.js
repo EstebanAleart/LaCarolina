@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { deleteGoogleEvent } from '@/lib/googleCalendar';
-const { CalendarDate } = require('@/lib/models/associations');
+const { CalendarDate, Reservation } = require('@/lib/models/associations');
 
 // DELETE /api/calendar/:fecha - Liberar/eliminar una fecha
 export async function DELETE(request, { params }) {
@@ -24,6 +24,9 @@ export async function DELETE(request, { params }) {
     if (record.google_event_id) {
       try { await deleteGoogleEvent(record.google_event_id); } catch (e) { console.error('Google delete error:', e.message); }
     }
+
+    // Limpiar reservations que referencian este calendar_date
+    await Reservation.destroy({ where: { calendar_date_id: record.id } });
 
     await record.destroy();
     return NextResponse.json({ ok: true });
