@@ -6,7 +6,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  serverExternalPackages: ['sequelize', 'pg', 'pg-hstore'],
+  serverExternalPackages: ['sequelize', 'pg', 'pg-hstore', 'googleapis'],
   outputFileTracingIncludes: {
     '/api/**': ['./node_modules/pg/**', './node_modules/pg-hstore/**', './node_modules/sequelize/**'],
   },
