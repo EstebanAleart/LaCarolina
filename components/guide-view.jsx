@@ -146,8 +146,14 @@ function ProposalsSection() {
           <span className="rounded-md bg-red-100 text-red-700 px-2 py-1 font-medium">Rechazada</span>
         </div>
         <p className="text-xs text-muted-foreground mt-2">
-          Las propuestas se actualizan automaticamente cuando cambia el estado del lead (Reserva/Confirmado → Aceptada, Perdido → Rechazada).
+          Las propuestas se crean y actualizan automaticamente:
         </p>
+        <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4 mt-1">
+          <li>Al cambiar el lead a &quot;Propuesta enviada&quot;, &quot;Esperando respuesta&quot;, &quot;Visita agendada&quot;, &quot;En negociacion&quot; o &quot;Reserva tomada&quot; → se crea propuesta si no existe</li>
+          <li>Al reservar/confirmar fecha desde el calendario → propuesta pasa a &quot;Aceptada&quot; (o se crea como Aceptada)</li>
+          <li>Lead → &quot;Perdido&quot; → propuesta pasa a &quot;Rechazada&quot;</li>
+          <li>Al editar el valor estimado del lead → se actualiza el precio de la propuesta</li>
+        </ul>
       </div>
     </div>
   )
@@ -178,7 +184,7 @@ function CalendarSection() {
           <li>Elegir estado <span className="font-medium text-foreground">&quot;Reservada&quot;</span></li>
           <li>Click <span className="font-medium text-foreground">&quot;Guardar&quot;</span></li>
         </ol>
-        <p className="text-xs text-muted-foreground mt-2">Al reservar con un lead: el lead pasa a &quot;Reserva tomada&quot;, se limpia la fecha tentativa, se crea una Reservation y la ultima propuesta pasa a &quot;Aceptada&quot;.</p>
+        <p className="text-xs text-muted-foreground mt-2">Al reservar con un lead: el lead pasa a &quot;Reserva tomada&quot;, se limpia la fecha tentativa, se crea una Reservation, se crea propuesta y se sincroniza con Google Calendar.</p>
       </div>
       <div>
         <h4 className="text-sm font-bold text-foreground mb-1">Confirmar una fecha</h4>
@@ -187,7 +193,16 @@ function CalendarSection() {
           <li>Cambiar estado a <span className="font-medium text-foreground">&quot;Confirmada&quot;</span></li>
           <li>Click <span className="font-medium text-foreground">&quot;Guardar&quot;</span></li>
         </ol>
-        <p className="text-xs text-muted-foreground mt-2">Al confirmar: el lead pasa a &quot;Evento confirmado&quot;, se crea un Event y aparece en la vista de Eventos.</p>
+        <p className="text-xs text-muted-foreground mt-2">Al confirmar: el lead pasa a &quot;Evento confirmado&quot;, se crea un Event, aparece en la vista de Eventos y se sincroniza con Google Calendar.</p>
+      </div>
+      <div>
+        <h4 className="text-sm font-bold text-foreground mb-1">Google Calendar</h4>
+        <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4">
+          <li>Las fechas <span className="font-medium text-foreground">Reservadas</span> y <span className="font-medium text-foreground">Confirmadas</span> se sincronizan automaticamente con Google Calendar</li>
+          <li>Al liberar/eliminar una fecha, se elimina tambien de Google Calendar</li>
+          <li>Los colores en Google Calendar son: Reservada (azul), Confirmada (verde), Bloqueada (amarillo)</li>
+          <li>Los eventos muestran el nombre del lead y tipo de evento como titulo</li>
+        </ul>
       </div>
     </div>
   )
@@ -252,13 +267,17 @@ function DashboardSection() {
 
 function AutoSection() {
   const AUTOS = [
-    { accion: "Reservar fecha con lead en calendario", resultado: "Lead → \"Reserva tomada\" + crea Reservation + propuesta → \"Aceptada\"" },
-    { accion: "Confirmar fecha con lead en calendario", resultado: "Lead → \"Evento confirmado\" + crea Event + propuesta → \"Aceptada\"" },
-    { accion: "Cambiar lead a \"Propuesta enviada\"", resultado: "Se crea tarea de seguimiento (prioridad Alta, vence en 3 dias)" },
-    { accion: "Cambiar lead a \"Reserva tomada\"", resultado: "Ultima propuesta → \"Aceptada\"" },
-    { accion: "Cambiar lead a \"Evento confirmado\"", resultado: "Ultima propuesta → \"Aceptada\"" },
+    { accion: "Reservar fecha con lead en calendario", resultado: "Lead → \"Reserva tomada\" + crea Reservation + crea/actualiza propuesta → \"Aceptada\" + sync Google Calendar" },
+    { accion: "Confirmar fecha con lead en calendario", resultado: "Lead → \"Evento confirmado\" + crea Event + crea/actualiza propuesta → \"Aceptada\" + sync Google Calendar" },
+    { accion: "Cambiar lead a \"Propuesta enviada\"", resultado: "Se crea tarea de seguimiento (Alta, 3 dias) + crea propuesta \"Enviada\" si no existe" },
+    { accion: "Cambiar lead a \"Esperando respuesta\" / \"Visita agendada\"", resultado: "Crea propuesta \"Enviada\" si no existe" },
+    { accion: "Cambiar lead a \"En negociacion\"", resultado: "Crea propuesta \"En negociacion\" si no existe" },
+    { accion: "Cambiar lead a \"Reserva tomada\" / \"Evento confirmado\"", resultado: "Ultima propuesta → \"Aceptada\" (o crea como Aceptada)" },
     { accion: "Cambiar lead a \"Perdido\"", resultado: "Ultima propuesta → \"Rechazada\"" },
     { accion: "Enviar propuesta (Borrador → Enviada)", resultado: "Se registra fecha de envio" },
+    { accion: "Editar valor estimado del lead", resultado: "Se actualiza precio_total de la ultima propuesta" },
+    { accion: "Eliminar un lead", resultado: "Se eliminan todas las entidades asociadas (interacciones, propuestas, tareas, eventos, fechas calendario + Google Calendar)" },
+    { accion: "Liberar/eliminar fecha del calendario", resultado: "Confirmacion con toast antes de eliminar + elimina de Google Calendar si estaba sincronizada" },
   ]
 
   return (

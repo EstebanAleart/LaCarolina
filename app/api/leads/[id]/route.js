@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
-const { Lead, Interaction, Proposal, Visit, Reservation, Event, LeadStatusHistory, Task } = require('@/lib/models/associations');
+const { Lead, Interaction, Proposal, Visit, Reservation, Event, LeadStatusHistory, Task, CalendarDate } = require('@/lib/models/associations');
+let deleteGoogleEvent;
+try {
+  deleteGoogleEvent = require('@/lib/googleCalendar').deleteGoogleEvent;
+} catch (e) {
+  deleteGoogleEvent = async () => {};
+}
 
 // GET /api/leads/:id - Detalle de un lead con todas sus relaciones
 export async function GET(request, { params }) {
@@ -38,10 +44,25 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 });
     }
 
+    // Sanitizar: solo campos editables, limpiar strings vacios en campos DATE
+    const { id: _id, created_at, updated_at, estado_actual, ...updateData } = body;
+    if (updateData.fecha_tentativa === '') updateData.fecha_tentativa = null;
+
     await lead.update({
-      ...body,
+      ...updateData,
       updated_at: new Date(),
     });
+
+    // Sync propuesta asociada: actualizar precio_total si cambio valor_estimado
+    if (updateData.valor_estimado !== undefined) {
+      const lastProposal = await Proposal.findOne({
+        where: { lead_id: id },
+        order: [['created_at', 'DESC']],
+      });
+      if (lastProposal) {
+        await lastProposal.update({ precio_total: updateData.valor_estimado });
+      }
+    }
 
     return NextResponse.json(lead);
   } catch (error) {
@@ -67,6 +88,16 @@ export async function DELETE(request, { params }) {
     await Reservation.destroy({ where: { lead_id: id } });
     await Task.destroy({ where: { lead_id: id } });
     await Event.destroy({ where: { lead_id: id } });
+
+    // Eliminar fechas del calendario asociadas al lead + borrar de Google Calendar
+    const calDates = await CalendarDate.findAll({ where: { lead_id: id } });
+    for (const cd of calDates) {
+      if (cd.google_event_id) {
+        try { await deleteGoogleEvent(cd.google_event_id); } catch (e) { /* ignore */ }
+      }
+      await cd.destroy();
+    }
+
     await lead.destroy();
 
     return NextResponse.json({ ok: true });
