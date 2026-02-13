@@ -53,6 +53,28 @@ export async function PUT(request, { params }) {
       });
     }
 
+    // Auto-crear propuesta si no existe para estados avanzados del pipeline
+    const PROPOSAL_STATES = ['Propuesta enviada', 'Esperando respuesta', 'Visita agendada', 'En negociacion', 'Reserva tomada'];
+    if (PROPOSAL_STATES.includes(estado)) {
+      const existingProposal = await Proposal.findOne({ where: { lead_id: id } });
+      if (!existingProposal) {
+        const estadoMap = {
+          'Propuesta enviada': 'Enviada',
+          'Esperando respuesta': 'Enviada',
+          'Visita agendada': 'Enviada',
+          'En negociacion': 'En negociación',
+          'Reserva tomada': 'Aceptada',
+        };
+        await Proposal.create({
+          lead_id: id,
+          version: 1,
+          estado: estadoMap[estado] || 'Borrador',
+          precio_total: lead.valor_estimado || 0,
+          fecha_envio: new Date(),
+        });
+      }
+    }
+
     // Auto-actualizar última propuesta según nuevo estado del lead
     if (estado === 'Reserva tomada' || estado === 'Evento confirmado') {
       const lastProposal = await Proposal.findOne({

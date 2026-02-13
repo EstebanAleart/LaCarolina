@@ -44,10 +44,25 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 });
     }
 
+    // Sanitizar: solo campos editables, limpiar strings vacios en campos DATE
+    const { id: _id, created_at, updated_at, estado_actual, ...updateData } = body;
+    if (updateData.fecha_tentativa === '') updateData.fecha_tentativa = null;
+
     await lead.update({
-      ...body,
+      ...updateData,
       updated_at: new Date(),
     });
+
+    // Sync propuesta asociada: actualizar precio_total si cambio valor_estimado
+    if (updateData.valor_estimado !== undefined) {
+      const lastProposal = await Proposal.findOne({
+        where: { lead_id: id },
+        order: [['created_at', 'DESC']],
+      });
+      if (lastProposal) {
+        await lastProposal.update({ precio_total: updateData.valor_estimado });
+      }
+    }
 
     return NextResponse.json(lead);
   } catch (error) {
