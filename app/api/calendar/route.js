@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server';
 const { Op } = require('sequelize');
 const { CalendarDate, Lead, LeadStatusHistory, Reservation, Event, Proposal } = require('@/lib/models/associations');
+let createGoogleEvent, updateGoogleEvent, deleteGoogleEvent;
+try {
+  const gc = require('@/lib/googleCalendar');
+  createGoogleEvent = gc.createGoogleEvent;
+  updateGoogleEvent = gc.updateGoogleEvent;
+  deleteGoogleEvent = gc.deleteGoogleEvent;
+} catch (e) {
+  console.warn('Google Calendar module not available:', e.message);
+  createGoogleEvent = async () => null;
+  updateGoogleEvent = async () => {};
+  deleteGoogleEvent = async () => {};
+}
 
 // GET /api/calendar - Todas las fechas del calendario
 export async function GET() {
@@ -125,19 +137,64 @@ export async function POST(request) {
           }
         }
 
-        // Auto-actualizar última propuesta del lead
+        // Auto-crear propuesta si no existe + actualizar estado
         const lastProposal = await Proposal.findOne({
           where: { lead_id: lead.id },
           order: [['created_at', 'DESC']],
         });
-        if (lastProposal && lastProposal.estado !== 'Aceptada') {
-          await lastProposal.update({
+        if (lastProposal) {
+          if (lastProposal.estado !== 'Aceptada') {
+            await lastProposal.update({
+              estado: 'Aceptada',
+              fecha_envio: lastProposal.fecha_envio || new Date(),
+            });
+          }
+        } else {
+          await Proposal.create({
+            lead_id: lead.id,
+            version: 1,
             estado: 'Aceptada',
-            fecha_envio: lastProposal.fecha_envio || new Date(),
+            precio_total: lead.valor_estimado || 0,
+            fecha_envio: new Date(),
           });
         }
       }
     }
+
+    // === Google Calendar Sync ===
+    let googleSync = null;
+    try {
+      const syncEstado = body.estado_fecha || (existing?.estado_fecha) || 'Bloqueada';
+      const syncLeadId = body.lead_id !== undefined ? body.lead_id : (existing?.lead_id || null);
+      console.log('[GCal] estado:', syncEstado, '| lead:', syncLeadId, '| existing_gid:', result.google_event_id);
+
+      if (syncEstado === 'Reservada' || syncEstado === 'Confirmada') {
+        const syncLead = syncLeadId ? await Lead.findByPk(syncLeadId) : null;
+        if (result.google_event_id) {
+          await updateGoogleEvent(result.google_event_id, result, syncLead);
+          googleSync = 'updated';
+        } else {
+          const googleId = await createGoogleEvent(result, syncLead);
+          console.log('[GCal] createGoogleEvent →', googleId);
+          if (googleId) {
+            await result.update({ google_event_id: googleId });
+            googleSync = 'created: ' + googleId;
+          } else {
+            googleSync = 'skipped: createGoogleEvent returned null (check GOOGLE_ env vars)';
+          }
+        }
+      } else if (syncEstado === 'Disponible' || syncEstado === 'Bloqueada') {
+        if (result.google_event_id) {
+          await deleteGoogleEvent(result.google_event_id);
+          await result.update({ google_event_id: null });
+          googleSync = 'deleted';
+        }
+      }
+    } catch (googleErr) {
+      console.error('[GCal] ERROR:', googleErr.message, googleErr.stack);
+      googleSync = 'error: ' + googleErr.message;
+    }
+    console.log('[GCal] sync result:', googleSync);
 
     return NextResponse.json(result, { status: isNew ? 201 : 200 });
   } catch (error) {
