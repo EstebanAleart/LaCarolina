@@ -9,6 +9,10 @@ import {
   ChevronUp,
   DollarSign,
   UtensilsCrossed,
+  CreditCard,
+  Plus,
+  CheckCircle,
+  XCircle,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -20,6 +24,11 @@ import {
   MODALIDADES_PRECIO,
   SERVICIOS_BASE,
   SERVICIOS_ADICIONALES,
+  fetchPaymentsByEvent,
+  apiCreatePayment,
+  apiUpdatePayment,
+  TIPOS_PAGO,
+  METODOS_PAGO,
 } from "@/lib/api"
 
 const ESTADO_OPERATIVO_OPTIONS = ["Pendiente", "En preparacion", "Listo", "Realizado"]
@@ -37,11 +46,39 @@ const ESTADO_PAGO_COLORS = {
   Completo: "bg-green-100 text-green-800",
 }
 
+const PAGO_ESTADO_COLORS = {
+  pendiente: "bg-amber-100 text-amber-800",
+  confirmado: "bg-green-100 text-green-800",
+  anulado: "bg-red-100 text-red-800",
+}
+
+const PAGO_TIPO_LABELS = {
+  seña: "Seña",
+  pago_parcial: "Parcial",
+  pago_final: "Final",
+  devolucion: "Devolución",
+}
+
+function fmtMonto(n) {
+  if (!n && n !== 0) return "—"
+  return `$${Number(n).toLocaleString("es-AR")}`
+}
+
 export default function EventsView() {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [filterEstado, setFilterEstado] = useState("")
   const [expandedId, setExpandedId] = useState(null)
+  const [eventPaymentsMap, setEventPaymentsMap] = useState({}) // { eventId: Payment[] }
+  const [showPaymentForm, setShowPaymentForm] = useState(null) // eventId or null
+  const [payForm, setPayForm] = useState({
+    monto: "",
+    tipo: "seña",
+    metodo_pago: "efectivo",
+    fecha_pago: new Date().toISOString().substring(0, 10),
+    estado: "pendiente",
+    observacion: "",
+  })
 
   async function loadData() {
     try {
@@ -83,6 +120,52 @@ export default function EventsView() {
       await apiUpdateEvent(evt.id, { servicios_contratados: updated })
       await loadData()
     } catch (err) { console.error(err); toast.error("Error al actualizar servicios") }
+  }
+
+  async function loadEventPayments(eventId) {
+    try {
+      const data = await fetchPaymentsByEvent(eventId)
+      setEventPaymentsMap((prev) => ({ ...prev, [eventId]: data }))
+    } catch (err) { console.error(err) }
+  }
+
+  async function handleCreatePayment(evt) {
+    if (!payForm.monto || Number(payForm.monto) <= 0) { toast.error("Monto inválido"); return }
+    try {
+      await apiCreatePayment({
+        event_id: evt.id,
+        lead_id: evt.lead_id || evt.lead?.id || null,
+        monto: Number(payForm.monto),
+        tipo: payForm.tipo,
+        metodo_pago: payForm.metodo_pago,
+        fecha_pago: payForm.fecha_pago,
+        estado: payForm.estado,
+        observacion: payForm.observacion || null,
+      })
+      toast.success("Pago registrado")
+      setShowPaymentForm(null)
+      setPayForm({ monto: "", tipo: "seña", metodo_pago: "efectivo", fecha_pago: new Date().toISOString().substring(0, 10), estado: "pendiente", observacion: "" })
+      await loadEventPayments(evt.id)
+      await loadData()
+    } catch (err) { console.error(err); toast.error("Error al registrar pago") }
+  }
+
+  async function handleConfirmarPago(pago, eventId) {
+    try {
+      await apiUpdatePayment(pago.id, { estado: "confirmado" })
+      toast.success("Pago confirmado")
+      await loadEventPayments(eventId)
+      await loadData()
+    } catch (err) { console.error(err); toast.error("Error al confirmar") }
+  }
+
+  async function handleAnularPago(pago, eventId) {
+    try {
+      await apiUpdatePayment(pago.id, { estado: "anulado" })
+      toast.success("Pago anulado")
+      await loadEventPayments(eventId)
+      await loadData()
+    } catch (err) { console.error(err); toast.error("Error al anular") }
   }
 
   if (loading) {
@@ -147,7 +230,11 @@ export default function EventsView() {
             <div key={evt.id} className="rounded-lg border border-border bg-card overflow-hidden">
               {/* Header */}
               <button
-                onClick={() => setExpandedId(isExpanded ? null : evt.id)}
+                onClick={() => {
+                  const newId = isExpanded ? null : evt.id
+                  setExpandedId(newId)
+                  if (newId) loadEventPayments(newId)
+                }}
                 className="w-full flex items-center gap-4 px-4 py-3 text-left hover:bg-muted/50 transition-colors"
               >
                 <div className="flex-1 min-w-0">
@@ -403,6 +490,166 @@ export default function EventsView() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Pagos inline */}
+                  {(() => {
+                    const pagos = eventPaymentsMap[evt.id] || []
+                    const confirmados = pagos.filter((p) => p.estado === "confirmado")
+                    const totalCobrado = confirmados.reduce((sum, p) => p.tipo === "devolucion" ? sum - p.monto : sum + p.monto, 0)
+                    const saldoReal = evt.valor_total_evento ? evt.valor_total_evento - totalCobrado : null
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                            <CreditCard className="h-3 w-3" /> Pagos
+                          </p>
+                          <button
+                            onClick={() => {
+                              if (showPaymentForm === evt.id) {
+                                setShowPaymentForm(null)
+                              } else {
+                                setShowPaymentForm(evt.id)
+                                setPayForm({ monto: "", tipo: "seña", metodo_pago: "efectivo", fecha_pago: new Date().toISOString().substring(0, 10), estado: "pendiente", observacion: "" })
+                              }
+                            }}
+                            className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                          >
+                            <Plus className="h-3 w-3" /> Registrar pago
+                          </button>
+                        </div>
+
+                        {/* Saldo real */}
+                        {saldoReal !== null && (
+                          <div className="flex items-center gap-4 mb-3 text-xs">
+                            <span className="text-muted-foreground">Cobrado: <span className="font-semibold text-green-700">{fmtMonto(totalCobrado)}</span></span>
+                            <span className="text-muted-foreground">Saldo: <span className={cn("font-semibold", saldoReal <= 0 ? "text-green-700" : "text-red-600")}>{fmtMonto(saldoReal)}</span></span>
+                          </div>
+                        )}
+
+                        {/* Formulario inline */}
+                        {showPaymentForm === evt.id && (
+                          <div className="rounded-md border border-border bg-secondary/20 p-3 mb-3 flex flex-col gap-3">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] font-medium text-muted-foreground">Monto *</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={payForm.monto}
+                                  onChange={(e) => setPayForm((f) => ({ ...f, monto: e.target.value }))}
+                                  placeholder="0"
+                                  className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-medium text-muted-foreground">Fecha</label>
+                                <input
+                                  type="date"
+                                  value={payForm.fecha_pago}
+                                  onChange={(e) => setPayForm((f) => ({ ...f, fecha_pago: e.target.value }))}
+                                  className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-medium text-muted-foreground">Tipo</label>
+                                <select
+                                  value={payForm.tipo}
+                                  onChange={(e) => setPayForm((f) => ({ ...f, tipo: e.target.value }))}
+                                  className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground"
+                                >
+                                  {TIPOS_PAGO.map((t) => <option key={t} value={t}>{PAGO_TIPO_LABELS[t] || t}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-medium text-muted-foreground">Método</label>
+                                <select
+                                  value={payForm.metodo_pago}
+                                  onChange={(e) => setPayForm((f) => ({ ...f, metodo_pago: e.target.value }))}
+                                  className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground"
+                                >
+                                  {METODOS_PAGO.map((m) => <option key={m} value={m} className="capitalize">{m}</option>)}
+                                </select>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-medium text-muted-foreground">Observación</label>
+                              <input
+                                type="text"
+                                value={payForm.observacion}
+                                onChange={(e) => setPayForm((f) => ({ ...f, observacion: e.target.value }))}
+                                placeholder="Opcional..."
+                                className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <label className="text-[10px] font-medium text-muted-foreground mr-1">Estado:</label>
+                              {["pendiente", "confirmado"].map((s) => (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onClick={() => setPayForm((f) => ({ ...f, estado: s }))}
+                                  className={cn(
+                                    "rounded px-2.5 py-1 text-[10px] font-medium capitalize transition-colors",
+                                    payForm.estado === s
+                                      ? "bg-primary text-primary-foreground"
+                                      : "border border-border bg-background text-foreground hover:bg-secondary"
+                                  )}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                              <div className="flex-1" />
+                              <button
+                                type="button"
+                                onClick={() => setShowPaymentForm(null)}
+                                className="text-[10px] text-muted-foreground hover:text-foreground"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleCreatePayment(evt)}
+                                className="rounded bg-primary px-3 py-1 text-[10px] font-medium text-primary-foreground hover:bg-primary/90"
+                              >
+                                Guardar
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Historial de pagos */}
+                        {pagos.length === 0 ? (
+                          <p className="text-xs text-muted-foreground italic">Sin pagos registrados</p>
+                        ) : (
+                          <div className="flex flex-col gap-1.5">
+                            {pagos.map((p) => (
+                              <div key={p.id} className="flex items-center gap-2 rounded-md bg-secondary/30 px-3 py-2 text-xs">
+                                <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", PAGO_ESTADO_COLORS[p.estado])}>
+                                  {p.estado}
+                                </span>
+                                <span className="font-semibold text-foreground">{fmtMonto(p.monto)}</span>
+                                <span className="text-muted-foreground">{PAGO_TIPO_LABELS[p.tipo] || p.tipo}</span>
+                                <span className="text-muted-foreground capitalize">· {p.metodo_pago}</span>
+                                {p.fecha_pago && <span className="text-muted-foreground">· {p.fecha_pago}</span>}
+                                {p.observacion && <span className="text-muted-foreground italic">· {p.observacion}</span>}
+                                <div className="flex-1" />
+                                {p.estado === "pendiente" && (
+                                  <button onClick={() => handleConfirmarPago(p, evt.id)} title="Confirmar" className="text-green-600 hover:text-green-800">
+                                    <CheckCircle className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                                {(p.estado === "pendiente" || p.estado === "confirmado") && (
+                                  <button onClick={() => handleAnularPago(p, evt.id)} title="Anular" className="text-red-500 hover:text-red-700 ml-1">
+                                    <XCircle className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {/* Lead info */}
                   {evt.lead && (

@@ -8,6 +8,8 @@ import CalendarView from "@/components/calendar-view"
 import ProposalsView from "@/components/proposals-view"
 import TasksView from "@/components/tasks-view"
 import EventsView from "@/components/events-view"
+import PaymentsView from "@/components/payments-view"
+import ReportsView from "@/components/reports-view"
 import GuideView from "@/components/guide-view"
 import LandingPage from "@/components/landing-page"
 import { Menu } from "lucide-react"
@@ -105,7 +107,9 @@ export default function Home() {
           {activeView === "calendar" && <CalendarView />}
           {activeView === "proposals" && <ProposalsView />}
           {activeView === "events" && <EventsView />}
+          {activeView === "payments" && <PaymentsView />}
           {activeView === "tasks" && <TasksView />}
+          {activeView === "reports" && <ReportsView />}
           {activeView === "guide" && <GuideView />}
         </div>
       </main>
