@@ -79,6 +79,11 @@ function LeadForm({ onSubmit, onCancel, initial }) {
 
   function handleChange(e) {
     const { name, value } = e.target
+    if (name === "fecha_tentativa" && value) {
+      const year = new Date(value + "T12:00:00").getFullYear()
+      setForm((prev) => ({ ...prev, fecha_tentativa: value, anio_evento: year }))
+      return
+    }
     setForm((prev) => ({ ...prev, [name]: name === "valor_estimado" || name === "anio_evento" ? Number(value) : value }))
   }
 
