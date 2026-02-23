@@ -33,10 +33,11 @@ export async function POST(request) {
       telefono: body.telefono || '',
       email: body.email || '',
       canal_origen: body.canal_origen || 'WhatsApp',
-      tipo_evento: body.tipo_evento || 'Boda',
+      tipo_evento: body.tipo_evento || 'Fiesta de 15',
+      tipo_cliente: body.tipo_cliente || 'Particular',
       fecha_tentativa: body.fecha_tentativa || null,
       anio_evento: body.anio_evento || new Date().getFullYear(),
-      estado_actual: 'Consulta inicial',
+      estado_actual: 'Lead nuevo',
       valor_estimado: body.valor_estimado || 0,
       notas: body.notas || '',
     });

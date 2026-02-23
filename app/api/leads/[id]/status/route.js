@@ -53,17 +53,21 @@ export async function PUT(request, { params }) {
       });
     }
 
+    // Auto-set fecha_firma_contrato si no estaba seteada
+    if (estado === 'Contrato firmado' && !lead.fecha_firma_contrato) {
+      await lead.update({ fecha_firma_contrato: new Date(), updated_at: new Date() });
+    }
+
     // Auto-crear propuesta si no existe para estados avanzados del pipeline
-    const PROPOSAL_STATES = ['Propuesta enviada', 'Esperando respuesta', 'Visita agendada', 'En negociacion', 'Reserva tomada'];
+    const PROPOSAL_STATES = ['Propuesta enviada', 'Visita al salón realizada', 'Reserva tomada', 'Contrato firmado'];
     if (PROPOSAL_STATES.includes(estado)) {
       const existingProposal = await Proposal.findOne({ where: { lead_id: id } });
       if (!existingProposal) {
         const estadoMap = {
           'Propuesta enviada': 'Enviada',
-          'Esperando respuesta': 'Enviada',
-          'Visita agendada': 'Enviada',
-          'En negociacion': 'En negociación',
+          'Visita al salón realizada': 'Enviada',
           'Reserva tomada': 'Aceptada',
+          'Contrato firmado': 'Aceptada',
         };
         await Proposal.create({
           lead_id: id,
@@ -76,7 +80,7 @@ export async function PUT(request, { params }) {
     }
 
     // Auto-actualizar última propuesta según nuevo estado del lead
-    if (estado === 'Reserva tomada' || estado === 'Evento confirmado') {
+    if (estado === 'Reserva tomada' || estado === 'Contrato firmado' || estado === 'Cliente activo') {
       const lastProposal = await Proposal.findOne({
         where: { lead_id: id },
         order: [['created_at', 'DESC']],

@@ -31,17 +31,20 @@ import {
   LEAD_STATES,
   CANALES,
   TIPOS_EVENTO,
+  TIPOS_CLIENTE,
 } from "@/lib/api"
 
 const STATE_COLORS = {
-  "Consulta inicial": "bg-blue-100 text-blue-800",
-  "Propuesta enviada": "bg-violet-100 text-violet-800",
-  "Esperando respuesta": "bg-amber-100 text-amber-800",
-  "Visita agendada": "bg-cyan-100 text-cyan-800",
-  "En negociacion": "bg-orange-100 text-orange-800",
-  "Reserva tomada": "bg-emerald-100 text-emerald-800",
-  "Evento confirmado": "bg-green-100 text-green-800",
-  "Perdido": "bg-red-100 text-red-800",
+  "Lead nuevo":                "bg-slate-100 text-slate-700",
+  "Contactado":                "bg-blue-100 text-blue-800",
+  "Visita al salón realizada": "bg-cyan-100 text-cyan-800",
+  "Propuesta enviada":         "bg-violet-100 text-violet-800",
+  "Reserva tomada":            "bg-amber-100 text-amber-800",
+  "Contrato firmado":          "bg-emerald-100 text-emerald-800",
+  "Cliente activo":            "bg-green-100 text-green-800",
+  "Evento realizado":          "bg-teal-100 text-teal-800",
+  "Post-evento / cerrado":     "bg-gray-100 text-gray-600",
+  "Perdido":                   "bg-red-100 text-red-800",
 }
 
 function LeadForm({ onSubmit, onCancel, initial }) {
@@ -49,10 +52,13 @@ function LeadForm({ onSubmit, onCancel, initial }) {
     if (initial) {
       return {
         ...initial,
-        fecha_tentativa: initial.fecha_tentativa ? initial.fecha_tentativa.substring(0, 10) : "",
+        fecha_tentativa:      initial.fecha_tentativa      ? initial.fecha_tentativa.substring(0, 10)      : "",
+        fecha_visita_salon:   initial.fecha_visita_salon   ? initial.fecha_visita_salon.substring(0, 10)   : "",
+        fecha_firma_contrato: initial.fecha_firma_contrato ? initial.fecha_firma_contrato.substring(0, 10) : "",
+        tipo_cliente:   initial.tipo_cliente   || "Particular",
         valor_estimado: initial.valor_estimado || 0,
-        anio_evento: initial.anio_evento || new Date().getFullYear(),
-        notas: initial.notas || "",
+        anio_evento:    initial.anio_evento    || new Date().getFullYear(),
+        notas:          initial.notas          || "",
       }
     }
     return {
@@ -60,8 +66,11 @@ function LeadForm({ onSubmit, onCancel, initial }) {
       telefono: "",
       email: "",
       canal_origen: "WhatsApp",
-      tipo_evento: "Boda",
+      tipo_evento: "Fiesta de 15",
+      tipo_cliente: "Particular",
       fecha_tentativa: "",
+      fecha_visita_salon: "",
+      fecha_firma_contrato: "",
       anio_evento: new Date().getFullYear(),
       valor_estimado: 0,
       notas: "",
@@ -78,50 +87,100 @@ function LeadForm({ onSubmit, onCancel, initial }) {
     onSubmit(form)
   }
 
+  const inputCls = "rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+  const labelCls = "text-xs font-medium text-foreground"
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-foreground">Nombre *</label>
-          <input name="nombre" value={form.nombre} onChange={handleChange} required className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" placeholder="Nombre completo" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-foreground">Telefono</label>
-          <input name="telefono" value={form.telefono} onChange={handleChange} className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" placeholder="+54 11 ..." />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-foreground">Email</label>
-          <input name="email" type="email" value={form.email} onChange={handleChange} className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" placeholder="email@ejemplo.com" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-foreground">Canal</label>
-          <select name="canal_origen" value={form.canal_origen} onChange={handleChange} className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring">
-            {CANALES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-foreground">Tipo Evento</label>
-          <select name="tipo_evento" value={form.tipo_evento} onChange={handleChange} className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring">
-            {TIPOS_EVENTO.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-foreground">Fecha Tentativa</label>
-          <input name="fecha_tentativa" type="date" value={form.fecha_tentativa} onChange={handleChange} className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-foreground">Ano Evento</label>
-          <input name="anio_evento" type="number" value={form.anio_evento} onChange={handleChange} className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-foreground">Valor Estimado ($)</label>
-          <input name="valor_estimado" type="number" value={form.valor_estimado} onChange={handleChange} className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+
+      {/* Datos de contacto */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Contacto</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Nombre *</label>
+            <input name="nombre" value={form.nombre} onChange={handleChange} required className={inputCls} placeholder="Nombre completo" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Telefono</label>
+            <input name="telefono" value={form.telefono} onChange={handleChange} className={inputCls} placeholder="+54 11 ..." />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Email</label>
+            <input name="email" type="email" value={form.email} onChange={handleChange} className={inputCls} placeholder="email@ejemplo.com" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Canal</label>
+            <select name="canal_origen" value={form.canal_origen} onChange={handleChange} className={inputCls}>
+              {CANALES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Tipo de cliente</label>
+            <select name="tipo_cliente" value={form.tipo_cliente} onChange={handleChange} className={inputCls}>
+              {TIPOS_CLIENTE.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Tipo de evento</label>
+            <select name="tipo_evento" value={form.tipo_evento} onChange={handleChange} className={inputCls}>
+              {TIPOS_EVENTO.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
         </div>
       </div>
+
+      {/* Primera instancia — fechas y estimado */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Primera instancia</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Fecha del evento</label>
+            <input name="fecha_tentativa" type="date" value={form.fecha_tentativa} onChange={handleChange} className={inputCls} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Ano evento</label>
+            <input name="anio_evento" type="number" value={form.anio_evento} onChange={handleChange} className={inputCls} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Fecha visita al salon</label>
+            <input name="fecha_visita_salon" type="date" value={form.fecha_visita_salon} onChange={handleChange} className={inputCls} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Valor estimado ($)</label>
+            <input name="valor_estimado" type="number" value={form.valor_estimado} onChange={handleChange} className={inputCls} />
+          </div>
+        </div>
+      </div>
+
+      {/* Segunda instancia — solo al editar */}
+      {initial && (
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Segunda instancia</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Fecha firma de contrato</label>
+              <input name="fecha_firma_contrato" type="date" value={form.fecha_firma_contrato} onChange={handleChange} className={inputCls} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className={`${labelCls} text-muted-foreground`}>Fecha limite pago total</label>
+              <input
+                type="date"
+                value={form.fecha_tentativa ? (() => { const d = new Date(form.fecha_tentativa); d.setDate(d.getDate() - 30); return d.toISOString().substring(0, 10) })() : ""}
+                disabled
+                className={`${inputCls} opacity-60 cursor-not-allowed`}
+                title="Auto-calculada: fecha evento - 30 dias"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-foreground">Notas</label>
-        <textarea name="notas" value={form.notas} onChange={handleChange} rows={3} className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none" placeholder="Notas adicionales..." />
+        <label className={labelCls}>Notas</label>
+        <textarea name="notas" value={form.notas} onChange={handleChange} rows={3} className={`${inputCls} resize-none`} placeholder="Notas adicionales..." />
       </div>
+
       <div className="flex items-center justify-end gap-2">
         <button type="button" onClick={onCancel} className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors">Cancelar</button>
         <button type="submit" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity">Guardar</button>
@@ -227,25 +286,49 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
 
         <div className="px-5 py-4">
           {/* Lead info */}
-          <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Phone className="h-3.5 w-3.5" /> {lead.telefono || "---"}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-4 text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground col-span-2 sm:col-span-1">
+              <Phone className="h-3.5 w-3.5 shrink-0" /> {lead.telefono || "---"}
             </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Mail className="h-3.5 w-3.5" /> {lead.email || "---"}
-            </div>
-            <div className="text-muted-foreground">
-              <span className="font-medium text-card-foreground">Tipo:</span> {lead.tipo_evento}
+            <div className="flex items-center gap-2 text-muted-foreground col-span-2 sm:col-span-1">
+              <Mail className="h-3.5 w-3.5 shrink-0" /> {lead.email || "---"}
             </div>
             <div className="text-muted-foreground">
-              <span className="font-medium text-card-foreground">Valor:</span> ${(lead.valor_estimado || 0).toLocaleString()}
+              <span className="font-medium text-card-foreground">Evento:</span> {lead.tipo_evento}
+            </div>
+            <div className="text-muted-foreground">
+              <span className="font-medium text-card-foreground">Cliente:</span> {lead.tipo_cliente || "---"}
             </div>
             <div className="text-muted-foreground">
               <span className="font-medium text-card-foreground">Canal:</span> {lead.canal_origen}
             </div>
             <div className="text-muted-foreground">
-              <span className="font-medium text-card-foreground">Ano:</span> {lead.anio_evento}
+              <span className="font-medium text-card-foreground">Valor:</span> ${(lead.valor_estimado || 0).toLocaleString()}
             </div>
+            {lead.fecha_tentativa && (
+              <div className="text-muted-foreground">
+                <span className="font-medium text-card-foreground">Fecha evento:</span>{" "}
+                {new Date(lead.fecha_tentativa).toLocaleDateString("es-AR")}
+              </div>
+            )}
+            {lead.fecha_visita_salon && (
+              <div className="text-muted-foreground">
+                <span className="font-medium text-card-foreground">Visita salon:</span>{" "}
+                {new Date(lead.fecha_visita_salon).toLocaleDateString("es-AR")}
+              </div>
+            )}
+            {lead.fecha_firma_contrato && (
+              <div className="text-muted-foreground">
+                <span className="font-medium text-card-foreground">Firma contrato:</span>{" "}
+                {new Date(lead.fecha_firma_contrato).toLocaleDateString("es-AR")}
+              </div>
+            )}
+            {lead.fecha_limite_pago_total && (
+              <div className="text-muted-foreground">
+                <span className="font-medium text-card-foreground">Limite pago:</span>{" "}
+                {new Date(lead.fecha_limite_pago_total).toLocaleDateString("es-AR")}
+              </div>
+            )}
           </div>
 
           {/* Status change */}
