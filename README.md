@@ -698,7 +698,7 @@ ESTADO_COMERCIAL = [
 ]
 ```
 
-##### C. Bloque financiero en `reservations` / `events`
+##### ✅ C. Bloque financiero en `reservations` / `events`
 
 Campos nuevos (segunda instancia — imprescindible para riesgo financiero y seguimiento):
 
@@ -710,7 +710,7 @@ Campos nuevos (segunda instancia — imprescindible para riesgo financiero y seg
 | `estado_pago`                 | STRING | `Sin pagos`, `Reserva paga`, `En cuotas`, `Pagado total` |
 | `modalidad_actualizacion_precios` | STRING | `Mensual`, `Bimestral`, `Trimestral`           |
 
-##### D. Servicios contratados — UI modular
+##### ✅ D. Servicios contratados — UI modular
 
 La tabla `events` ya tiene `servicios_contratados` (JSON). Mejorar la UI con multiselect estructurado:
 
@@ -725,7 +725,7 @@ Servicios adicionales:
 
 Permite: upsell, reporting por servicio, estandarización de contratos futuros.
 
-##### E. Campos de producción en `events`
+##### ✅ E. Campos de producción en `events`
 
 | Campo                      | Tipo    | Notas                                          |
 |----------------------------|---------|------------------------------------------------|

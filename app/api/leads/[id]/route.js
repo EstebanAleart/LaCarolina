@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { deleteGoogleEvent } from '@/lib/googleCalendar';
 const { Lead, Interaction, Proposal, Visit, Reservation, Event, LeadStatusHistory, Task, CalendarDate } = require('@/lib/models/associations');
+const { Op } = require('sequelize');
 
 // GET /api/leads/:id - Detalle de un lead con todas sus relaciones
 export async function GET(request, { params }) {
@@ -57,6 +58,28 @@ export async function PUT(request, { params }) {
       ...updateData,
       updated_at: new Date(),
     });
+
+    // Sync: si se estableció fecha_visita_salon, crear/actualizar CalendarDate como "Visita"
+    if (updateData.fecha_visita_salon) {
+      const fechaVisita = updateData.fecha_visita_salon.toString().substring(0, 10);
+      const existingCalDate = await CalendarDate.findOne({ where: { fecha: fechaVisita } });
+      if (!existingCalDate) {
+        await CalendarDate.create({
+          fecha: fechaVisita,
+          estado_fecha: 'Visita',
+          fuente: 'CRM',
+          lead_id: lead.id,
+          nota: `Visita al salón: ${lead.nombre}`,
+        });
+      } else if (existingCalDate.estado_fecha === 'Disponible' || existingCalDate.estado_fecha === 'Visita') {
+        // Solo actualizar si no está ya ocupada con una reserva/confirmación
+        await existingCalDate.update({
+          estado_fecha: 'Visita',
+          lead_id: lead.id,
+          nota: `Visita al salón: ${lead.nombre}`,
+        });
+      }
+    }
 
     // Sync propuesta asociada: actualizar precio_total si cambio valor_estimado
     if (updateData.valor_estimado !== undefined) {
