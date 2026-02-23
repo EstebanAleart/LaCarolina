@@ -201,7 +201,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
   const [showStatusChange, setShowStatusChange] = useState(false)
   const [lostMotivo, setLostMotivo] = useState("")
   const [selectedStatus, setSelectedStatus] = useState("")
-  const [intForm, setIntForm] = useState({ tipo: "WhatsApp", descripcion: "" })
+  const [intForm, setIntForm] = useState({ canal: "WhatsApp", direction: "OUT", descripcion: "" })
 
   const loadDetail = useCallback(async () => {
     try {
@@ -249,7 +249,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
     if (!intForm.descripcion.trim()) return
     try {
       await apiCreateInteraction(lead.id, intForm)
-      setIntForm({ tipo: "WhatsApp", descripcion: "" })
+      setIntForm({ canal: "WhatsApp", direction: "OUT", descripcion: "" })
       await loadDetail()
       onRefresh()
       toast.success("Interaccion registrada")
@@ -420,7 +420,16 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
                     )}
                     {item.type === "interaction" && (
                       <p className="text-card-foreground">
-                        <span className="font-medium">{item.data.tipo}:</span> {item.data.descripcion}
+                        <span className="font-medium">{item.data.canal || item.data.tipo}</span>
+                        {item.data.direction && (
+                          <span className={cn(
+                            "ml-1.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                            item.data.direction === "OUT" ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"
+                          )}>
+                            {item.data.direction === "OUT" ? "→" : "←"}
+                          </span>
+                        )}
+                        {": "}{item.data.descripcion}
                       </p>
                     )}
                     {item.type === "visit" && (
@@ -449,37 +458,66 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
           {tab === "interacciones" && (
             <div className="flex flex-col gap-3">
               <form onSubmit={handleAddInteraction} className="flex flex-col gap-2 rounded-md border border-border bg-secondary p-3">
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <select
-                    value={intForm.tipo}
-                    onChange={(e) => setIntForm((p) => ({ ...p, tipo: e.target.value }))}
+                    value={intForm.canal}
+                    onChange={(e) => setIntForm((p) => ({ ...p, canal: e.target.value }))}
                     className="rounded-md border border-input bg-card px-2 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   >
-                    {["WhatsApp", "Llamada", "Email", "Reunion"].map((t) => (
+                    {["WhatsApp", "Llamada", "Email", "Presencial"].map((t) => (
                       <option key={t} value={t}>{t}</option>
                     ))}
                   </select>
+                  <div className="flex rounded-md border border-input overflow-hidden">
+                    {["OUT", "IN"].map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setIntForm((p) => ({ ...p, direction: d }))}
+                        className={cn(
+                          "px-3 py-1.5 text-xs font-medium transition-colors",
+                          intForm.direction === d
+                            ? d === "OUT" ? "bg-blue-500 text-white" : "bg-emerald-500 text-white"
+                            : "bg-card text-muted-foreground hover:bg-secondary"
+                        )}
+                      >
+                        {d === "OUT" ? "→ Saliente" : "← Entrante"}
+                      </button>
+                    ))}
+                  </div>
                   <input
                     value={intForm.descripcion}
                     onChange={(e) => setIntForm((p) => ({ ...p, descripcion: e.target.value }))}
                     placeholder="Descripcion de la interaccion..."
-                    className="flex-1 rounded-md border border-input bg-card px-2 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="flex-1 min-w-[140px] rounded-md border border-input bg-card px-2 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
                 <button type="submit" className="self-end rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:opacity-90">Agregar</button>
               </form>
-              {interactions.map((i) => (
-                <div key={i.id} className="flex items-start gap-2 rounded-md border border-border bg-card p-3">
-                  <MessageSquare className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-card-foreground">{i.tipo}</span>
-                      <span className="text-[10px] text-muted-foreground">{new Date(i.fecha).toLocaleDateString("es-AR")}</span>
+              {interactions.map((i) => {
+                const canal = i.canal || i.tipo || "—"
+                const direction = i.direction
+                return (
+                  <div key={i.id} className="flex items-start gap-2 rounded-md border border-border bg-card p-3">
+                    <MessageSquare className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-medium text-card-foreground">{canal}</span>
+                        {direction && (
+                          <span className={cn(
+                            "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                            direction === "OUT" ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"
+                          )}>
+                            {direction === "OUT" ? "→ Saliente" : "← Entrante"}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground">{new Date(i.fecha).toLocaleDateString("es-AR")}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{i.descripcion}</p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{i.descripcion}</p>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 

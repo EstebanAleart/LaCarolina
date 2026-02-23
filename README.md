@@ -204,29 +204,35 @@ Todos los componentes siguen este patrón:
 | ultimo_acceso | DATE    | nullable           |
 
 ### leads
-| Campo              | Tipo    | Restricción       |
-|--------------------|---------|-------------------|
-| id                 | UUID    | PK, auto          |
-| nombre             | STRING  | NOT NULL           |
-| telefono           | STRING  |                    |
-| email              | STRING  |                    |
-| canal_origen       | STRING  |                    |
-| tipo_evento        | STRING  |                    |
-| fecha_tentativa    | DATE    |                    |
-| anio_evento        | INTEGER |                    |
-| estado_actual      | STRING  |                    |
-| valor_estimado     | FLOAT   |                    |
-| notas              | TEXT    |                    |
-| managed_by_user_id | UUID    | FK → users         |
-| created_at         | DATE    | default: NOW       |
-| updated_at         | DATE    | default: NOW       |
+| Campo                    | Tipo    | Restricción       |
+|--------------------------|---------|-------------------|
+| id                       | UUID    | PK, auto          |
+| nombre                   | STRING  | NOT NULL           |
+| telefono                 | STRING  |                    |
+| email                    | STRING  |                    |
+| canal_origen             | STRING  |                    |
+| tipo_evento              | STRING  |                    |
+| tipo_cliente             | STRING  | Particular / Empresa / Institucional |
+| fecha_tentativa          | DATE    | Fecha del evento (tentativa/confirmada) |
+| fecha_visita_salon       | DATE    | Auto-crea CalendarDate "Visita" al guardar |
+| fecha_firma_contrato     | DATE    | Auto-set al estado "Contrato firmado" |
+| fecha_limite_pago_total  | DATE    | Auto-calculado: fecha_tentativa - 30 días |
+| anio_evento              | INTEGER | Auto-sync con año de fecha_tentativa |
+| estado_actual            | STRING  | Ver LEAD_STATES     |
+| valor_estimado           | FLOAT   |                    |
+| notas                    | TEXT    |                    |
+| managed_by_user_id       | UUID    | FK → users         |
+| created_at               | DATE    | default: NOW       |
+| updated_at               | DATE    | default: NOW       |
 
 ### interactions
 | Campo              | Tipo   | Restricción |
 |--------------------|--------|-------------|
 | id                 | UUID   | PK, auto    |
 | lead_id            | UUID   | FK → leads, NOT NULL |
-| tipo               | STRING | (WhatsApp, Llamada, Email, Reunion) |
+| tipo               | STRING | (deprecado, mismo valor que canal) |
+| canal              | STRING | WhatsApp / Llamada / Email / Presencial |
+| direction          | STRING | OUT (saliente) / IN (entrante) |
 | descripcion        | TEXT   |             |
 | fecha              | DATE   |             |
 | created_by_user_id | UUID   | FK → users  |
@@ -836,12 +842,13 @@ Habilita dashboard: "perdimos X leads por precio este trimestre".
 - [ ] Migración: agregar `completed_at` a tasks (se registra automáticamente cuando `estado → Hecho`)
 - [ ] UI: mostrar cuándo se completó una tarea
 
-##### Mejoras en `interactions` (Canal + metadata)
+##### ✅ Mejoras en `interactions` (Canal + metadata)
 
-- [ ] Migración: campo `canal` (ENUM: `whatsapp`, `email`, `llamada`, `presencial`)
-- [ ] Migración: campo `direction` (ENUM: `IN`, `OUT`) — para métricas de respuesta
+- [x] Migración: campo `canal` (STRING: `WhatsApp`, `Email`, `Llamada`, `Presencial`)
+- [x] Migración: campo `direction` (STRING: `IN` entrante / `OUT` saliente)
+- [x] UI de interacciones: capturar canal y dirección al registrar
+- [x] Display mejorado en cards + timeline con badge de dirección
 - [ ] Migración: campo `external_id` (STRING, nullable) — para integración futura con WhatsApp API
-- [ ] UI de interacciones: capturar canal y dirección al registrar
 - [ ] Filtros por canal en vista de interacciones
 
 ---
