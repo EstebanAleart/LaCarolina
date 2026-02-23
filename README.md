@@ -660,15 +660,207 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
   - Fix: convertido de CommonJS a ESM (`import`/`export`) — `require()` en try/catch fallaba silenciosamente en Next.js App Router
   - Fix: `fecha.toString()` en Date de Sequelize daba formato incorrecto → cambiado a `new Date(fecha).toISOString().substring(0,10)`
 
-### Pendiente (próximos pasos)
-- [ ] **Optimistic Result + Redux** (refactor plataforma) - patrón optimistic UI con Redux global state para respuesta instantánea en toda la app (si falla la petición se revierte)
-- [ ] Sesiones server-side (JWT o NextAuth) - actualmente usa localStorage
+### Pendiente - Roadmap
+
+---
+
+#### PRIORIDAD ALTA — v2.0: CRM Contractual-Comercial
+
+> El objetivo es que el CRM refleje el contrato real. Si no lo refleja, el contrato queda aislado y se pierde control, trazabilidad y dinero.
+
+##### A. Nuevos campos en `leads`
+
+Los campos se agrupan por lógica de sistema, no por lo visual.
+
+**Primera instancia** (cuando llega una persona):
+- [x] `fecha_visita_salon` (DATE) — clave de conversión, antes del contrato
+- [x] `tipo_cliente` (STRING: `Particular`, `Empresa`, `Institucional`) — campo crítico para precios, comunicación, automatizaciones y reporting
+
+**Segunda instancia** (a partir de que la persona va a firmar):
+- [x] `fecha_firma_contrato` (DATE) — auto-set cuando estado → `Contrato firmado`
+- [x] `fecha_limite_pago_total` (DATE) — auto-calculada: `fecha_evento - 30 días` (en PUT lead y visible en formulario)
+
+##### B. Estado comercial (nuevo flujo de pipeline) ✅
+
+Reemplazar `LEAD_STATES` actual por el siguiente flujo cerrado que alinea CRM + realidad operativa + contrato:
+
+```js
+ESTADO_COMERCIAL = [
+  "Lead nuevo",              // Ingresa al sistema
+  "Contactado",              // Se estableció primer contacto
+  "Visita al salón realizada", // Fue al salón → campo clave de conversión
+  "Propuesta enviada",       // Recibió propuesta formal
+  "Reserva tomada",          // Pagó seña
+  "Contrato firmado",        // Firmó → se convierte en Cliente
+  "Cliente activo",          // Evento próximo, en preparación
+  "Evento realizado",        // El evento ocurrió
+  "Post-evento / cerrado"    // Cierre total
+]
+```
+
+##### C. Bloque financiero en `reservations` / `events`
+
+Campos nuevos (segunda instancia — imprescindible para riesgo financiero y seguimiento):
+
+| Campo                         | Tipo   | Notas                                               |
+|-------------------------------|--------|-----------------------------------------------------|
+| `valor_total_evento`          | FLOAT  | Precio acordado total del evento                    |
+| `reserva_senia`               | FLOAT  | Monto abonado como seña (ya existe `monto_senia`)   |
+| `saldo_pendiente`             | FLOAT  | Auto-calculado: `valor_total - suma pagos`          |
+| `estado_pago`                 | STRING | `Sin pagos`, `Reserva paga`, `En cuotas`, `Pagado total` |
+| `modalidad_actualizacion_precios` | STRING | `Mensual`, `Bimestral`, `Trimestral`           |
+
+##### D. Servicios contratados — UI modular
+
+La tabla `events` ya tiene `servicios_contratados` (JSON). Mejorar la UI con multiselect estructurado:
+
+```
+Servicios base:
+  ☐ Salón   ☐ Catering
+
+Servicios adicionales:
+  ☐ Mesa dulce   ☐ Fotografía   ☐ Video
+  ☐ DJ extra     ☐ Decoración especial   ☐ Otros (texto libre)
+```
+
+Permite: upsell, reporting por servicio, estandarización de contratos futuros.
+
+##### E. Campos de producción en `events`
+
+| Campo                      | Tipo    | Notas                                          |
+|----------------------------|---------|------------------------------------------------|
+| `menu_seleccionado`        | STRING  | `Menu 1`, `Menu 2`, `Personalizado`            |
+| `minimo_tarjetas`          | INTEGER | Mínimo de tarjetas requerido                   |
+| `valor_tarjeta_adulto`     | FLOAT   |                                                |
+| `valor_tarjeta_adolescente`| FLOAT   |                                                |
+| `valor_tarjeta_nino`       | FLOAT   |                                                |
+
+> `invitados_estimados` ya existe en `events`.
+
+##### Flujo ideal de datos (definitivo)
+
+```
+1. Ingreso de lead (simple)
+   nombre · teléfono · canal · tipo_evento · fecha_evento · notas
+
+2. Calificación
+   fecha_visita_salon · presupuesto_estimado · servicios_de_interes · tipo_cliente
+
+3. Reserva
+   (transición automática al marcar fecha como "Reservada")
+
+4. Cliente
+   fecha_firma_contrato · reserva_senia · valor_total_evento
+   servicios_contratados · estado_pago · modalidad_actualizacion_precios
+
+5. Fechas clave automáticas
+   fecha_limite_pago_total = fecha_evento − 30 días
+```
+
+---
+
+#### PRIORIDAD MEDIA — Mejoras técnicas
+
+- [ ] **Optimistic UI + Redux** — patrón optimistic con Redux global state para respuesta instantánea; si falla la petición, se revierte
+- [ ] Sesiones server-side (JWT o NextAuth) — actualmente usa localStorage
 - [ ] Panel admin para activar/desactivar usuarios registrados
-- [ ] Pasar user_id real al cambiar estado de lead (actualmente pasa null)
-- [ ] Migraciones de BD (actualmente usa sequelize.sync({ alter: true }))
+- [ ] Pasar `user_id` real al cambiar estado de lead (actualmente pasa `null`)
+- [ ] Migraciones de BD (actualmente usa `sequelize.sync({ alter: true })`)
 - [ ] Validaciones server-side con Zod en las API routes
 - [ ] Tests (unit + integration)
-- [ ] Eliminar `lib/store.js` (ya no se usa, pero queda como referencia)
+- [ ] Eliminar `lib/store.js` (ya no se usa, queda como referencia)
+
+---
+
+#### PRIORIDAD BAJA — Features avanzadas
+
+##### 5. Módulo de Pagos (`payments`)
+
+Nueva tabla para registro inmutable de pagos (no se editan — solo se anulan con registro nuevo):
+
+| Campo               | Tipo   | Notas                                                        |
+|---------------------|--------|--------------------------------------------------------------|
+| `id`                | UUID   | PK                                                           |
+| `reservation_id`    | UUID   | FK → reservations                                            |
+| `monto`             | FLOAT  |                                                              |
+| `currency`          | STRING | default: ARS                                                 |
+| `tipo`              | ENUM   | `seña`, `pago_parcial`, `pago_final`, `devolucion`           |
+| `metodo_pago`       | STRING | efectivo, transferencia, tarjeta, etc.                       |
+| `fecha_pago`        | DATE   |                                                              |
+| `estado`            | ENUM   | `pendiente`, `confirmado`, `anulado`                         |
+| `comprobante_url`   | STRING | nullable                                                     |
+| `observacion`       | TEXT   | nullable                                                     |
+| `created_by_user_id`| UUID   | FK → users                                                   |
+
+> **IMPORTANTE:** No permitir borrar/editar pagos. Para corregir: crear nuevo registro con `tipo: devolucion` o `estado: anulado`.
+
+- [ ] Migración + modelo + asociaciones
+- [ ] API CRUD (`/api/payments`, `/api/payments/:id`)
+- [ ] UI para registrar pagos desde detalle de reserva/evento
+- [ ] Historial de pagos en vista de evento/lead
+- [ ] `saldo_pendiente` calculado automáticamente desde historial de pagos
+
+##### 6. Dashboard de Métricas (Business Intelligence)
+
+Requiere módulo `payments` para métricas financieras completas:
+
+- [ ] Métricas financieras: total facturado por mes, ingresos por `tipo_evento`, saldo pendiente de cobro, conversión reserva → evento confirmado
+- [ ] Métricas de pipeline: tiempo promedio de cierre por etapa del `estado_comercial`
+- [ ] Métricas de pérdidas: gráfico de motivos de pérdida (requiere `lost_reasons`)
+- [ ] Métricas de comunicación: interacciones por canal, ratio IN/OUT (requiere mejoras en `interactions`)
+
+##### Tabla `lost_reasons` (Reporting de pérdidas)
+
+Hoy `motivo` en `lead_status_history` es texto libre. Para reporting real:
+
+```sql
+-- Nueva tabla
+lost_reasons: id, name
+
+-- Campo nuevo en lead_status_history
+lost_reason_id UUID FK → lost_reasons
+```
+
+Opciones sugeridas: `Precio`, `Fecha no disponible`, `Eligió competencia`, `No respondió`, `Otro`
+
+Habilita dashboard: "perdimos X leads por precio este trimestre".
+
+- [ ] Migración tabla `lost_reasons`
+- [ ] Campo `lost_reason_id` en `lead_status_history`
+- [ ] UI para seleccionar motivo al marcar lead como `Perdido`
+- [ ] Endpoint `/api/lost-reasons` (GET)
+
+##### Timestamps en `tasks`
+
+- [ ] Migración: agregar `updated_at` a tasks
+- [ ] Migración: agregar `completed_at` a tasks (se registra automáticamente cuando `estado → Hecho`)
+- [ ] UI: mostrar cuándo se completó una tarea
+
+##### Mejoras en `interactions` (Canal + metadata)
+
+- [ ] Migración: campo `canal` (ENUM: `whatsapp`, `email`, `llamada`, `presencial`)
+- [ ] Migración: campo `direction` (ENUM: `IN`, `OUT`) — para métricas de respuesta
+- [ ] Migración: campo `external_id` (STRING, nullable) — para integración futura con WhatsApp API
+- [ ] UI de interacciones: capturar canal y dirección al registrar
+- [ ] Filtros por canal en vista de interacciones
+
+---
+
+#### Todo está relacionado
+
+```
+Lead (estado_comercial + fechas clave)
+  └── Visita salón → conversión
+  └── Propuesta → precio + servicios
+  └── Reserva → seña (payments)
+       └── Evento → producción (menú, tarjetas, invitados)
+            └── Pagos → saldo_pendiente → estado_pago
+                 └── Dashboard BI → métricas financieras + pipeline
+  └── Perdido → lost_reason_id → Dashboard: motivos de pérdida
+  └── Interactions (canal + direction) → Dashboard: ratio respuesta
+```
+
+Si el CRM no refleja el contrato → el contrato queda aislado → se pierde control, trazabilidad, ventas, dinero y previsión.
 
 ---
 

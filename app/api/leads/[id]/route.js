@@ -42,6 +42,16 @@ export async function PUT(request, { params }) {
     // Sanitizar: solo campos editables, limpiar strings vacios en campos DATE
     const { id: _id, created_at, updated_at, estado_actual, ...updateData } = body;
     if (updateData.fecha_tentativa === '') updateData.fecha_tentativa = null;
+    if (updateData.fecha_visita_salon === '') updateData.fecha_visita_salon = null;
+    if (updateData.fecha_firma_contrato === '') updateData.fecha_firma_contrato = null;
+    if (updateData.fecha_limite_pago_total === '') updateData.fecha_limite_pago_total = null;
+
+    // Auto-calcular fecha límite de pago (fecha evento - 30 días)
+    if (updateData.fecha_tentativa) {
+      const fechaLimite = new Date(updateData.fecha_tentativa);
+      fechaLimite.setDate(fechaLimite.getDate() - 30);
+      updateData.fecha_limite_pago_total = fechaLimite.toISOString().substring(0, 10);
+    }
 
     await lead.update({
       ...updateData,
