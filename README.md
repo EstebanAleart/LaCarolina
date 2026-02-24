@@ -34,6 +34,23 @@ Pensado para salones de eventos que necesitan trazabilidad completa: desde el pr
 - `next-themes` → Dark mode
 - `googleapis` → Google Calendar API (service account JWT)
 
+---
+
+## ⚠️ Advertencia Importante: Next.js 16, pnpm y node_modules
+
+Este proyecto utiliza **pnpm** con la opción `node-linker=hoisted` (ver archivo `.npmrc`). Esto es necesario para que Next.js y Turbopack puedan resolver correctamente los módulos nativos y dependencias en entornos como Vercel.
+
+**Problemas conocidos:**
+- Next.js 16 (Turbopack) no soporta correctamente los alias de importación (`@/`) ni la configuración de webpack/turbopack para alias. Por eso, todos los imports de componentes deben ser relativos (ej: `../components/mi-componente`).
+- Si tienes errores de "Module not found" o problemas de imports, asegúrate de:
+  - Eliminar la carpeta `node_modules` y `.next` y luego correr `pnpm install` para limpiar el entorno.
+  - Usar siempre imports relativos en vez de alias.
+  - Verificar que `.npmrc` contenga `node-linker=hoisted`.
+- En Vercel, siempre haz un "Redeploy" con la opción "Clear build cache" si cambias dependencias o la estructura de imports.
+
+**Resumen:**
+> No uses alias de importación (`@/`) en Next.js 16 con pnpm. Usa imports relativos y limpia el entorno si hay errores de resolución de módulos.
+
 ### Config Next.js (next.config.mjs)
 ```js
 serverExternalPackages: ['sequelize', 'pg', 'pg-hstore', 'googleapis']
