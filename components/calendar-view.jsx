@@ -23,6 +23,7 @@ const STATE_COLORS = {
   Reservada: "bg-blue-200 text-blue-900",
   Confirmada: "bg-green-300 text-green-900",
   Tentativa: "bg-purple-200 text-purple-900",
+  Visita: "bg-orange-200 text-orange-900",
 }
 
 const STATE_DOT_COLORS = {
@@ -31,6 +32,7 @@ const STATE_DOT_COLORS = {
   Reservada: "bg-blue-500",
   Confirmada: "bg-green-600",
   Tentativa: "bg-purple-500",
+  Visita: "bg-orange-500",
 }
 
 function getDaysInMonth(year, month) {
