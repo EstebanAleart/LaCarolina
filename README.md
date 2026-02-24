@@ -34,10 +34,28 @@ Pensado para salones de eventos que necesitan trazabilidad completa: desde el pr
 - `next-themes` → Dark mode
 - `googleapis` → Google Calendar API (service account JWT)
 
+---
+
+## ⚠️ Advertencia Importante: Next.js 16, pnpm y node_modules
+
+Este proyecto utiliza **pnpm** con la opción `node-linker=hoisted` (ver archivo `.npmrc`). Esto es necesario para que Next.js y Turbopack puedan resolver correctamente los módulos nativos y dependencias en entornos como Vercel.
+
+**Problemas conocidos:**
+- Next.js 16 (Turbopack) no soporta correctamente los alias de importación (`@/`) ni la configuración de webpack/turbopack para alias. Por eso, todos los imports de componentes deben ser relativos (ej: `../components/mi-componente`).
+- Si tienes errores de "Module not found" o problemas de imports, asegúrate de:
+  - Eliminar la carpeta `node_modules` y `.next` y luego correr `pnpm install` para limpiar el entorno.
+  - Usar siempre imports relativos en vez de alias.
+  - Verificar que `.npmrc` contenga `node-linker=hoisted`.
+- En Vercel, siempre haz un "Redeploy" con la opción "Clear build cache" si cambias dependencias o la estructura de imports.
+
+**Resumen:**
+> No uses alias de importación (`@/`) en Next.js 16 con pnpm. Usa imports relativos y limpia el entorno si hay errores de resolución de módulos.
+
 ### Config Next.js (next.config.mjs)
 ```js
 serverExternalPackages: ['sequelize', 'pg', 'pg-hstore', 'googleapis']
 // Necesario para que Turbopack no intente bundlear estos paquetes nativos
+
 ```
 
 ---
@@ -204,29 +222,35 @@ Todos los componentes siguen este patrón:
 | ultimo_acceso | DATE    | nullable           |
 
 ### leads
-| Campo              | Tipo    | Restricción       |
-|--------------------|---------|-------------------|
-| id                 | UUID    | PK, auto          |
-| nombre             | STRING  | NOT NULL           |
-| telefono           | STRING  |                    |
-| email              | STRING  |                    |
-| canal_origen       | STRING  |                    |
-| tipo_evento        | STRING  |                    |
-| fecha_tentativa    | DATE    |                    |
-| anio_evento        | INTEGER |                    |
-| estado_actual      | STRING  |                    |
-| valor_estimado     | FLOAT   |                    |
-| notas              | TEXT    |                    |
-| managed_by_user_id | UUID    | FK → users         |
-| created_at         | DATE    | default: NOW       |
-| updated_at         | DATE    | default: NOW       |
+| Campo                    | Tipo    | Restricción       |
+|--------------------------|---------|-------------------|
+| id                       | UUID    | PK, auto          |
+| nombre                   | STRING  | NOT NULL           |
+| telefono                 | STRING  |                    |
+| email                    | STRING  |                    |
+| canal_origen             | STRING  |                    |
+| tipo_evento              | STRING  |                    |
+| tipo_cliente             | STRING  | Particular / Empresa / Institucional |
+| fecha_tentativa          | DATE    | Fecha del evento (tentativa/confirmada) |
+| fecha_visita_salon       | DATE    | Auto-crea CalendarDate "Visita" al guardar |
+| fecha_firma_contrato     | DATE    | Auto-set al estado "Contrato firmado" |
+| fecha_limite_pago_total  | DATE    | Auto-calculado: fecha_tentativa - 30 días |
+| anio_evento              | INTEGER | Auto-sync con año de fecha_tentativa |
+| estado_actual            | STRING  | Ver LEAD_STATES     |
+| valor_estimado           | FLOAT   |                    |
+| notas                    | TEXT    |                    |
+| managed_by_user_id       | UUID    | FK → users         |
+| created_at               | DATE    | default: NOW       |
+| updated_at               | DATE    | default: NOW       |
 
 ### interactions
 | Campo              | Tipo   | Restricción |
 |--------------------|--------|-------------|
 | id                 | UUID   | PK, auto    |
 | lead_id            | UUID   | FK → leads, NOT NULL |
-| tipo               | STRING | (WhatsApp, Llamada, Email, Reunion) |
+| tipo               | STRING | (deprecado, mismo valor que canal) |
+| canal              | STRING | WhatsApp / Llamada / Email / Presencial |
+| direction          | STRING | OUT (saliente) / IN (entrante) |
 | descripcion        | TEXT   |             |
 | fecha              | DATE   |             |
 | created_by_user_id | UUID   | FK → users  |
@@ -259,7 +283,7 @@ Todos los componentes siguen este patrón:
 |-----------------|--------|-------------------|
 | id              | UUID   | PK, auto          |
 | fecha           | DATE   | NOT NULL, UNIQUE   |
-| estado_fecha    | STRING | (Disponible, Bloqueada, Reservada, Confirmada) |
+| estado_fecha    | STRING | Disponible / Bloqueada / Reservada / Confirmada / Visita |
 | fuente          | STRING |                    |
 | lead_id         | UUID   | FK → leads (nullable) |
 | evento_id       | UUID   | FK → events (nullable)|
@@ -280,18 +304,25 @@ Todos los componentes siguen este patrón:
 | estado           | STRING | (Pendiente, Confirmada, etc.) |
 
 ### events
-| Campo                 | Tipo    | Restricción            |
-|-----------------------|---------|------------------------|
-| id                    | UUID    | PK, auto               |
-| lead_id               | UUID    | FK → leads, NOT NULL, UNIQUE |
-| fecha_confirmada      | DATE    |                        |
-| tipo_evento           | STRING  |                        |
-| invitados_estimados   | INTEGER |                        |
-| servicios_contratados | JSON    | (array de servicios)   |
-| estado_operativo      | STRING  | (Pendiente, En preparación, Listo, Realizado) |
-| contrato_url          | STRING  |                        |
-| calendar_date_id      | UUID    | FK → calendar_dates    |
-| created_at            | DATE    | default: NOW           |
+| Campo                          | Tipo    | Restricción            |
+|--------------------------------|---------|------------------------|
+| id                             | UUID    | PK, auto               |
+| lead_id                        | UUID    | FK → leads, NOT NULL, UNIQUE |
+| fecha_confirmada               | DATE    |                        |
+| tipo_evento                    | STRING  |                        |
+| invitados_estimados            | INTEGER |                        |
+| servicios_contratados          | JSON    | array: Salón / Catering / Mesa dulce / etc. |
+| estado_operativo               | STRING  | Pendiente / En preparacion / Listo / Realizado |
+| contrato_url                   | STRING  |                        |
+| valor_total_evento             | FLOAT   | Precio total acordado  |
+| estado_pago                    | STRING  | Pendiente / Parcial / Completo |
+| modalidad_actualizacion_precios| STRING  | Precio fijo / Precio por tarjeta / Mixto |
+| menu_seleccionado              | STRING  |                        |
+| minimo_tarjetas                | INTEGER |                        |
+| valor_tarjeta_adulto           | FLOAT   |                        |
+| valor_tarjeta_adolescente      | FLOAT   |                        |
+| valor_tarjeta_nino             | FLOAT   |                        |
+| created_at                     | DATE    | default: NOW           |
 
 ### tasks
 | Campo               | Tipo    | Restricción |
@@ -377,26 +408,36 @@ Definidas en `lib/api.js` (exportadas y usadas por todos los componentes fronten
 
 ```js
 LEAD_STATES = [
-  "Consulta inicial",    // Estado inicial al crear lead
-  "Propuesta enviada",   // Se envió propuesta → auto-crea Task seguimiento
-  "Esperando respuesta",
-  "Visita agendada",
-  "En negociacion",
-  "Reserva tomada",
-  "Evento confirmado",   // Estado final exitoso → se crea Event
-  "Perdido"              // Requiere motivo obligatorio
+  "Lead nuevo",               // Estado inicial al crear lead
+  "Contactado",
+  "Visita al salón realizada",
+  "Propuesta enviada",        // Auto-crea Task seguimiento (+3 días)
+  "Reserva tomada",           // Auto al marcar CalendarDate "Reservada"
+  "Contrato firmado",         // Auto-crea Event + CalendarDate "Confirmada"
+  "Cliente activo",           // Auto al marcar CalendarDate "Confirmada"
+  "Evento realizado",
+  "Post-evento / cerrado",
+  "Perdido",                  // Requiere motivo obligatorio
 ]
 
-CALENDAR_STATES = ["Disponible", "Bloqueada", "Reservada", "Confirmada"]
-// + "Tentativa" (visual en calendario, derivado de lead.fecha_tentativa, no es un estado de CalendarDate)
+TIPOS_CLIENTE = ["Particular", "Empresa", "Institucional"]
+
+CALENDAR_STATES = ["Disponible", "Bloqueada", "Reservada", "Confirmada", "Visita"]
+// "Tentativa" = visual en calendario (derivado de lead.fecha_tentativa, no es CalendarDate)
+// "Visita" = auto-creado al guardar fecha_visita_salon en un lead (naranja)
 
 CANALES = ["WhatsApp", "Web", "Referido", "Instagram", "Facebook", "Telefono"]
 
 TIPOS_EVENTO = ["Fiesta de 15", "Egresados", "Casamiento", "Evento Corporativo", "Otro"]
 
 TASK_STATES = ["Pendiente", "En Proceso", "Hecho", "Cancelado"]
-
 TASK_PRIORITIES = ["Alta", "Media", "Baja"]
+
+// Eventos
+ESTADOS_PAGO = ["Pendiente", "Parcial", "Completo"]
+MODALIDADES_PRECIO = ["Precio fijo", "Precio por tarjeta", "Mixto"]
+SERVICIOS_BASE = ["Salón", "Catering"]
+SERVICIOS_ADICIONALES = ["Mesa dulce", "Fotografía", "Video", "DJ extra", "Decoración especial", "Otros"]
 
 USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
 ```
@@ -407,7 +448,7 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
 
 1. **Lead → Perdido**: Requiere `motivo` obligatorio (400 si falta).
 2. **Lead → "Propuesta enviada"**: Auto-crea Task de seguimiento con `prioridad: Alta` y `due_date: +3 días`.
-2b. **Lead → estados avanzados del pipeline**: Auto-crea Proposal si no existe. Estados: "Propuesta enviada"→Enviada, "Esperando respuesta"→Enviada, "Visita agendada"→Enviada, "En negociacion"→En negociación, "Reserva tomada"→Aceptada.
+2b. **Lead → estados avanzados del pipeline**: Auto-crea Proposal si no existe. Estados: "Propuesta enviada"→Enviada, "Visita al salón realizada"→Enviada, "Reserva tomada"→Aceptada, "Contrato firmado"→Aceptada.
 2c. **CalendarDate Reservada/Confirmada + lead**: Auto-crea Proposal "Aceptada" si no existe (o actualiza la última a Aceptada).
 3. **CalendarDate**: No puede haber dos leads con estado Reservada/Confirmada en la misma fecha (409 conflict).
 4. **Reservation**: Un lead solo puede tener una reserva, `lead_id` es UNIQUE (409 si ya existe).
@@ -415,32 +456,36 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
 6. **Event creado** (POST /api/events): Automáticamente:
    - Crea/actualiza CalendarDate a "Confirmada" con el `lead_id` y `evento_id`
    - Crea registro en LeadStatusHistory
-   - Actualiza lead a `estado_actual: "Evento confirmado"`
-6b. **CalendarDate → Lead sync bidireccional** (POST /api/calendar): Automáticamente:
-   - Si `estado_fecha` = "Reservada" + `lead_id` → Lead pasa a `"Reserva tomada"` + limpia `fecha_tentativa` + historial + **auto-crea Reservation** si no existe
-   - Si `estado_fecha` = "Confirmada" + `lead_id` → Lead pasa a `"Evento confirmado"` + limpia `fecha_tentativa` + historial + **auto-crea Event** si no existe (con tipo_evento del lead)
+   - Actualiza lead a `estado_actual: "Cliente activo"`
+6b. **CalendarDate → Lead sync** (POST /api/calendar): Automáticamente:
+   - Si `estado_fecha` = "Reservada" + `lead_id` → Lead pasa a `"Reserva tomada"` + historial + **auto-crea Reservation** si no existe
+   - Si `estado_fecha` = "Confirmada" + `lead_id` → Lead pasa a `"Cliente activo"` + historial + **auto-crea Event** si no existe
    - En ambos casos: última propuesta del lead pasa a **"Aceptada"** automáticamente
-   - Al limpiar `fecha_tentativa`, el marcador purple "Tentativa" desaparece del calendario
 6c. **Lead → Propuesta auto-sync** (PUT /api/leads/:id/status):
-   - Lead → "Reserva tomada" o "Evento confirmado" → última propuesta pasa a **"Aceptada"**
+   - Lead → "Reserva tomada" / "Contrato firmado" / "Cliente activo" → última propuesta pasa a **"Aceptada"**
    - Lead → "Perdido" → última propuesta pasa a **"Rechazada"** (si no estaba Aceptada)
-7. **Proposal.version**: Se auto-incrementa contando `Proposal.count({ where: { lead_id } })`.
-8. **Proposal → "Enviada"** (PUT /api/proposals/:id): Auto-registra `fecha_envio` si no tenía.
-9. **Delete Lead** (DELETE /api/leads/:id): Cascade manual → destruye en orden:
-   - Interactions → Visits → Proposals → LeadStatusHistory → Reservations → Tasks → Events → CalendarDates (+ elimina de Google Calendar) → Lead
-9b. **Update Lead** (PUT /api/leads/:id): Sanitiza body (excluye id, estado_actual, created_at). Convierte fecha_tentativa vacía a null. Si cambia valor_estimado → actualiza precio_total de la última propuesta asociada.
-10. **GET /api/users**: Excluye `password_hash` del response (solo devuelve id, nombre, email, rol, activo).
-11. **GET /api/leads/:id**: Incluye todas las relaciones (interactions, visits, proposals, status_history, reservation, event).
-12. **GET /api/tasks**: Incluye relaciones (lead, event, assigned_user).
-13. **GET /api/reservations**: Incluye relaciones (lead, calendar_date).
-14. **GET /api/events**: Incluye relaciones (lead, calendar_date).
-15. **Seed de usuarios** (POST /api/seed): Crea 3 usuarios demo si la tabla users está vacía. Se ejecuta automáticamente en page.jsx al cargar la app.
-16. **Registro** (POST /api/auth/register): Hash con bcrypt (salt 10), `activo: false` por defecto. Email único (409).
-17. **Login** (POST /api/auth/login): Compara password con bcrypt. Rechaza si `activo: false` (403). Retorna user sin password_hash.
-18. **Calendario tentativas**: Los leads con `fecha_tentativa` se muestran automáticamente en el calendario como marcadores purple. Al seleccionar un lead tentativo desde el modal, se sugiere estado "Reservada" y se pre-asocia el lead.
-19. **Google Calendar Sync (App → Google)**: Al crear/actualizar CalendarDate con estado Reservada/Confirmada → crea/actualiza evento en Google Calendar. Al liberar/eliminar → elimina de Google Calendar. Fallo de Google no rompe la operación local.
-20. **Google Calendar Sync (Google → App)**: Webhook recibe push notifications. Evento creado en Google sin carolinaId → crea CalendarDate "Bloqueada". Evento eliminado → libera CalendarDate. Evento movido → actualiza fecha.
-21. **Google Calendar colores**: Reservada=azul(9), Confirmada=verde(10), Bloqueada=amarillo(5). Eventos con lead muestran nombre+tipo_evento como summary.
+6d. **Lead → "Contrato firmado"** (PUT /api/leads/:id/status): Automáticamente:
+   - Auto-set `fecha_firma_contrato` si no estaba seteada
+   - Si hay `fecha_tentativa` y no existe Event → **auto-crea Event** con fecha, tipo y valor_estimado del lead
+   - **Siempre actualiza CalendarDate** de la fecha_tentativa a "Confirmada" (sea Tentativa, Reservada o nueva)
+7. **fecha_visita_salon** (POST y PUT /api/leads + PUT /api/leads/:id): Al guardar esta fecha → **auto-crea/actualiza CalendarDate** como `"Visita"` (naranja) con nota "Visita al salón: [nombre lead]". No sobreescribe fechas ya reservadas/confirmadas.
+8. **anio_evento** (leads-view.jsx): Se auto-sincroniza con el año de `fecha_tentativa` al cambiar en el formulario.
+9. **fecha_limite_pago_total**: Auto-calculado server-side como `fecha_tentativa - 30 días`. Se recalcula en cada PUT del lead.
+10. **Proposal.version**: Se auto-incrementa contando `Proposal.count({ where: { lead_id } })`.
+11. **Proposal → "Enviada"** (PUT /api/proposals/:id): Auto-registra `fecha_envio` si no tenía.
+12. **Delete Lead** (DELETE /api/leads/:id): Cascade manual → destruye en orden:
+    - Interactions → Visits → Proposals → LeadStatusHistory → Reservations → Tasks → Events → CalendarDates (+ elimina de Google Calendar) → Lead
+13. **Update Lead** (PUT /api/leads/:id): Sanitiza body (excluye id, estado_actual, created_at). Convierte fechas vacías a null. Si cambia valor_estimado → actualiza precio_total de la última propuesta.
+14. **GET /api/users**: Excluye `password_hash`.
+15. **GET /api/leads/:id**: Incluye todas las relaciones (interactions, visits, proposals, status_history, reservation, event).
+16. **GET /api/events**: Incluye relaciones (lead, calendar_date).
+17. **Seed de usuarios** (POST /api/seed): Crea usuarios demo si la tabla users está vacía. Se ejecuta automáticamente al cargar la app.
+18. **Registro** (POST /api/auth/register): Hash con bcrypt (salt 10), `activo: false` por defecto. Email único (409).
+19. **Login** (POST /api/auth/login): Compara password con bcrypt. Rechaza si `activo: false` (403).
+20. **Calendario tentativas**: Leads con `fecha_tentativa` se muestran como marcadores purple en el calendario. Al hacer click → sugiere estado "Reservada" pre-asociado.
+21. **Google Calendar Sync (App → Google)**: Reservada/Confirmada → crea/actualiza evento GCal. Liberada → elimina de GCal. Fallo no rompe operación local.
+22. **Google Calendar Sync (Google → App)**: Webhook recibe push notifications. Sin carolinaId → CalendarDate "Bloqueada". Eliminado → libera CalendarDate.
+23. **Interactions canal+direction**: Cada interacción registra `canal` (WhatsApp/Llamada/Email/Presencial) y `direction` (OUT saliente / IN entrante). Visible en cards y timeline del lead.
 
 ---
 
@@ -452,17 +497,20 @@ Todas envuelven la lógica en try/catch y devuelven `{ error: message }` con sta
 ### Leads
 ```
 GET    /api/leads                    → Listar todos. Filtros: ?estado=X&anio=2026. Order: created_at DESC
-POST   /api/leads                    → Crear lead. Body: { nombre, telefono, email, canal_origen, tipo_evento, fecha_tentativa, anio_evento, valor_estimado, notas }. Estado inicial: "Consulta inicial"
+POST   /api/leads                    → Crear. Body: { nombre, telefono, email, canal_origen, tipo_evento, tipo_cliente,
+                                         fecha_tentativa, fecha_visita_salon, anio_evento, valor_estimado, notas }.
+                                         Estado inicial: "Lead nuevo". Auto: fecha_limite_pago_total, CalendarDate "Visita"
 GET    /api/leads/:id                → Detalle con includes: interactions, visits, proposals, status_history, reservation, event
-PUT    /api/leads/:id                → Actualizar campos editables (sanitiza body: excluye id, estado_actual, created_at). fecha_tentativa="" → null. Si cambia valor_estimado → sync precio_total de última propuesta
-DELETE /api/leads/:id                → Eliminar con cascade manual (interactions, visits, proposals, history, reservations, tasks, events, calendar_dates + Google Calendar)
-PUT    /api/leads/:id/status         → Body: { estado, motivo?, user_id? }. Crea LeadStatusHistory. Si "Propuesta enviada" → auto-crea Task. Auto-crea Proposal si no existe para estados avanzados
-GET    /api/leads/:id/interactions   → Listar interacciones del lead. Order: fecha DESC
-POST   /api/leads/:id/interactions   → Body: { tipo, descripcion, fecha?, created_by_user_id? }
-GET    /api/leads/:id/visits         → Listar visitas del lead. Order: fecha_visita DESC
+PUT    /api/leads/:id                → Actualizar. Auto: fecha_limite_pago_total, CalendarDate "Visita", sync precio_total propuesta
+DELETE /api/leads/:id                → Cascade manual (interactions, visits, proposals, history, reservations, tasks, events, calendar_dates + GCal)
+PUT    /api/leads/:id/status         → Body: { estado, motivo?, user_id? }. Auto: Task si "Propuesta enviada",
+                                         Event+CalendarDate si "Contrato firmado", Proposal auto-sync
+GET    /api/leads/:id/interactions   → Listar. Order: fecha DESC
+POST   /api/leads/:id/interactions   → Body: { canal, direction, descripcion, fecha?, created_by_user_id? }
+GET    /api/leads/:id/visits         → Listar. Order: fecha_visita DESC
 POST   /api/leads/:id/visits         → Body: { fecha_visita, resultado, notas, created_by_user_id? }
-GET    /api/leads/:id/proposals      → Listar propuestas del lead. Order: version DESC
-POST   /api/leads/:id/proposals      → Body: { contenido_html/contenido, precio_total, created_by_user_id? }. Version auto-incrementa. Estado: "Borrador"
+GET    /api/leads/:id/proposals      → Listar. Order: version DESC
+POST   /api/leads/:id/proposals      → Body: { precio_total, created_by_user_id? }. Version auto-incrementa
 ```
 
 ### Proposals
@@ -474,8 +522,12 @@ PUT    /api/proposals/:id            → Body: campos a actualizar. Si estado �
 ### Calendar
 ```
 GET    /api/calendar                 → Todas las fechas. Order: fecha ASC
-POST   /api/calendar                 → Body: { fecha, estado_fecha, fuente?, lead_id?, evento_id?, nota? }. Si fecha existe → update. Valida conflicto Reservada/Confirmada (409). Auto-sync: si Reservada+lead → lead pasa a "Reserva tomada" + limpia fecha_tentativa. Si Confirmada+lead → lead pasa a "Evento confirmado"
-DELETE /api/calendar/:fecha          → Eliminar/liberar fecha por valor de fecha
+POST   /api/calendar                 → Body: { fecha, estado_fecha, lead_id?, nota? }. Crea o actualiza.
+                                         Valida conflicto Reservada/Confirmada (409).
+                                         Auto: Reservada+lead → lead "Reserva tomada" + Reservation.
+                                               Confirmada+lead → lead "Cliente activo" + Event.
+                                               Disponible/Bloqueada → elimina evento de GCal si existía.
+DELETE /api/calendar/:fecha          → Liberar fecha. Cascade: elimina reservas del lead, limpia estado
 ```
 
 ### Reservations
@@ -488,8 +540,12 @@ PUT    /api/reservations/:id         → Body: campos a actualizar
 ### Events
 ```
 GET    /api/events                   → Todos con includes: lead, calendar_date. Order: created_at DESC
-POST   /api/events                   → Body: { lead_id, fecha_confirmada, tipo_evento?, invitados_estimados?, servicios_contratados?, contrato_url?, user_id? }. Valida unique por lead (409). Auto: CalendarDate → "Confirmada", Lead → "Evento confirmado" + historial
-PUT    /api/events/:id               → Body: campos a actualizar
+POST   /api/events                   → Body: { lead_id, fecha_confirmada, tipo_evento?, invitados_estimados?,
+                                         servicios_contratados?, valor_total_evento?, estado_pago?,
+                                         modalidad_actualizacion_precios?, menu_seleccionado?,
+                                         minimo_tarjetas?, valor_tarjeta_adulto/adolescente/nino?, user_id? }
+                                         Auto: CalendarDate → "Confirmada", Lead → "Cliente activo" + historial
+PUT    /api/events/:id               → Body: cualquier campo del modelo (acepta parcial)
 ```
 
 ### Tasks
@@ -660,15 +716,208 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
   - Fix: convertido de CommonJS a ESM (`import`/`export`) — `require()` en try/catch fallaba silenciosamente en Next.js App Router
   - Fix: `fecha.toString()` en Date de Sequelize daba formato incorrecto → cambiado a `new Date(fecha).toISOString().substring(0,10)`
 
-### Pendiente (próximos pasos)
-- [ ] **Optimistic Result + Redux** (refactor plataforma) - patrón optimistic UI con Redux global state para respuesta instantánea en toda la app (si falla la petición se revierte)
-- [ ] Sesiones server-side (JWT o NextAuth) - actualmente usa localStorage
+### Pendiente - Roadmap
+
+---
+
+#### PRIORIDAD ALTA — v2.0: CRM Contractual-Comercial
+
+> El objetivo es que el CRM refleje el contrato real. Si no lo refleja, el contrato queda aislado y se pierde control, trazabilidad y dinero.
+
+##### A. Nuevos campos en `leads`
+
+Los campos se agrupan por lógica de sistema, no por lo visual.
+
+**Primera instancia** (cuando llega una persona):
+- [x] `fecha_visita_salon` (DATE) — clave de conversión, antes del contrato
+- [x] `tipo_cliente` (STRING: `Particular`, `Empresa`, `Institucional`) — campo crítico para precios, comunicación, automatizaciones y reporting
+
+**Segunda instancia** (a partir de que la persona va a firmar):
+- [x] `fecha_firma_contrato` (DATE) — auto-set cuando estado → `Contrato firmado`
+- [x] `fecha_limite_pago_total` (DATE) — auto-calculada: `fecha_evento - 30 días` (en PUT lead y visible en formulario)
+
+##### B. Estado comercial (nuevo flujo de pipeline) ✅
+
+Reemplazar `LEAD_STATES` actual por el siguiente flujo cerrado que alinea CRM + realidad operativa + contrato:
+
+```js
+ESTADO_COMERCIAL = [
+  "Lead nuevo",              // Ingresa al sistema
+  "Contactado",              // Se estableció primer contacto
+  "Visita al salón realizada", // Fue al salón → campo clave de conversión
+  "Propuesta enviada",       // Recibió propuesta formal
+  "Reserva tomada",          // Pagó seña
+  "Contrato firmado",        // Firmó → se convierte en Cliente
+  "Cliente activo",          // Evento próximo, en preparación
+  "Evento realizado",        // El evento ocurrió
+  "Post-evento / cerrado"    // Cierre total
+]
+```
+
+##### ✅ C. Bloque financiero en `reservations` / `events`
+
+Campos nuevos (segunda instancia — imprescindible para riesgo financiero y seguimiento):
+
+| Campo                         | Tipo   | Notas                                               |
+|-------------------------------|--------|-----------------------------------------------------|
+| `valor_total_evento`          | FLOAT  | Precio acordado total del evento                    |
+| `reserva_senia`               | FLOAT  | Monto abonado como seña (ya existe `monto_senia`)   |
+| `saldo_pendiente`             | FLOAT  | Auto-calculado: `valor_total - suma pagos`          |
+| `estado_pago`                 | STRING | `Sin pagos`, `Reserva paga`, `En cuotas`, `Pagado total` |
+| `modalidad_actualizacion_precios` | STRING | `Mensual`, `Bimestral`, `Trimestral`           |
+
+##### ✅ D. Servicios contratados — UI modular
+
+La tabla `events` ya tiene `servicios_contratados` (JSON). Mejorar la UI con multiselect estructurado:
+
+```
+Servicios base:
+  ☐ Salón   ☐ Catering
+
+Servicios adicionales:
+  ☐ Mesa dulce   ☐ Fotografía   ☐ Video
+  ☐ DJ extra     ☐ Decoración especial   ☐ Otros (texto libre)
+```
+
+Permite: upsell, reporting por servicio, estandarización de contratos futuros.
+
+##### ✅ E. Campos de producción en `events`
+
+| Campo                      | Tipo    | Notas                                          |
+|----------------------------|---------|------------------------------------------------|
+| `menu_seleccionado`        | STRING  | `Menu 1`, `Menu 2`, `Personalizado`            |
+| `minimo_tarjetas`          | INTEGER | Mínimo de tarjetas requerido                   |
+| `valor_tarjeta_adulto`     | FLOAT   |                                                |
+| `valor_tarjeta_adolescente`| FLOAT   |                                                |
+| `valor_tarjeta_nino`       | FLOAT   |                                                |
+
+> `invitados_estimados` ya existe en `events`.
+
+##### Flujo ideal de datos (definitivo)
+
+```
+1. Ingreso de lead (simple)
+   nombre · teléfono · canal · tipo_evento · fecha_evento · notas
+
+2. Calificación
+   fecha_visita_salon · presupuesto_estimado · servicios_de_interes · tipo_cliente
+
+3. Reserva
+   (transición automática al marcar fecha como "Reservada")
+
+4. Cliente
+   fecha_firma_contrato · reserva_senia · valor_total_evento
+   servicios_contratados · estado_pago · modalidad_actualizacion_precios
+
+5. Fechas clave automáticas
+   fecha_limite_pago_total = fecha_evento − 30 días
+```
+
+---
+
+#### PRIORIDAD MEDIA — Mejoras técnicas
+
+- [ ] **Optimistic UI + Redux** — patrón optimistic con Redux global state para respuesta instantánea; si falla la petición, se revierte
+- [ ] Sesiones server-side (JWT o NextAuth) — actualmente usa localStorage
 - [ ] Panel admin para activar/desactivar usuarios registrados
-- [ ] Pasar user_id real al cambiar estado de lead (actualmente pasa null)
-- [ ] Migraciones de BD (actualmente usa sequelize.sync({ alter: true }))
+- [ ] Pasar `user_id` real al cambiar estado de lead (actualmente pasa `null`)
+- [ ] Migraciones de BD (actualmente usa `sequelize.sync({ alter: true })`)
 - [ ] Validaciones server-side con Zod en las API routes
 - [ ] Tests (unit + integration)
-- [ ] Eliminar `lib/store.js` (ya no se usa, pero queda como referencia)
+- [ ] Eliminar `lib/store.js` (ya no se usa, queda como referencia)
+
+---
+
+#### PRIORIDAD BAJA — Features avanzadas
+
+##### 5. Módulo de Pagos (`payments`)
+
+Nueva tabla para registro inmutable de pagos (no se editan — solo se anulan con registro nuevo):
+
+| Campo               | Tipo   | Notas                                                        |
+|---------------------|--------|--------------------------------------------------------------|
+| `id`                | UUID   | PK                                                           |
+| `reservation_id`    | UUID   | FK → reservations                                            |
+| `monto`             | FLOAT  |                                                              |
+| `currency`          | STRING | default: ARS                                                 |
+| `tipo`              | ENUM   | `seña`, `pago_parcial`, `pago_final`, `devolucion`           |
+| `metodo_pago`       | STRING | efectivo, transferencia, tarjeta, etc.                       |
+| `fecha_pago`        | DATE   |                                                              |
+| `estado`            | ENUM   | `pendiente`, `confirmado`, `anulado`                         |
+| `comprobante_url`   | STRING | nullable                                                     |
+| `observacion`       | TEXT   | nullable                                                     |
+| `created_by_user_id`| UUID   | FK → users                                                   |
+
+> **IMPORTANTE:** No permitir borrar/editar pagos. Para corregir: crear nuevo registro con `tipo: devolucion` o `estado: anulado`.
+
+- [ ] Migración + modelo + asociaciones
+- [ ] API CRUD (`/api/payments`, `/api/payments/:id`)
+- [ ] UI para registrar pagos desde detalle de reserva/evento
+- [ ] Historial de pagos en vista de evento/lead
+- [ ] `saldo_pendiente` calculado automáticamente desde historial de pagos
+
+##### 6. Dashboard de Métricas (Business Intelligence)
+
+Requiere módulo `payments` para métricas financieras completas:
+
+- [ ] Métricas financieras: total facturado por mes, ingresos por `tipo_evento`, saldo pendiente de cobro, conversión reserva → evento confirmado
+- [ ] Métricas de pipeline: tiempo promedio de cierre por etapa del `estado_comercial`
+- [ ] Métricas de pérdidas: gráfico de motivos de pérdida (requiere `lost_reasons`)
+- [ ] Métricas de comunicación: interacciones por canal, ratio IN/OUT (requiere mejoras en `interactions`)
+
+##### Tabla `lost_reasons` (Reporting de pérdidas)
+
+Hoy `motivo` en `lead_status_history` es texto libre. Para reporting real:
+
+```sql
+-- Nueva tabla
+lost_reasons: id, name
+
+-- Campo nuevo en lead_status_history
+lost_reason_id UUID FK → lost_reasons
+```
+
+Opciones sugeridas: `Precio`, `Fecha no disponible`, `Eligió competencia`, `No respondió`, `Otro`
+
+Habilita dashboard: "perdimos X leads por precio este trimestre".
+
+- [ ] Migración tabla `lost_reasons`
+- [ ] Campo `lost_reason_id` en `lead_status_history`
+- [ ] UI para seleccionar motivo al marcar lead como `Perdido`
+- [ ] Endpoint `/api/lost-reasons` (GET)
+
+##### Timestamps en `tasks`
+
+- [ ] Migración: agregar `updated_at` a tasks
+- [ ] Migración: agregar `completed_at` a tasks (se registra automáticamente cuando `estado → Hecho`)
+- [ ] UI: mostrar cuándo se completó una tarea
+
+##### ✅ Mejoras en `interactions` (Canal + metadata)
+
+- [x] Migración: campo `canal` (STRING: `WhatsApp`, `Email`, `Llamada`, `Presencial`)
+- [x] Migración: campo `direction` (STRING: `IN` entrante / `OUT` saliente)
+- [x] UI de interacciones: capturar canal y dirección al registrar
+- [x] Display mejorado en cards + timeline con badge de dirección
+- [ ] Migración: campo `external_id` (STRING, nullable) — para integración futura con WhatsApp API
+- [ ] Filtros por canal en vista de interacciones
+
+---
+
+#### Todo está relacionado
+
+```
+Lead (estado_comercial + fechas clave)
+  └── Visita salón → conversión
+  └── Propuesta → precio + servicios
+  └── Reserva → seña (payments)
+       └── Evento → producción (menú, tarjetas, invitados)
+            └── Pagos → saldo_pendiente → estado_pago
+                 └── Dashboard BI → métricas financieras + pipeline
+  └── Perdido → lost_reason_id → Dashboard: motivos de pérdida
+  └── Interactions (canal + direction) → Dashboard: ratio respuesta
+```
+
+Si el CRM no refleja el contrato → el contrato queda aislado → se pierde control, trazabilidad, ventas, dinero y previsión.
 
 ---
 

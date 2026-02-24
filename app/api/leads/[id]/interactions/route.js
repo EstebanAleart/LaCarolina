@@ -23,9 +23,12 @@ export async function POST(request, { params }) {
     const { id } = await params;
     const body = await request.json();
 
+    const canal = body.canal || body.tipo || 'WhatsApp';
     const interaction = await Interaction.create({
       lead_id: id,
-      tipo: body.tipo || 'WhatsApp',
+      tipo: canal,
+      canal: canal,
+      direction: body.direction || 'OUT',
       descripcion: body.descripcion || '',
       fecha: body.fecha || new Date(),
       created_by_user_id: body.created_by_user_id || null,

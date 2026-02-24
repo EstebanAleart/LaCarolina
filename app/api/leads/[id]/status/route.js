@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-const { Lead, LeadStatusHistory, Task, Proposal } = require('@/lib/models/associations');
+const { Lead, LeadStatusHistory, Task, Proposal, Event, CalendarDate } = require('@/lib/models/associations');
 
 // PUT /api/leads/:id/status - Cambiar estado del lead con historial
 export async function PUT(request, { params }) {
@@ -53,17 +53,59 @@ export async function PUT(request, { params }) {
       });
     }
 
+    // Auto-set fecha_firma_contrato si no estaba seteada
+    if (estado === 'Contrato firmado' && !lead.fecha_firma_contrato) {
+      await lead.update({ fecha_firma_contrato: new Date(), updated_at: new Date() });
+    }
+
+    // Auto-crear Event + confirmar fecha al firmar contrato
+    if (estado === 'Contrato firmado' && lead.fecha_tentativa) {
+      const fechaEvento = lead.fecha_tentativa.toString().substring(0, 10);
+
+      // Crear Event si no existe
+      let evt = await Event.findOne({ where: { lead_id: id } });
+      if (!evt) {
+        evt = await Event.create({
+          lead_id: id,
+          fecha_confirmada: fechaEvento,
+          tipo_evento: lead.tipo_evento || '',
+          invitados_estimados: 0,
+          servicios_contratados: [],
+          estado_operativo: 'Pendiente',
+          estado_pago: 'Pendiente',
+          modalidad_actualizacion_precios: 'Precio fijo',
+          valor_total_evento: lead.valor_estimado || null,
+        });
+      }
+
+      // Siempre actualizar CalendarDate a "Confirmada" (sea Tentativa, Reservada, o nueva)
+      const calDate = await CalendarDate.findOne({ where: { fecha: fechaEvento } });
+      if (calDate) {
+        // Actualizar solo si es del mismo lead o está libre
+        if (!calDate.lead_id || calDate.lead_id === id) {
+          await calDate.update({ estado_fecha: 'Confirmada', lead_id: id, evento_id: evt.id });
+        }
+      } else {
+        await CalendarDate.create({
+          fecha: fechaEvento,
+          estado_fecha: 'Confirmada',
+          fuente: 'CRM',
+          lead_id: id,
+          evento_id: evt.id,
+        });
+      }
+    }
+
     // Auto-crear propuesta si no existe para estados avanzados del pipeline
-    const PROPOSAL_STATES = ['Propuesta enviada', 'Esperando respuesta', 'Visita agendada', 'En negociacion', 'Reserva tomada'];
+    const PROPOSAL_STATES = ['Propuesta enviada', 'Visita al salón realizada', 'Reserva tomada', 'Contrato firmado'];
     if (PROPOSAL_STATES.includes(estado)) {
       const existingProposal = await Proposal.findOne({ where: { lead_id: id } });
       if (!existingProposal) {
         const estadoMap = {
           'Propuesta enviada': 'Enviada',
-          'Esperando respuesta': 'Enviada',
-          'Visita agendada': 'Enviada',
-          'En negociacion': 'En negociación',
+          'Visita al salón realizada': 'Enviada',
           'Reserva tomada': 'Aceptada',
+          'Contrato firmado': 'Aceptada',
         };
         await Proposal.create({
           lead_id: id,
@@ -76,7 +118,7 @@ export async function PUT(request, { params }) {
     }
 
     // Auto-actualizar última propuesta según nuevo estado del lead
-    if (estado === 'Reserva tomada' || estado === 'Evento confirmado') {
+    if (estado === 'Reserva tomada' || estado === 'Contrato firmado' || estado === 'Cliente activo') {
       const lastProposal = await Proposal.findOne({
         where: { lead_id: id },
         order: [['created_at', 'DESC']],

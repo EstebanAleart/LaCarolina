@@ -44,6 +44,14 @@ export async function POST(request) {
       servicios_contratados: body.servicios_contratados || [],
       estado_operativo: 'Pendiente',
       contrato_url: body.contrato_url || '',
+      valor_total_evento: body.valor_total_evento || null,
+      estado_pago: body.estado_pago || 'Pendiente',
+      modalidad_actualizacion_precios: body.modalidad_actualizacion_precios || 'Precio fijo',
+      menu_seleccionado: body.menu_seleccionado || '',
+      minimo_tarjetas: body.minimo_tarjetas || null,
+      valor_tarjeta_adulto: body.valor_tarjeta_adulto || null,
+      valor_tarjeta_adolescente: body.valor_tarjeta_adolescente || null,
+      valor_tarjeta_nino: body.valor_tarjeta_nino || null,
     });
 
     // Automatización: actualizar CalendarDate a "Confirmada"
@@ -69,19 +77,19 @@ export async function POST(request) {
       }
     }
 
-    // Automatización: cambiar estado del lead a "Evento confirmado"
+    // Automatización: cambiar estado del lead a "Cliente activo"
     const lead = await Lead.findByPk(body.lead_id);
     if (lead) {
       await LeadStatusHistory.create({
         lead_id: body.lead_id,
         estado_anterior: lead.estado_actual,
-        estado_nuevo: 'Evento confirmado',
+        estado_nuevo: 'Cliente activo',
         motivo: null,
         changed_by_user_id: body.user_id || null,
       });
 
       await lead.update({
-        estado_actual: 'Evento confirmado',
+        estado_actual: 'Cliente activo',
         updated_at: new Date(),
       });
     }
