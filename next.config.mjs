@@ -1,6 +1,4 @@
 /** @type {import('next').NextConfig} */
-import path from 'path'
-
 const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
@@ -12,9 +10,12 @@ const nextConfig = {
   outputFileTracingIncludes: {
     '/api/**': ['./node_modules/pg/**', './node_modules/pg-hstore/**', './node_modules/sequelize/**'],
   },
-  webpack: (config) => {
-    config.resolve.alias['@'] = path.resolve(__dirname);
-    return config;
+  turbopack: {
+    resolver: {
+      alias: {
+        '@': '.',
+      },
+    },
   },
 }
 
