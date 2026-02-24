@@ -78,7 +78,7 @@ export async function POST(request) {
     if (finalLeadId && (finalEstado === 'Reservada' || finalEstado === 'Confirmada')) {
       const lead = await Lead.findByPk(finalLeadId);
       if (lead) {
-        const nuevoEstadoLead = finalEstado === 'Reservada' ? 'Reserva tomada' : 'Evento confirmado';
+        const nuevoEstadoLead = finalEstado === 'Reservada' ? 'Reserva tomada' : 'Cliente activo';
 
         if (lead.estado_actual !== nuevoEstadoLead) {
           await LeadStatusHistory.create({

@@ -10,6 +10,13 @@ const nextConfig = {
   outputFileTracingIncludes: {
     '/api/**': ['./node_modules/pg/**', './node_modules/pg-hstore/**', './node_modules/sequelize/**'],
   },
+  turbopack: {
+    resolver: {
+      alias: {
+        '@': '.',
+      },
+    },
+  },
 }
 
 export default nextConfig
