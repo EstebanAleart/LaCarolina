@@ -38,6 +38,7 @@ Pensado para salones de eventos que necesitan trazabilidad completa: desde el pr
 ```js
 serverExternalPackages: ['sequelize', 'pg', 'pg-hstore', 'googleapis']
 // Necesario para que Turbopack no intente bundlear estos paquetes nativos
+
 ```
 
 ---
