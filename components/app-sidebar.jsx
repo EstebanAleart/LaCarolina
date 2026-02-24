@@ -11,6 +11,8 @@ import {
   LogOut,
   Sparkles,
   BookOpen,
+  CreditCard,
+  BarChart2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -20,7 +22,9 @@ const NAV_ITEMS = [
   { id: "calendar", label: "Calendario", icon: CalendarDays },
   { id: "proposals", label: "Propuestas", icon: FileText },
   { id: "events", label: "Eventos", icon: Sparkles },
+  { id: "payments", label: "Pagos", icon: CreditCard },
   { id: "tasks", label: "Tareas", icon: CheckSquare },
+  { id: "reports", label: "Reportes", icon: BarChart2 },
   { id: "guide", label: "Guia", icon: BookOpen },
 ]
 

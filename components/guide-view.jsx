@@ -16,70 +16,35 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 
 const FLUJO = [
-  { label: "Consulta inicial", color: "bg-slate-100 text-slate-700" },
+  { label: "Lead nuevo", color: "bg-slate-100 text-slate-700" },
+  { label: "Contactado", color: "bg-sky-100 text-sky-700" },
+  { label: "Visita al salón", color: "bg-violet-100 text-violet-700" },
   { label: "Propuesta enviada", color: "bg-orange-100 text-orange-700" },
-  { label: "Negociacion", color: "bg-yellow-100 text-yellow-700" },
   { label: "Reserva tomada", color: "bg-blue-100 text-blue-700" },
-  { label: "Evento confirmado", color: "bg-green-100 text-green-700" },
+  { label: "Contrato firmado", color: "bg-indigo-100 text-indigo-700" },
+  { label: "Cliente activo", color: "bg-green-100 text-green-700" },
+  { label: "Evento realizado", color: "bg-teal-100 text-teal-700" },
+  { label: "Perdido", color: "bg-red-100 text-red-700" },
 ]
 
 const CALENDAR_COLORS = [
   { color: "bg-emerald-400", label: "Disponible", desc: "Fecha libre" },
   { color: "bg-amber-400", label: "Bloqueada", desc: "Fecha bloqueada sin lead" },
   { color: "bg-blue-400", label: "Reservada", desc: "Reservada para un lead" },
-  { color: "bg-green-500", label: "Confirmada", desc: "Evento confirmado" },
-  { color: "bg-purple-400", label: "Tentativa", desc: "Lead con fecha tentativa" },
+  { color: "bg-green-500", label: "Confirmada", desc: "Evento confirmado (contrato firmado)" },
+  { color: "bg-orange-400", label: "Visita", desc: "Visita al salón agendada" },
+  { color: "bg-purple-400", label: "Tentativa", desc: "Lead con fecha tentativa (solo visual)" },
 ]
 
 const SECTIONS = [
-  {
-    id: "acceso",
-    icon: Users,
-    title: "Acceso al Sistema",
-    content: AccesoSection,
-  },
-  {
-    id: "leads",
-    icon: Users,
-    title: "Leads (CRM)",
-    content: LeadsSection,
-  },
-  {
-    id: "propuestas",
-    icon: FileText,
-    title: "Propuestas",
-    content: ProposalsSection,
-  },
-  {
-    id: "calendario",
-    icon: CalendarDays,
-    title: "Calendario",
-    content: CalendarSection,
-  },
-  {
-    id: "eventos",
-    icon: Sparkles,
-    title: "Eventos",
-    content: EventsSection,
-  },
-  {
-    id: "tareas",
-    icon: CheckSquare,
-    title: "Tareas",
-    content: TasksSection,
-  },
-  {
-    id: "dashboard",
-    icon: LayoutDashboard,
-    title: "Dashboard",
-    content: DashboardSection,
-  },
-  {
-    id: "automatizaciones",
-    icon: Sparkles,
-    title: "Automatizaciones",
-    content: AutoSection,
-  },
+  { id: "acceso", icon: Users, title: "Acceso al Sistema", content: AccesoSection },
+  { id: "leads", icon: Users, title: "Leads (CRM)", content: LeadsSection },
+  { id: "propuestas", icon: FileText, title: "Propuestas", content: ProposalsSection },
+  { id: "calendario", icon: CalendarDays, title: "Calendario", content: CalendarSection },
+  { id: "eventos", icon: Sparkles, title: "Eventos", content: EventsSection },
+  { id: "tareas", icon: CheckSquare, title: "Tareas", content: TasksSection },
+  { id: "dashboard", icon: LayoutDashboard, title: "Dashboard", content: DashboardSection },
+  { id: "automatizaciones", icon: Sparkles, title: "Automatizaciones", content: AutoSection },
 ]
 
 function AccesoSection() {
@@ -106,16 +71,19 @@ function LeadsSection() {
         <ol className="text-xs text-muted-foreground flex flex-col gap-1 list-decimal pl-4">
           <li>Ir a <span className="font-medium text-foreground">CRM Leads</span> en el menu lateral</li>
           <li>Click en <span className="font-medium text-foreground">&quot;Nuevo Lead&quot;</span></li>
-          <li>Completar: nombre (obligatorio), telefono, email, canal de origen, tipo de evento, fecha tentativa, valor estimado</li>
-          <li>El lead se crea con estado <span className="font-medium">&quot;Consulta inicial&quot;</span></li>
+          <li><span className="font-medium text-foreground">Contacto:</span> nombre (obligatorio), telefono, email, canal, tipo de cliente, tipo de evento</li>
+          <li><span className="font-medium text-foreground">Primera instancia:</span> fecha del evento, fecha visita al salon, valor estimado</li>
+          <li>El lead se crea con estado <span className="font-medium">&quot;Lead nuevo&quot;</span></li>
         </ol>
+        <p className="text-xs text-muted-foreground mt-2">Si se completa la <span className="font-medium text-foreground">fecha visita al salon</span>, automaticamente aparece como marcador naranja en el calendario.</p>
       </div>
       <div>
         <h4 className="text-sm font-bold text-foreground mb-1">Gestionar el Lead</h4>
         <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4">
-          <li><span className="font-medium text-foreground">Cambiar Estado:</span> Click en &quot;Cambiar Estado&quot; y seleccionar el nuevo. Si es &quot;Perdido&quot;, es obligatorio un motivo</li>
-          <li><span className="font-medium text-foreground">Interacciones:</span> En la pestana &quot;Interacciones&quot;, registrar tipo (WhatsApp, Llamada, Email, Reunion) y descripcion</li>
-          <li><span className="font-medium text-foreground">Timeline:</span> Historial completo del lead (cambios de estado, interacciones, propuestas)</li>
+          <li><span className="font-medium text-foreground">Cambiar Estado:</span> Click en &quot;Cambiar Estado&quot;. Si es &quot;Perdido&quot; requiere motivo obligatorio</li>
+          <li><span className="font-medium text-foreground">Segunda instancia (al editar):</span> fecha firma contrato, fecha limite pago (auto-calculada = fecha evento - 30 dias)</li>
+          <li><span className="font-medium text-foreground">Interacciones:</span> registrar canal (WhatsApp/Llamada/Email/Presencial) y direccion (→ Saliente / ← Entrante)</li>
+          <li><span className="font-medium text-foreground">Timeline:</span> historial completo (estados, interacciones con canal/direccion, propuestas, visitas)</li>
         </ul>
       </div>
     </div>
@@ -125,15 +93,6 @@ function LeadsSection() {
 function ProposalsSection() {
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h4 className="text-sm font-bold text-foreground mb-1">Crear propuesta</h4>
-        <ol className="text-xs text-muted-foreground flex flex-col gap-1 list-decimal pl-4">
-          <li>Ir a <span className="font-medium text-foreground">Propuestas</span> en el menu lateral</li>
-          <li>Click en <span className="font-medium text-foreground">&quot;Nueva Propuesta&quot;</span></li>
-          <li>Seleccionar el lead, escribir contenido y precio total</li>
-          <li>La propuesta se crea como <span className="font-medium">&quot;Borrador&quot;</span></li>
-        </ol>
-      </div>
       <div>
         <h4 className="text-sm font-bold text-foreground mb-1">Ciclo de la propuesta</h4>
         <div className="flex items-center gap-2 flex-wrap text-xs">
@@ -145,14 +104,15 @@ function ProposalsSection() {
           <span className="text-muted-foreground">o</span>
           <span className="rounded-md bg-red-100 text-red-700 px-2 py-1 font-medium">Rechazada</span>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Las propuestas se crean y actualizan automaticamente:
-        </p>
-        <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4 mt-1">
-          <li>Al cambiar el lead a &quot;Propuesta enviada&quot;, &quot;Esperando respuesta&quot;, &quot;Visita agendada&quot;, &quot;En negociacion&quot; o &quot;Reserva tomada&quot; → se crea propuesta si no existe</li>
-          <li>Al reservar/confirmar fecha desde el calendario → propuesta pasa a &quot;Aceptada&quot; (o se crea como Aceptada)</li>
+      </div>
+      <div>
+        <h4 className="text-sm font-bold text-foreground mb-1">Automatizaciones de propuestas</h4>
+        <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4">
+          <li>Lead → &quot;Propuesta enviada&quot; o &quot;Visita al salon realizada&quot; → crea propuesta &quot;Enviada&quot; si no existe</li>
+          <li>Lead → &quot;Reserva tomada&quot; o &quot;Contrato firmado&quot; → crea propuesta &quot;Aceptada&quot; o actualiza la ultima a Aceptada</li>
+          <li>Reservar/confirmar fecha desde calendario → propuesta pasa a &quot;Aceptada&quot;</li>
           <li>Lead → &quot;Perdido&quot; → propuesta pasa a &quot;Rechazada&quot;</li>
-          <li>Al editar el valor estimado del lead → se actualiza el precio de la propuesta</li>
+          <li>Editar valor estimado del lead → actualiza precio de la ultima propuesta</li>
         </ul>
       </div>
     </div>
@@ -180,28 +140,26 @@ function CalendarSection() {
         <h4 className="text-sm font-bold text-foreground mb-1">Reservar una fecha</h4>
         <ol className="text-xs text-muted-foreground flex flex-col gap-1 list-decimal pl-4">
           <li>Click en el dia en el calendario</li>
-          <li>Si hay leads con fecha tentativa, aparecen en violeta. Click para seleccionar uno</li>
+          <li>Si hay leads con fecha tentativa (violeta), click para seleccionar uno</li>
           <li>Elegir estado <span className="font-medium text-foreground">&quot;Reservada&quot;</span></li>
           <li>Click <span className="font-medium text-foreground">&quot;Guardar&quot;</span></li>
         </ol>
-        <p className="text-xs text-muted-foreground mt-2">Al reservar con un lead: el lead pasa a &quot;Reserva tomada&quot;, se limpia la fecha tentativa, se crea una Reservation, se crea propuesta y se sincroniza con Google Calendar.</p>
+        <p className="text-xs text-muted-foreground mt-2">Al reservar: lead → &quot;Reserva tomada&quot;, se crea Reservation, propuesta → &quot;Aceptada&quot;, sync Google Calendar.</p>
       </div>
       <div>
-        <h4 className="text-sm font-bold text-foreground mb-1">Confirmar una fecha</h4>
-        <ol className="text-xs text-muted-foreground flex flex-col gap-1 list-decimal pl-4">
-          <li>Click en el dia que ya esta Reservada</li>
-          <li>Cambiar estado a <span className="font-medium text-foreground">&quot;Confirmada&quot;</span></li>
-          <li>Click <span className="font-medium text-foreground">&quot;Guardar&quot;</span></li>
-        </ol>
-        <p className="text-xs text-muted-foreground mt-2">Al confirmar: el lead pasa a &quot;Evento confirmado&quot;, se crea un Event, aparece en la vista de Eventos y se sincroniza con Google Calendar.</p>
+        <h4 className="text-sm font-bold text-foreground mb-1">Confirmar desde el calendario</h4>
+        <p className="text-xs text-muted-foreground">Cambiar fecha a &quot;Confirmada&quot; → lead → &quot;Cliente activo&quot;, se crea Event, aparece en Eventos, sync Google Calendar.</p>
+      </div>
+      <div>
+        <h4 className="text-sm font-bold text-foreground mb-1">Visitas al salon</h4>
+        <p className="text-xs text-muted-foreground">Al guardar la <span className="font-medium text-foreground">fecha visita al salon</span> en el form del lead, aparece automaticamente como marcador naranja (&quot;Visita&quot;) en el calendario. No bloquea el dia para reservas.</p>
       </div>
       <div>
         <h4 className="text-sm font-bold text-foreground mb-1">Google Calendar</h4>
         <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4">
-          <li>Las fechas <span className="font-medium text-foreground">Reservadas</span> y <span className="font-medium text-foreground">Confirmadas</span> se sincronizan automaticamente con Google Calendar</li>
-          <li>Al liberar/eliminar una fecha, se elimina tambien de Google Calendar</li>
-          <li>Los colores en Google Calendar son: Reservada (azul), Confirmada (verde), Bloqueada (amarillo)</li>
-          <li>Los eventos muestran el nombre del lead y tipo de evento como titulo</li>
+          <li>Fechas <span className="font-medium text-foreground">Reservadas</span> y <span className="font-medium text-foreground">Confirmadas</span> se sincronizan con Google Calendar</li>
+          <li>Al liberar una fecha, se elimina de Google Calendar</li>
+          <li>Colores en GCal: Reservada (azul), Confirmada (verde), Bloqueada (amarillo)</li>
         </ul>
       </div>
     </div>
@@ -211,7 +169,7 @@ function CalendarSection() {
 function EventsSection() {
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-xs text-muted-foreground">Los eventos se crean automaticamente al confirmar una fecha con un lead en el calendario. Se muestran en la vista <span className="font-medium text-foreground">Eventos</span>.</p>
+      <p className="text-xs text-muted-foreground">Los eventos se crean automaticamente al confirmar una fecha en el calendario O al firmar contrato desde el lead. Se muestran en la vista <span className="font-medium text-foreground">Eventos</span>.</p>
       <div>
         <h4 className="text-sm font-bold text-foreground mb-2">Estado operativo</h4>
         <div className="flex flex-wrap gap-2">
@@ -225,7 +183,15 @@ function EventsSection() {
           ))}
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">Desde el detalle expandido se puede cambiar el estado operativo, editar tipo de evento e invitados, y ver datos de contacto del lead.</p>
+      <div>
+        <h4 className="text-sm font-bold text-foreground mb-1">Informacion del evento (expandido)</h4>
+        <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4">
+          <li><span className="font-medium text-foreground">Finanzas:</span> valor total, estado de pago (Pendiente/Parcial/Completo), modalidad de precios, saldo pendiente calculado automaticamente</li>
+          <li><span className="font-medium text-foreground">Servicios:</span> checkboxes de servicios base (Salon, Catering) y adicionales (Mesa dulce, Fotografia, Video, DJ extra, etc.) — click para marcar/desmarcar y guarda al instante</li>
+          <li><span className="font-medium text-foreground">Produccion:</span> menu seleccionado, minimo de tarjetas, valores por tarjeta adulto/adolescente/nino</li>
+        </ul>
+        <p className="text-xs text-muted-foreground mt-2">Todos los campos se guardan con <span className="font-medium text-foreground">blur</span> (al salir del campo) o con click en el caso de servicios y estado.</p>
+      </div>
     </div>
   )
 }
@@ -253,7 +219,7 @@ function TasksSection() {
 function DashboardSection() {
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs text-muted-foreground">Muestra metricas generales del sistema:</p>
+      <p className="text-xs text-muted-foreground">Metricas generales del sistema:</p>
       <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4">
         <li>Total de leads por estado (pipeline)</li>
         <li>Leads por canal de origen</li>
@@ -267,17 +233,20 @@ function DashboardSection() {
 
 function AutoSection() {
   const AUTOS = [
-    { accion: "Reservar fecha con lead en calendario", resultado: "Lead → \"Reserva tomada\" + crea Reservation + crea/actualiza propuesta → \"Aceptada\" + sync Google Calendar" },
-    { accion: "Confirmar fecha con lead en calendario", resultado: "Lead → \"Evento confirmado\" + crea Event + crea/actualiza propuesta → \"Aceptada\" + sync Google Calendar" },
-    { accion: "Cambiar lead a \"Propuesta enviada\"", resultado: "Se crea tarea de seguimiento (Alta, 3 dias) + crea propuesta \"Enviada\" si no existe" },
-    { accion: "Cambiar lead a \"Esperando respuesta\" / \"Visita agendada\"", resultado: "Crea propuesta \"Enviada\" si no existe" },
-    { accion: "Cambiar lead a \"En negociacion\"", resultado: "Crea propuesta \"En negociacion\" si no existe" },
-    { accion: "Cambiar lead a \"Reserva tomada\" / \"Evento confirmado\"", resultado: "Ultima propuesta → \"Aceptada\" (o crea como Aceptada)" },
+    { accion: "Guardar fecha visita al salon en lead (crear o editar)", resultado: "CalendarDate → \"Visita\" (naranja) creada/actualizada automaticamente" },
+    { accion: "Cambiar fecha tentativa del lead", resultado: "Anio evento se auto-sincroniza con el año de la fecha" },
+    { accion: "Reservar fecha con lead en calendario", resultado: "Lead → \"Reserva tomada\" + crea Reservation + propuesta → \"Aceptada\" + sync Google Calendar" },
+    { accion: "Confirmar fecha con lead en calendario", resultado: "Lead → \"Cliente activo\" + crea Event + propuesta → \"Aceptada\" + sync Google Calendar" },
+    { accion: "Cambiar lead a \"Contrato firmado\"", resultado: "fecha_firma_contrato auto-set + crea Event (si hay fecha tentativa) + CalendarDate → \"Confirmada\"" },
+    { accion: "Cambiar lead a \"Propuesta enviada\"", resultado: "Crea tarea de seguimiento (Alta, 3 dias) + propuesta \"Enviada\" si no existe" },
+    { accion: "Cambiar lead a \"Visita al salon realizada\"", resultado: "Crea propuesta \"Enviada\" si no existe" },
+    { accion: "Cambiar lead a \"Reserva tomada\" / \"Contrato firmado\" / \"Cliente activo\"", resultado: "Ultima propuesta → \"Aceptada\"" },
     { accion: "Cambiar lead a \"Perdido\"", resultado: "Ultima propuesta → \"Rechazada\"" },
-    { accion: "Enviar propuesta (Borrador → Enviada)", resultado: "Se registra fecha de envio" },
-    { accion: "Editar valor estimado del lead", resultado: "Se actualiza precio_total de la ultima propuesta" },
-    { accion: "Eliminar un lead", resultado: "Se eliminan todas las entidades asociadas (interacciones, propuestas, tareas, eventos, fechas calendario + Google Calendar)" },
-    { accion: "Liberar/eliminar fecha del calendario", resultado: "Confirmacion con toast antes de eliminar + elimina de Google Calendar si estaba sincronizada" },
+    { accion: "Editar valor estimado del lead", resultado: "precio_total de la ultima propuesta se actualiza automaticamente" },
+    { accion: "Guardar fecha tentativa del lead", resultado: "fecha_limite_pago_total = fecha_tentativa - 30 dias (auto-calculada)" },
+    { accion: "Enviar propuesta (Borrador → Enviada)", resultado: "Se registra fecha de envio automaticamente" },
+    { accion: "Eliminar un lead", resultado: "Cascade: interacciones, propuestas, tareas, eventos, fechas calendario + Google Calendar" },
+    { accion: "Liberar fecha del calendario", resultado: "Confirmacion con toast + elimina de Google Calendar si estaba sincronizada + libera reservas del lead" },
   ]
 
   return (
