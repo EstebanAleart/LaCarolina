@@ -8,6 +8,7 @@ import {
   Check,
   XCircle,
   FileText,
+  Eye,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -31,6 +32,8 @@ export default function ProposalsView() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filterStatus, setFilterStatus] = useState("")
+  const [viewingProposal, setViewingProposal] = useState(null)
+  const [submittingId, setSubmittingId] = useState(null)
 
   async function loadData() {
     try {
@@ -62,11 +65,14 @@ export default function ProposalsView() {
   }
 
   async function handleStatusUpdate(id, newStatus) {
+    if (submittingId) return
+    setSubmittingId(id)
     try {
       await apiUpdateProposal(id, { estado: newStatus })
       await loadData()
       toast.success(`Propuesta marcada como ${newStatus}`)
     } catch (err) { console.error(err); toast.error("Error al actualizar propuesta") }
+    finally { setSubmittingId(null) }
   }
 
   if (loading) {
@@ -138,28 +144,37 @@ export default function ProposalsView() {
               {p.estado === "Borrador" && (
                 <button
                   onClick={() => handleStatusUpdate(p.id, "Enviada")}
-                  className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+                  disabled={submittingId === p.id}
+                  className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Send className="h-3 w-3" /> Enviar
+                  <Send className="h-3 w-3" /> {submittingId === p.id ? "..." : "Enviar"}
                 </button>
               )}
               {p.estado === "Enviada" && (
                 <>
                   <button
                     onClick={() => handleStatusUpdate(p.id, "Aceptada")}
-                    className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground hover:opacity-90 transition-opacity"
+                    disabled={submittingId === p.id}
+                    className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Check className="h-3 w-3" /> Aceptar
+                    <Check className="h-3 w-3" /> {submittingId === p.id ? "..." : "Aceptar"}
                   </button>
                   <button
                     onClick={() => handleStatusUpdate(p.id, "Rechazada")}
-                    className="flex items-center gap-1 rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground hover:opacity-90 transition-opacity"
+                    disabled={submittingId === p.id}
+                    className="flex items-center gap-1 rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <XCircle className="h-3 w-3" /> Rechazar
+                    <XCircle className="h-3 w-3" /> {submittingId === p.id ? "..." : "Rechazar"}
                   </button>
                 </>
               )}
-              <span className="ml-auto text-[10px] text-muted-foreground">
+              <button
+                onClick={() => setViewingProposal(p)}
+                className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary transition-colors ml-auto"
+              >
+                <Eye className="h-3 w-3" /> Ver
+              </button>
+              <span className="text-[10px] text-muted-foreground ml-2">
                 {new Date(p.created_at).toLocaleDateString("es-AR")}
               </span>
             </div>
@@ -174,6 +189,50 @@ export default function ProposalsView() {
           onSubmit={handleCreateProposal}
           onClose={() => setShowForm(false)}
         />
+      )}
+
+      {/* View proposal modal */}
+      {viewingProposal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-foreground/20" onClick={() => setViewingProposal(null)} />
+          <div className="relative z-10 w-full max-w-2xl rounded-lg border border-border bg-card shadow-lg mx-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <div>
+                <h3 className="text-lg font-bold text-card-foreground">
+                  {viewingProposal.lead?.nombre || "Propuesta"}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Versión {viewingProposal.version} &mdash;
+                  <span className={cn("ml-1 rounded-full px-2 py-0.5 text-xs font-medium", STATUS_STYLES[viewingProposal.estado])}>
+                    {viewingProposal.estado}
+                  </span>
+                </p>
+              </div>
+              <button onClick={() => setViewingProposal(null)} className="rounded-md p-1 text-muted-foreground hover:bg-secondary">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {viewingProposal.contenido ? (
+                <pre className="whitespace-pre-wrap text-sm text-card-foreground font-sans leading-relaxed">
+                  {viewingProposal.contenido}
+                </pre>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">Sin contenido cargado.</p>
+              )}
+            </div>
+            <div className="flex items-center justify-between border-t border-border px-6 py-3">
+              <p className="text-sm font-bold text-card-foreground">
+                Total: ${(viewingProposal.precio_total || 0).toLocaleString()}
+              </p>
+              {viewingProposal.fecha_envio && (
+                <p className="text-xs text-muted-foreground">
+                  Enviada: {new Date(viewingProposal.fecha_envio).toLocaleDateString("es-AR")}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
