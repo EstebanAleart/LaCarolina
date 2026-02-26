@@ -38,6 +38,21 @@ export async function PUT(request, { params }) {
       updated_at: new Date(),
     });
 
+    // Automatización: si pasa a "Enviar propuesta", crear task para enviar el documento
+    if (estado === 'Enviar propuesta') {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 1);
+      await Task.create({
+        titulo: `Enviar propuesta - ${lead.nombre}`,
+        descripcion: 'Preparar y enviar propuesta al cliente',
+        lead_id: id,
+        assigned_to_user_id: user_id || null,
+        estado: 'Pendiente',
+        prioridad: 'Alta',
+        due_date: dueDate,
+      });
+    }
+
     // Automatización: si pasa a "Propuesta enviada", crear task de seguimiento
     if (estado === 'Propuesta enviada') {
       const dueDate = new Date();
@@ -69,7 +84,7 @@ export async function PUT(request, { params }) {
           lead_id: id,
           fecha_confirmada: fechaEvento,
           tipo_evento: lead.tipo_evento || '',
-          invitados_estimados: 0,
+          invitados_estimados: lead.invitados_estimados || 0,
           servicios_contratados: [],
           estado_operativo: 'Pendiente',
           estado_pago: 'Pendiente',
@@ -97,7 +112,7 @@ export async function PUT(request, { params }) {
     }
 
     // Auto-crear propuesta si no existe para estados avanzados del pipeline
-    const PROPOSAL_STATES = ['Propuesta enviada', 'Visita al salón realizada', 'Reserva tomada', 'Contrato firmado'];
+    const PROPOSAL_STATES = ['Enviar propuesta', 'Propuesta enviada', 'Visita al salón realizada', 'Reserva tomada', 'Contrato firmado'];
     if (PROPOSAL_STATES.includes(estado)) {
       const existingProposal = await Proposal.findOne({ where: { lead_id: id } });
       if (!existingProposal) {

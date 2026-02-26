@@ -15,7 +15,7 @@ import {
   ArrowRight,
   X,
   Clock,
-  FileText,
+  Pencil,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -37,8 +37,13 @@ import {
 const STATE_COLORS = {
   "Lead nuevo":                "bg-slate-100 text-slate-700",
   "Contactado":                "bg-blue-100 text-blue-800",
+  "Esperando visita":          "bg-sky-100 text-sky-800",
   "Visita al salón realizada": "bg-cyan-100 text-cyan-800",
+  "Enviar propuesta":          "bg-purple-100 text-purple-800",
   "Propuesta enviada":         "bg-violet-100 text-violet-800",
+  "Propuesta Aceptada":        "bg-lime-100 text-lime-800",
+  "Propuesta Rechazada":       "bg-rose-100 text-rose-800",
+  "Esperando Reserva":         "bg-orange-100 text-orange-800",
   "Reserva tomada":            "bg-amber-100 text-amber-800",
   "Contrato firmado":          "bg-emerald-100 text-emerald-800",
   "Cliente activo":            "bg-green-100 text-green-800",
@@ -55,10 +60,11 @@ function LeadForm({ onSubmit, onCancel, initial }) {
         fecha_tentativa:      initial.fecha_tentativa      ? initial.fecha_tentativa.substring(0, 10)      : "",
         fecha_visita_salon:   initial.fecha_visita_salon   ? initial.fecha_visita_salon.substring(0, 10)   : "",
         fecha_firma_contrato: initial.fecha_firma_contrato ? initial.fecha_firma_contrato.substring(0, 10) : "",
-        tipo_cliente:   initial.tipo_cliente   || "Particular",
-        valor_estimado: initial.valor_estimado || 0,
-        anio_evento:    initial.anio_evento    || new Date().getFullYear(),
-        notas:          initial.notas          || "",
+        tipo_cliente:        initial.tipo_cliente        || "Particular",
+        valor_estimado:      initial.valor_estimado      || 0,
+        invitados_estimados: initial.invitados_estimados || "",
+        anio_evento:         initial.anio_evento         || new Date().getFullYear(),
+        notas:               initial.notas               || "",
       }
     }
     return {
@@ -73,9 +79,14 @@ function LeadForm({ onSubmit, onCancel, initial }) {
       fecha_firma_contrato: "",
       anio_evento: new Date().getFullYear(),
       valor_estimado: 0,
+      invitados_estimados: "",
       notas: "",
     }
   })
+
+  const [valorDisplay, setValorDisplay] = useState(() =>
+    initial?.valor_estimado ? Number(initial.valor_estimado).toLocaleString("es-AR", { maximumFractionDigits: 0 }) : ""
+  )
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -84,7 +95,14 @@ function LeadForm({ onSubmit, onCancel, initial }) {
       setForm((prev) => ({ ...prev, fecha_tentativa: value, anio_evento: year }))
       return
     }
-    setForm((prev) => ({ ...prev, [name]: name === "valor_estimado" || name === "anio_evento" ? Number(value) : value }))
+    setForm((prev) => ({ ...prev, [name]: name === "anio_evento" ? Number(value) : value }))
+  }
+
+  function handleValorChange(e) {
+    const raw = e.target.value.replace(/\D/g, "")
+    const num = raw ? parseInt(raw, 10) : 0
+    setValorDisplay(raw ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : "")
+    setForm((prev) => ({ ...prev, valor_estimado: num }))
   }
 
   function handleSubmit(e) {
@@ -153,7 +171,27 @@ function LeadForm({ onSubmit, onCancel, initial }) {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className={labelCls}>Valor estimado ($)</label>
-            <input name="valor_estimado" type="number" value={form.valor_estimado} onChange={handleChange} className={inputCls} />
+            <input
+              type="text"
+              inputMode="numeric"
+              value={valorDisplay}
+              onChange={handleValorChange}
+              className={inputCls}
+              placeholder="0"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Cantidad de invitados</label>
+            <input
+              name="invitados_estimados"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              value={form.invitados_estimados}
+              onChange={(e) => setForm((prev) => ({ ...prev, invitados_estimados: e.target.value === "" ? "" : Number(e.target.value) }))}
+              className={inputCls}
+              placeholder="Ej: 150"
+            />
           </div>
         </div>
       </div>
@@ -201,6 +239,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
   const [showStatusChange, setShowStatusChange] = useState(false)
   const [lostMotivo, setLostMotivo] = useState("")
   const [selectedStatus, setSelectedStatus] = useState("")
+  const [submitting, setSubmitting] = useState(false)
   const [intForm, setIntForm] = useState({ canal: "WhatsApp", direction: "OUT", descripcion: "" })
 
   const loadDetail = useCallback(async () => {
@@ -228,11 +267,12 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
   }
 
   async function handleStatusChange() {
-    if (!selectedStatus) return
+    if (!selectedStatus || submitting) return
     if (selectedStatus === "Perdido" && !lostMotivo.trim()) {
       toast.warning("Motivo obligatorio para marcar como Perdido")
       return
     }
+    setSubmitting(true)
     try {
       await apiChangeLeadStatus(lead.id, selectedStatus, lostMotivo || null, null)
       setShowStatusChange(false)
@@ -242,6 +282,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
       onRefresh()
       toast.success(`Estado cambiado a "${selectedStatus}"`)
     } catch (err) { console.error(err); toast.error("Error al cambiar estado") }
+    finally { setSubmitting(false) }
   }
 
   async function handleAddInteraction(e) {
@@ -366,7 +407,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
                   />
                 )}
                 <div className="flex gap-2">
-                  <button onClick={handleStatusChange} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90">Confirmar</button>
+                  <button onClick={handleStatusChange} disabled={submitting} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">{submitting ? "Guardando..." : "Confirmar"}</button>
                   <button onClick={() => setShowStatusChange(false)} className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary">Cancelar</button>
                 </div>
               </div>
@@ -560,6 +601,16 @@ export default function LeadsView() {
   const [editLead, setEditLead] = useState(null)
   const [detailLead, setDetailLead] = useState(null)
   const [viewMode, setViewMode] = useState("table")
+  const [expandedLeadIds, setExpandedLeadIds] = useState(new Set())
+
+  function toggleExpand(id) {
+    setExpandedLeadIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   async function loadLeads() {
     try {
@@ -709,65 +760,149 @@ export default function LeadsView() {
 
       {/* Table View */}
       {viewMode === "table" && (
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-secondary">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground">Nombre</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground hidden md:table-cell">Tipo</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground hidden sm:table-cell">Canal</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground">Estado</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-secondary-foreground hidden lg:table-cell">Valor</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-secondary-foreground">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredLeads.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No hay leads que coincidan con los filtros</td>
-                </tr>
-              )}
-              {filteredLeads.map((lead) => (
-                <tr key={lead.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
-                  <td className="px-4 py-3">
-                    <button onClick={() => setDetailLead(lead)} className="text-left">
-                      <p className="font-medium text-card-foreground">{lead.nombre}</p>
-                      <p className="text-xs text-muted-foreground">{lead.email || lead.telefono}</p>
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{lead.tipo_evento}</td>
-                  <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{lead.canal_origen}</td>
-                  <td className="px-4 py-3">
-                    <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-xs font-medium", STATE_COLORS[lead.estado_actual])}>
-                      {lead.estado_actual}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right text-card-foreground font-medium hidden lg:table-cell">
-                    ${(lead.valor_estimado || 0).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => setDetailLead(lead)} className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary transition-colors" aria-label="Ver detalle">
-                        <Eye className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => setEditLead(lead)} className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary transition-colors" aria-label="Editar">
-                        <FileText className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => handleDelete(lead.id)} className="rounded-md p-1.5 text-destructive hover:bg-destructive/10 transition-colors" aria-label="Eliminar">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+        <>
+          {/* Mobile: cards expandibles */}
+          <div className="flex flex-col gap-2 md:hidden">
+            {filteredLeads.length === 0 && (
+              <div className="rounded-lg border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+                No hay leads que coincidan con los filtros
+              </div>
+            )}
+            {filteredLeads.map((lead) => {
+              const isExpanded = expandedLeadIds.has(lead.id)
+              return (
+                <div key={lead.id} className="rounded-lg border border-border bg-card overflow-hidden">
+                  {/* Header siempre visible */}
+                  <button
+                    onClick={() => toggleExpand(lead.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-card-foreground truncate">{lead.nombre}</p>
+                      <p className="text-xs text-muted-foreground truncate">{lead.tipo_evento || "Sin tipo"}{lead.canal_origen ? ` · ${lead.canal_origen}` : ""}</p>
                     </div>
-                  </td>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap", STATE_COLORS[lead.estado_actual])}>
+                        {lead.estado_actual}
+                      </span>
+                      <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-180")} />
+                    </div>
+                  </button>
+                  {/* Contenido expandido */}
+                  {isExpanded && (
+                    <div className="border-t border-border bg-muted/20 px-4 py-3 flex flex-col gap-3">
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+                        {lead.telefono && (
+                          <div className="flex flex-col">
+                            <span className="text-muted-foreground">Teléfono</span>
+                            <span className="text-foreground font-medium">{lead.telefono}</span>
+                          </div>
+                        )}
+                        {lead.email && (
+                          <div className="flex flex-col">
+                            <span className="text-muted-foreground">Email</span>
+                            <span className="text-foreground font-medium truncate">{lead.email}</span>
+                          </div>
+                        )}
+                        <div className="flex flex-col">
+                          <span className="text-muted-foreground">Valor estimado</span>
+                          <span className="text-foreground font-semibold">${(lead.valor_estimado || 0).toLocaleString()}</span>
+                        </div>
+                        {lead.fecha_tentativa && (
+                          <div className="flex flex-col">
+                            <span className="text-muted-foreground">Fecha tentativa</span>
+                            <span className="text-foreground font-medium">{lead.fecha_tentativa.substring(0, 10)}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          onClick={() => setDetailLead(lead)}
+                          className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+                        >
+                          <Eye className="h-3.5 w-3.5" /> Ver detalle
+                        </button>
+                        <button
+                          onClick={() => { setEditLead(lead); setShowForm(true) }}
+                          className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+                        >
+                          <Pencil className="h-3.5 w-3.5" /> Editar
+                        </button>
+                        <button
+                          onClick={() => handleDelete(lead.id)}
+                          className="flex items-center justify-center rounded-md border border-destructive/40 px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop: tabla */}
+          <div className="hidden md:block overflow-x-auto rounded-lg border border-border bg-card">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground">Nombre</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground hidden md:table-cell">Tipo</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground hidden lg:table-cell">Canal</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground">Estado</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-secondary-foreground hidden lg:table-cell">Valor</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-secondary-foreground">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filteredLeads.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No hay leads que coincidan con los filtros</td>
+                  </tr>
+                )}
+                {filteredLeads.map((lead) => (
+                  <tr key={lead.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
+                    <td className="px-4 py-3">
+                      <button onClick={() => setDetailLead(lead)} className="text-left">
+                        <p className="font-medium text-card-foreground">{lead.nombre}</p>
+                        <p className="text-xs text-muted-foreground">{lead.email || lead.telefono}</p>
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{lead.tipo_evento}</td>
+                    <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{lead.canal_origen}</td>
+                    <td className="px-4 py-3">
+                      <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-xs font-medium", STATE_COLORS[lead.estado_actual])}>
+                        {lead.estado_actual}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-card-foreground font-medium hidden lg:table-cell">
+                      ${(lead.valor_estimado || 0).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setDetailLead(lead)} className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary transition-colors" aria-label="Ver detalle">
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => { setEditLead(lead); setShowForm(true) }} className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary transition-colors" aria-label="Editar">
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => handleDelete(lead.id)} className="rounded-md p-1.5 text-destructive hover:bg-destructive/10 transition-colors" aria-label="Eliminar">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/* Kanban View */}
       {viewMode === "kanban" && (
-        <div className="flex gap-3 overflow-x-auto pb-4">
+        <div className="flex gap-3 overflow-x-auto pb-4 items-stretch min-h-[calc(100vh-13rem)]">
           {LEAD_STATES.filter((s) => s !== "Perdido").map((state) => {
             const stateLeads = filteredLeads.filter((l) => l.estado_actual === state)
             return (
@@ -778,7 +913,7 @@ export default function LeadsView() {
                     {stateLeads.length}
                   </span>
                 </div>
-                <div className="flex flex-col gap-2 p-2 max-h-[60vh] overflow-y-auto">
+                <div className="flex flex-col gap-2 p-2 flex-1 overflow-y-auto">
                   {stateLeads.map((lead) => (
                     <button
                       key={lead.id}
