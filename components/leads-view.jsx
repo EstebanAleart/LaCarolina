@@ -82,6 +82,10 @@ function LeadForm({ onSubmit, onCancel, initial }) {
     }
   })
 
+  const [valorDisplay, setValorDisplay] = useState(() =>
+    initial?.valor_estimado ? Number(initial.valor_estimado).toLocaleString("es-AR", { maximumFractionDigits: 0 }) : ""
+  )
+
   function handleChange(e) {
     const { name, value } = e.target
     if (name === "fecha_tentativa" && value) {
@@ -89,7 +93,14 @@ function LeadForm({ onSubmit, onCancel, initial }) {
       setForm((prev) => ({ ...prev, fecha_tentativa: value, anio_evento: year }))
       return
     }
-    setForm((prev) => ({ ...prev, [name]: name === "valor_estimado" || name === "anio_evento" ? Number(value) : value }))
+    setForm((prev) => ({ ...prev, [name]: name === "anio_evento" ? Number(value) : value }))
+  }
+
+  function handleValorChange(e) {
+    const raw = e.target.value.replace(/\D/g, "")
+    const num = raw ? parseInt(raw, 10) : 0
+    setValorDisplay(raw ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : "")
+    setForm((prev) => ({ ...prev, valor_estimado: num }))
   }
 
   function handleSubmit(e) {
@@ -158,7 +169,14 @@ function LeadForm({ onSubmit, onCancel, initial }) {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className={labelCls}>Valor estimado ($)</label>
-            <input name="valor_estimado" type="number" value={form.valor_estimado} onChange={handleChange} className={inputCls} />
+            <input
+              type="text"
+              inputMode="numeric"
+              value={valorDisplay}
+              onChange={handleValorChange}
+              className={inputCls}
+              placeholder="0"
+            />
           </div>
         </div>
       </div>
