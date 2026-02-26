@@ -60,10 +60,11 @@ function LeadForm({ onSubmit, onCancel, initial }) {
         fecha_tentativa:      initial.fecha_tentativa      ? initial.fecha_tentativa.substring(0, 10)      : "",
         fecha_visita_salon:   initial.fecha_visita_salon   ? initial.fecha_visita_salon.substring(0, 10)   : "",
         fecha_firma_contrato: initial.fecha_firma_contrato ? initial.fecha_firma_contrato.substring(0, 10) : "",
-        tipo_cliente:   initial.tipo_cliente   || "Particular",
-        valor_estimado: initial.valor_estimado || 0,
-        anio_evento:    initial.anio_evento    || new Date().getFullYear(),
-        notas:          initial.notas          || "",
+        tipo_cliente:        initial.tipo_cliente        || "Particular",
+        valor_estimado:      initial.valor_estimado      || 0,
+        invitados_estimados: initial.invitados_estimados || "",
+        anio_evento:         initial.anio_evento         || new Date().getFullYear(),
+        notas:               initial.notas               || "",
       }
     }
     return {
@@ -78,6 +79,7 @@ function LeadForm({ onSubmit, onCancel, initial }) {
       fecha_firma_contrato: "",
       anio_evento: new Date().getFullYear(),
       valor_estimado: 0,
+      invitados_estimados: "",
       notas: "",
     }
   })
@@ -176,6 +178,19 @@ function LeadForm({ onSubmit, onCancel, initial }) {
               onChange={handleValorChange}
               className={inputCls}
               placeholder="0"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Cantidad de invitados</label>
+            <input
+              name="invitados_estimados"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              value={form.invitados_estimados}
+              onChange={(e) => setForm((prev) => ({ ...prev, invitados_estimados: e.target.value === "" ? "" : Number(e.target.value) }))}
+              className={inputCls}
+              placeholder="Ej: 150"
             />
           </div>
         </div>

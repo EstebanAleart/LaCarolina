@@ -84,7 +84,7 @@ export async function PUT(request, { params }) {
           lead_id: id,
           fecha_confirmada: fechaEvento,
           tipo_evento: lead.tipo_evento || '',
-          invitados_estimados: 0,
+          invitados_estimados: lead.invitados_estimados || 0,
           servicios_contratados: [],
           estado_operativo: 'Pendiente',
           estado_pago: 'Pendiente',
