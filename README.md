@@ -238,6 +238,7 @@ Todos los componentes siguen este patrón:
 | anio_evento              | INTEGER | Auto-sync con año de fecha_tentativa |
 | estado_actual            | STRING  | Ver LEAD_STATES     |
 | valor_estimado           | FLOAT   |                    |
+| invitados_estimados      | INTEGER | Se copia al Event al firmar contrato/confirmar fecha |
 | notas                    | TEXT    |                    |
 | managed_by_user_id       | UUID    | FK → users         |
 | created_at               | DATE    | default: NOW       |
@@ -409,14 +410,16 @@ Definidas en `lib/api.js` (exportadas y usadas por todos los componentes fronten
 ```js
 LEAD_STATES = [
   "Lead nuevo",               // Estado inicial al crear lead
-  "Contactado",
-  "Esperando visita",         // Mide tiempo entre contacto y visita al salón
+  "Contactado",               // ⚡ Auto al registrar primera interacción saliente (OUT)
+  "Esperando visita",         // ⚡ Auto al guardar fecha_visita_salon (desde "Lead nuevo" o "Contactado")
   "Visita al salón realizada",
-  "Enviar propuesta",         // Mide tiempo que se tarda en enviar el documento — Auto-crea Task (+1 día) + Proposal Borrador
-  "Propuesta enviada",        // Auto-crea Task seguimiento (+3 días)
-  "Esperando Reserva",        // Mide tiempo de decisión del cliente tras recibir propuesta
-  "Reserva tomada",           // Auto al marcar CalendarDate "Reservada"
-  "Contrato firmado",         // Auto-crea Event + CalendarDate "Confirmada". Auto al marcar CalendarDate "Confirmada"
+  "Enviar propuesta",         // Auto-crea Task (+1 día) + Proposal Borrador
+  "Propuesta enviada",        // ⚡ Auto al marcar propuesta "Enviada". Auto-crea Task seguimiento (+3 días)
+  "Propuesta Aceptada",       // ⚡ Auto al marcar propuesta "Aceptada"
+  "Propuesta Rechazada",      // ⚡ Auto al marcar propuesta "Rechazada"
+  "Esperando Reserva",        // Mide tiempo de decisión del cliente
+  "Reserva tomada",           // ⚡ Auto al marcar CalendarDate "Reservada"
+  "Contrato firmado",         // ⚡ Auto-crea Event + CalendarDate "Confirmada". Auto al marcar CalendarDate "Confirmada"
   "Cliente activo",
   "Evento realizado",
   "Post-evento / cerrado",
@@ -851,6 +854,14 @@ estado_actual_id UUID FK → lead_states
 - [ ] UI: Panel admin para gestionar estados (sin tocar código)
 - [ ] Frontend: cargar estados desde API en vez de `LEAD_STATES` hardcodeado
 - [ ] Métricas: endpoint que calcule tiempo promedio en cada estado por lead
+
+---
+
+##### ⚠️ Pendientes UX / Features — detectados en testeo
+
+- [x] **Leads — Mostrar campo "Fecha de firma de contrato" condicionalmente**: visible solo desde `Visita al salón realizada` en adelante. Implementado con `LEAD_STATES.indexOf()` en `LeadForm`.
+- [ ] **Propuestas — Cargar documento adjunto**: además del campo de texto `contenido`, agregar subida de archivo (PDF/Word). Requiere Supabase Storage: crear bucket `proposals`, subir archivo, guardar URL en campo `documento_url` de la tabla `proposals`.
+- [ ] **Calendario — Soporte para múltiples eventos en la UI**: actualmente la vista de calendario solo permite crear/editar una fecha/evento por vez. Mejorar la interfaz para navegar y gestionar múltiples fechas cargadas de forma más ágil.
 
 ---
 
