@@ -23,7 +23,7 @@ const NAV_ITEMS = [
   { id: "proposals", label: "Propuestas", icon: FileText },
   { id: "events", label: "Eventos", icon: Sparkles },
   { id: "payments", label: "Pagos", icon: CreditCard },
-  { id: "tasks", label: "Tareas", icon: CheckSquare },
+  // { id: "tasks", label: "Tareas", icon: CheckSquare },
   { id: "reports", label: "Reportes", icon: BarChart2 },
   { id: "guide", label: "Guia", icon: BookOpen },
 ]
