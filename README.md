@@ -410,11 +410,14 @@ Definidas en `lib/api.js` (exportadas y usadas por todos los componentes fronten
 LEAD_STATES = [
   "Lead nuevo",               // Estado inicial al crear lead
   "Contactado",
+  "Esperando visita",         // Mide tiempo entre contacto y visita al salón
   "Visita al salón realizada",
+  "Enviar propuesta",         // Mide tiempo que se tarda en enviar el documento — Auto-crea Task (+1 día) + Proposal Borrador
   "Propuesta enviada",        // Auto-crea Task seguimiento (+3 días)
+  "Esperando Reserva",        // Mide tiempo de decisión del cliente tras recibir propuesta
   "Reserva tomada",           // Auto al marcar CalendarDate "Reservada"
-  "Contrato firmado",         // Auto-crea Event + CalendarDate "Confirmada"
-  "Cliente activo",           // Auto al marcar CalendarDate "Confirmada"
+  "Contrato firmado",         // Auto-crea Event + CalendarDate "Confirmada". Auto al marcar CalendarDate "Confirmada"
+  "Cliente activo",
   "Evento realizado",
   "Post-evento / cerrado",
   "Perdido",                  // Requiere motivo obligatorio
@@ -447,8 +450,9 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
 ## Reglas de Negocio (implementadas en API routes)
 
 1. **Lead → Perdido**: Requiere `motivo` obligatorio (400 si falta).
-2. **Lead → "Propuesta enviada"**: Auto-crea Task de seguimiento con `prioridad: Alta` y `due_date: +3 días`.
-2b. **Lead → estados avanzados del pipeline**: Auto-crea Proposal si no existe. Estados: "Propuesta enviada"→Enviada, "Visita al salón realizada"→Enviada, "Reserva tomada"→Aceptada, "Contrato firmado"→Aceptada.
+2. **Lead → "Enviar propuesta"**: Auto-crea Task `prioridad: Alta` y `due_date: +1 día`. Auto-crea Proposal en estado "Borrador".
+2a. **Lead → "Propuesta enviada"**: Auto-crea Task de seguimiento con `prioridad: Alta` y `due_date: +3 días`.
+2b. **Lead → estados avanzados del pipeline**: Auto-crea Proposal si no existe. Estados: "Enviar propuesta"→Borrador, "Propuesta enviada"→Enviada, "Visita al salón realizada"→Enviada, "Reserva tomada"→Aceptada, "Contrato firmado"→Aceptada.
 2c. **CalendarDate Reservada/Confirmada + lead**: Auto-crea Proposal "Aceptada" si no existe (o actualiza la última a Aceptada).
 3. **CalendarDate**: No puede haber dos leads con estado Reservada/Confirmada en la misma fecha (409 conflict).
 4. **Reservation**: Un lead solo puede tener una reserva, `lead_id` es UNIQUE (409 si ya existe).
@@ -459,7 +463,7 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
    - Actualiza lead a `estado_actual: "Cliente activo"`
 6b. **CalendarDate → Lead sync** (POST /api/calendar): Automáticamente:
    - Si `estado_fecha` = "Reservada" + `lead_id` → Lead pasa a `"Reserva tomada"` + historial + **auto-crea Reservation** si no existe
-   - Si `estado_fecha` = "Confirmada" + `lead_id` → Lead pasa a `"Cliente activo"` + historial + **auto-crea Event** si no existe
+   - Si `estado_fecha` = "Confirmada" + `lead_id` → Lead pasa a `"Contrato firmado"` + historial + **auto-crea Event** si no existe
    - En ambos casos: última propuesta del lead pasa a **"Aceptada"** automáticamente
 6c. **Lead → Propuesta auto-sync** (PUT /api/leads/:id/status):
    - Lead → "Reserva tomada" / "Contrato firmado" / "Cliente activo" → última propuesta pasa a **"Aceptada"**
