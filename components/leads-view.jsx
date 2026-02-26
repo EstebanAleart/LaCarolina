@@ -15,7 +15,7 @@ import {
   ArrowRight,
   X,
   Clock,
-  FileText,
+  Pencil,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -563,6 +563,16 @@ export default function LeadsView() {
   const [editLead, setEditLead] = useState(null)
   const [detailLead, setDetailLead] = useState(null)
   const [viewMode, setViewMode] = useState("table")
+  const [expandedLeadIds, setExpandedLeadIds] = useState(new Set())
+
+  function toggleExpand(id) {
+    setExpandedLeadIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   async function loadLeads() {
     try {
@@ -712,60 +722,144 @@ export default function LeadsView() {
 
       {/* Table View */}
       {viewMode === "table" && (
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-secondary">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground">Nombre</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground hidden md:table-cell">Tipo</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground hidden sm:table-cell">Canal</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground">Estado</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-secondary-foreground hidden lg:table-cell">Valor</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-secondary-foreground">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredLeads.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No hay leads que coincidan con los filtros</td>
-                </tr>
-              )}
-              {filteredLeads.map((lead) => (
-                <tr key={lead.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
-                  <td className="px-4 py-3">
-                    <button onClick={() => setDetailLead(lead)} className="text-left">
-                      <p className="font-medium text-card-foreground">{lead.nombre}</p>
-                      <p className="text-xs text-muted-foreground">{lead.email || lead.telefono}</p>
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{lead.tipo_evento}</td>
-                  <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{lead.canal_origen}</td>
-                  <td className="px-4 py-3">
-                    <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-xs font-medium", STATE_COLORS[lead.estado_actual])}>
-                      {lead.estado_actual}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right text-card-foreground font-medium hidden lg:table-cell">
-                    ${(lead.valor_estimado || 0).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => setDetailLead(lead)} className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary transition-colors" aria-label="Ver detalle">
-                        <Eye className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => setEditLead(lead)} className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary transition-colors" aria-label="Editar">
-                        <FileText className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => handleDelete(lead.id)} className="rounded-md p-1.5 text-destructive hover:bg-destructive/10 transition-colors" aria-label="Eliminar">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+        <>
+          {/* Mobile: cards expandibles */}
+          <div className="flex flex-col gap-2 md:hidden">
+            {filteredLeads.length === 0 && (
+              <div className="rounded-lg border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+                No hay leads que coincidan con los filtros
+              </div>
+            )}
+            {filteredLeads.map((lead) => {
+              const isExpanded = expandedLeadIds.has(lead.id)
+              return (
+                <div key={lead.id} className="rounded-lg border border-border bg-card overflow-hidden">
+                  {/* Header siempre visible */}
+                  <button
+                    onClick={() => toggleExpand(lead.id)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-card-foreground truncate">{lead.nombre}</p>
+                      <p className="text-xs text-muted-foreground truncate">{lead.tipo_evento || "Sin tipo"}{lead.canal_origen ? ` · ${lead.canal_origen}` : ""}</p>
                     </div>
-                  </td>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap", STATE_COLORS[lead.estado_actual])}>
+                        {lead.estado_actual}
+                      </span>
+                      <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-180")} />
+                    </div>
+                  </button>
+                  {/* Contenido expandido */}
+                  {isExpanded && (
+                    <div className="border-t border-border bg-muted/20 px-4 py-3 flex flex-col gap-3">
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+                        {lead.telefono && (
+                          <div className="flex flex-col">
+                            <span className="text-muted-foreground">Teléfono</span>
+                            <span className="text-foreground font-medium">{lead.telefono}</span>
+                          </div>
+                        )}
+                        {lead.email && (
+                          <div className="flex flex-col">
+                            <span className="text-muted-foreground">Email</span>
+                            <span className="text-foreground font-medium truncate">{lead.email}</span>
+                          </div>
+                        )}
+                        <div className="flex flex-col">
+                          <span className="text-muted-foreground">Valor estimado</span>
+                          <span className="text-foreground font-semibold">${(lead.valor_estimado || 0).toLocaleString()}</span>
+                        </div>
+                        {lead.fecha_tentativa && (
+                          <div className="flex flex-col">
+                            <span className="text-muted-foreground">Fecha tentativa</span>
+                            <span className="text-foreground font-medium">{lead.fecha_tentativa.substring(0, 10)}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          onClick={() => setDetailLead(lead)}
+                          className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+                        >
+                          <Eye className="h-3.5 w-3.5" /> Ver detalle
+                        </button>
+                        <button
+                          onClick={() => { setEditLead(lead); setShowForm(true) }}
+                          className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+                        >
+                          <Pencil className="h-3.5 w-3.5" /> Editar
+                        </button>
+                        <button
+                          onClick={() => handleDelete(lead.id)}
+                          className="flex items-center justify-center rounded-md border border-destructive/40 px-3 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop: tabla */}
+          <div className="hidden md:block overflow-x-auto rounded-lg border border-border bg-card">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground">Nombre</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground hidden md:table-cell">Tipo</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground hidden lg:table-cell">Canal</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground">Estado</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-secondary-foreground hidden lg:table-cell">Valor</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-secondary-foreground">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filteredLeads.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No hay leads que coincidan con los filtros</td>
+                  </tr>
+                )}
+                {filteredLeads.map((lead) => (
+                  <tr key={lead.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
+                    <td className="px-4 py-3">
+                      <button onClick={() => setDetailLead(lead)} className="text-left">
+                        <p className="font-medium text-card-foreground">{lead.nombre}</p>
+                        <p className="text-xs text-muted-foreground">{lead.email || lead.telefono}</p>
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{lead.tipo_evento}</td>
+                    <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{lead.canal_origen}</td>
+                    <td className="px-4 py-3">
+                      <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-xs font-medium", STATE_COLORS[lead.estado_actual])}>
+                        {lead.estado_actual}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-card-foreground font-medium hidden lg:table-cell">
+                      ${(lead.valor_estimado || 0).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setDetailLead(lead)} className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary transition-colors" aria-label="Ver detalle">
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => { setEditLead(lead); setShowForm(true) }} className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary transition-colors" aria-label="Editar">
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => handleDelete(lead.id)} className="rounded-md p-1.5 text-destructive hover:bg-destructive/10 transition-colors" aria-label="Eliminar">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/* Kanban View */}
