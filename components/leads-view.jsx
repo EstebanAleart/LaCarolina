@@ -196,8 +196,8 @@ function LeadForm({ onSubmit, onCancel, initial }) {
         </div>
       </div>
 
-      {/* Segunda instancia — solo al editar */}
-      {initial && (
+      {/* Segunda instancia — solo al editar, desde "Visita al salón realizada" en adelante */}
+      {initial && LEAD_STATES.indexOf(initial.estado_actual) >= LEAD_STATES.indexOf("Visita al salón realizada") && (
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Segunda instancia</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

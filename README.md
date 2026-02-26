@@ -722,6 +722,16 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
   - `google_event_id` en CalendarDate para trackeo bidireccional
   - Fix: convertido de CommonJS a ESM (`import`/`export`) — `require()` en try/catch fallaba silenciosamente en Next.js App Router
   - Fix: `fecha.toString()` en Date de Sequelize daba formato incorrecto → cambiado a `new Date(fecha).toISOString().substring(0,10)`
+- [x] **Pipeline de 15 estados** con automatizaciones: interacción OUT → "Contactado", fecha_visita → "Esperando visita", propuesta → sync lead state
+- [x] **Campo invitados_estimados en leads** - se copia al Event al confirmar
+- [x] **Valor estimado con formato** - separadores de miles al escribir (es-AR)
+- [x] **Vista Kanban altura completa** - ocupa viewport, cada columna scrollea internamente
+- [x] **Anti-doble-click** en cambio de estado y acciones de propuesta
+- [x] **Servicios contratados UI modular** (events-view) - multiselect Base + Adicionales con toggle
+- [x] **Módulo de Pagos completo** - tabla `payments` + API routes + UI en detalle de evento
+  - POST crea pago, PUT solo cambia estado/observacion (inmutable)
+  - Auto-recalcula `estado_pago` del evento (Pendiente/Parcial/Completo) al confirmar/anular
+  - Historial inline con cobrado acumulado y saldo pendiente en tiempo real
 
 ### Pendiente - Roadmap
 
@@ -860,8 +870,17 @@ estado_actual_id UUID FK → lead_states
 ##### ⚠️ Pendientes UX / Features — detectados en testeo
 
 - [x] **Leads — Mostrar campo "Fecha de firma de contrato" condicionalmente**: visible solo desde `Visita al salón realizada` en adelante. Implementado con `LEAD_STATES.indexOf()` en `LeadForm`.
+- [x] **Servicios contratados — UI modular**: multiselect con Base (Salón/Catering) + Adicionales (Mesa dulce, Fotografía, etc.) con toggle en detalle de evento.
+- [x] **Módulo de Pagos**: tabla `payments` + modelo + asociaciones + `GET/POST /api/payments` + `PUT /api/payments/:id` + UI inline en detalle de evento. Auto-recalcula `estado_pago` del evento.
 - [ ] **Propuestas — Cargar documento adjunto**: además del campo de texto `contenido`, agregar subida de archivo (PDF/Word). Requiere Supabase Storage: crear bucket `proposals`, subir archivo, guardar URL en campo `documento_url` de la tabla `proposals`.
 - [ ] **Calendario — Soporte para múltiples eventos en la UI**: actualmente la vista de calendario solo permite crear/editar una fecha/evento por vez. Mejorar la interfaz para navegar y gestionar múltiples fechas cargadas de forma más ágil.
+- [ ] **Tareas — Mejoras completas al módulo**: actualmente solo permite crear y ciclar estado. Falta:
+  - Editar tarea (título, descripción, prioridad, fecha límite, lead asociado, usuario asignado)
+  - Mover entre columnas Kanban (drag & drop o botones ← →)
+  - Eliminar tarea con confirmación
+  - Ver detalle expandido
+  - Filtro por lead asociado
+  - Badge de vencida si `due_date` < hoy y estado no es Hecho/Cancelado
 
 ---
 
@@ -878,31 +897,13 @@ estado_actual_id UUID FK → lead_states
 
 #### PRIORIDAD BAJA — Features avanzadas
 
-##### 5. Módulo de Pagos (`payments`)
+##### ✅ 5. Módulo de Pagos (`payments`) — IMPLEMENTADO
 
-Nueva tabla para registro inmutable de pagos (no se editan — solo se anulan con registro nuevo):
-
-| Campo               | Tipo   | Notas                                                        |
-|---------------------|--------|--------------------------------------------------------------|
-| `id`                | UUID   | PK                                                           |
-| `reservation_id`    | UUID   | FK → reservations                                            |
-| `monto`             | FLOAT  |                                                              |
-| `currency`          | STRING | default: ARS                                                 |
-| `tipo`              | ENUM   | `seña`, `pago_parcial`, `pago_final`, `devolucion`           |
-| `metodo_pago`       | STRING | efectivo, transferencia, tarjeta, etc.                       |
-| `fecha_pago`        | DATE   |                                                              |
-| `estado`            | ENUM   | `pendiente`, `confirmado`, `anulado`                         |
-| `comprobante_url`   | STRING | nullable                                                     |
-| `observacion`       | TEXT   | nullable                                                     |
-| `created_by_user_id`| UUID   | FK → users                                                   |
-
-> **IMPORTANTE:** No permitir borrar/editar pagos. Para corregir: crear nuevo registro con `tipo: devolucion` o `estado: anulado`.
-
-- [ ] Migración + modelo + asociaciones
-- [ ] API CRUD (`/api/payments`, `/api/payments/:id`)
-- [ ] UI para registrar pagos desde detalle de reserva/evento
-- [ ] Historial de pagos en vista de evento/lead
-- [ ] `saldo_pendiente` calculado automáticamente desde historial de pagos
+- [x] Tabla `payments` en DB (event_id, lead_id, monto, tipo, metodo_pago, fecha_pago, estado, observacion, created_by_user_id)
+- [x] Modelo Sequelize + asociaciones (Event.hasMany(Payment), Payment.belongsTo(Event/Lead))
+- [x] `GET/POST /api/payments` + `PUT /api/payments/:id` (solo estado/observacion — monto inmutable)
+- [x] UI inline en detalle de evento: historial, cobrado acumulado, saldo pendiente, Confirmar/Anular
+- [x] Auto-recalcula `estado_pago` del evento al cambiar estado de cualquier pago
 
 ##### 6. Dashboard de Métricas (Business Intelligence)
 
