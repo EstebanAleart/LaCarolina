@@ -119,6 +119,7 @@ export async function POST(request) {
               lead_id: lead.id,
               fecha_confirmada: body.fecha,
               tipo_evento: lead.tipo_evento || '',
+              invitados_estimados: lead.invitados_estimados || 0,
               estado_operativo: 'Pendiente',
             });
             // Asociar evento_id al CalendarDate
