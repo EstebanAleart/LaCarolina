@@ -41,6 +41,8 @@ const STATE_COLORS = {
   "Visita al salón realizada": "bg-cyan-100 text-cyan-800",
   "Enviar propuesta":          "bg-purple-100 text-purple-800",
   "Propuesta enviada":         "bg-violet-100 text-violet-800",
+  "Propuesta Aceptada":        "bg-lime-100 text-lime-800",
+  "Propuesta Rechazada":       "bg-rose-100 text-rose-800",
   "Esperando Reserva":         "bg-orange-100 text-orange-800",
   "Reserva tomada":            "bg-amber-100 text-amber-800",
   "Contrato firmado":          "bg-emerald-100 text-emerald-800",
@@ -204,6 +206,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
   const [showStatusChange, setShowStatusChange] = useState(false)
   const [lostMotivo, setLostMotivo] = useState("")
   const [selectedStatus, setSelectedStatus] = useState("")
+  const [submitting, setSubmitting] = useState(false)
   const [intForm, setIntForm] = useState({ canal: "WhatsApp", direction: "OUT", descripcion: "" })
 
   const loadDetail = useCallback(async () => {
@@ -231,11 +234,12 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
   }
 
   async function handleStatusChange() {
-    if (!selectedStatus) return
+    if (!selectedStatus || submitting) return
     if (selectedStatus === "Perdido" && !lostMotivo.trim()) {
       toast.warning("Motivo obligatorio para marcar como Perdido")
       return
     }
+    setSubmitting(true)
     try {
       await apiChangeLeadStatus(lead.id, selectedStatus, lostMotivo || null, null)
       setShowStatusChange(false)
@@ -245,6 +249,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
       onRefresh()
       toast.success(`Estado cambiado a "${selectedStatus}"`)
     } catch (err) { console.error(err); toast.error("Error al cambiar estado") }
+    finally { setSubmitting(false) }
   }
 
   async function handleAddInteraction(e) {
@@ -369,7 +374,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
                   />
                 )}
                 <div className="flex gap-2">
-                  <button onClick={handleStatusChange} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90">Confirmar</button>
+                  <button onClick={handleStatusChange} disabled={submitting} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">{submitting ? "Guardando..." : "Confirmar"}</button>
                   <button onClick={() => setShowStatusChange(false)} className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary">Cancelar</button>
                 </div>
               </div>
@@ -864,7 +869,7 @@ export default function LeadsView() {
 
       {/* Kanban View */}
       {viewMode === "kanban" && (
-        <div className="flex gap-3 overflow-x-auto pb-4">
+        <div className="flex gap-3 overflow-x-auto pb-4 items-stretch min-h-[calc(100vh-13rem)]">
           {LEAD_STATES.filter((s) => s !== "Perdido").map((state) => {
             const stateLeads = filteredLeads.filter((l) => l.estado_actual === state)
             return (
@@ -875,7 +880,7 @@ export default function LeadsView() {
                     {stateLeads.length}
                   </span>
                 </div>
-                <div className="flex flex-col gap-2 p-2 max-h-[60vh] overflow-y-auto">
+                <div className="flex flex-col gap-2 p-2 flex-1 overflow-y-auto">
                   {stateLeads.map((lead) => (
                     <button
                       key={lead.id}

@@ -39,6 +39,8 @@ const PIPELINE_COLORS = {
   "Visita al salón realizada": "#06b6d4",
   "Enviar propuesta":          "#a855f7",
   "Propuesta enviada":         "#8b5cf6",
+  "Propuesta Aceptada":        "#84cc16",
+  "Propuesta Rechazada":       "#f43f5e",
   "Esperando Reserva":         "#f97316",
   "Reserva tomada":            "#f59e0b",
   "Contrato firmado":          "#10b981",

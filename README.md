@@ -821,6 +821,39 @@ Permite: upsell, reporting por servicio, estandarización de contratos futuros.
 
 #### PRIORIDAD MEDIA — Mejoras técnicas
 
+##### ⚠️ Tabla `lead_states` — Migrar estados de STRING hardcodeado a tabla en BD
+
+Actualmente `estado_actual` en `leads` es un STRING libre. Los estados posibles están hardcodeados en `lib/api.js` (`LEAD_STATES`) y en el frontend. Esto funciona pero tiene limitaciones importantes:
+
+- **No se puede medir tiempo por etapa** (sin saber cuándo entró/salió de cada estado en forma estructurada)
+- **No hay estadísticas reales de pipeline** (cuántos leads pasan por cada estado, cuántos quedan estancados)
+- **Cualquier typo rompe silenciosamente** el pipeline/kanban
+- **Impossible hacer filtros/reportes por estado sin hardcodear strings** en cada query
+
+**Solución propuesta:**
+```sql
+-- Nueva tabla
+lead_states: id, nombre, orden, color, descripcion, activo
+
+-- Campo nuevo en leads (o reemplazar estado_actual)
+estado_actual_id UUID FK → lead_states
+```
+
+- Los estados se gestionan desde un panel admin
+- `LeadStatusHistory` ya tiene `estado_anterior` / `estado_nuevo` como STRING → migrar a FK
+- Permite calcular tiempo promedio por etapa: `SELECT estado, AVG(tiempo_en_estado) FROM lead_status_history GROUP BY estado`
+- El frontend consume los estados desde `/api/lead-states` en vez de constante hardcodeada
+
+**Tareas:**
+- [ ] Migración: tabla `lead_states` con campos nombre, orden, color, activo
+- [ ] Migración: campo `estado_actual_id` en `leads` (o mantener STRING + agregar FK)
+- [ ] API: GET/POST/PUT `/api/lead-states`
+- [ ] UI: Panel admin para gestionar estados (sin tocar código)
+- [ ] Frontend: cargar estados desde API en vez de `LEAD_STATES` hardcodeado
+- [ ] Métricas: endpoint que calcule tiempo promedio en cada estado por lead
+
+---
+
 - [ ] **Optimistic UI + Redux** — patrón optimistic con Redux global state para respuesta instantánea; si falla la petición, se revierte
 - [ ] Sesiones server-side (JWT o NextAuth) — actualmente usa localStorage
 - [ ] Panel admin para activar/desactivar usuarios registrados
