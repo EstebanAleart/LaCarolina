@@ -7,15 +7,6 @@ Sistema de gestion para salones de eventos. Desde el primer contacto hasta el ev
 
 ## Acceso al Sistema
 
-### Primer ingreso (usuarios demo)
-Al abrir la app por primera vez se crean 3 usuarios automaticamente:
-
-| Email | Password | Rol |
-|---|---|---|
-| carolina@lacarolina.com | admin123 | Admin |
-| maria@lacarolina.com | comercial123 | Comercial |
-| luis@lacarolina.com | operaciones123 | Operaciones |
-
 ### Registrar nuevo usuario
 1. Click en "Registrate aqui" en la pantalla de login
 2. Completar nombre, email y password (minimo 6 caracteres)
@@ -27,182 +18,244 @@ Al abrir la app por primera vez se crean 3 usuarios automaticamente:
 ## Flujo Principal de Trabajo
 
 ```
-CONSULTA  →  PROPUESTA  →  NEGOCIACION  →  RESERVA  →  EVENTO
- INICIAL      ENVIADA                       TOMADA     CONFIRMADO
+LEAD NUEVO → CONTACTADO → ESPERANDO VISITA → VISITA REALIZADA → PROPUESTA → RESERVA → CONTRATO → EVENTO
 ```
 
-### 1. Crear un Lead (nuevo contacto)
-- Ir a **CRM Leads** en el menu lateral
-- Click en **"Nuevo Lead"**
-- Completar: nombre (obligatorio), telefono, email, canal de origen, tipo de evento, fecha tentativa, valor estimado
-- El lead se crea con estado **"Consulta inicial"**
+---
 
-### 2. Gestionar el Lead
-Desde la vista de leads, click en el nombre o el icono de ojo para abrir el **panel de detalle**:
+## 1. CRM Leads
 
-- **Cambiar Estado**: Click en "Cambiar Estado" y seleccionar el nuevo estado
-  - Si se marca como "Perdido", es obligatorio escribir un motivo
-- **Registrar Interacciones**: En la pestana "Interacciones", seleccionar tipo (WhatsApp, Llamada, Email, Reunion) y escribir la descripcion
-- **Timeline**: Muestra todo el historial del lead (cambios de estado, interacciones, propuestas)
+### Crear un lead
 
-### 3. Crear una Propuesta
-- Ir a **Propuestas** en el menu lateral
-- Click en **"Nueva Propuesta"**
-- Seleccionar el lead, escribir contenido y precio total
-- La propuesta se crea como **"Borrador"**
+1. Ir a **CRM Leads** en el menu lateral → **"Nuevo Lead"**
+2. Completar los campos:
 
-**Ciclo de la propuesta:**
-- **Borrador** → click "Enviar" → pasa a **Enviada** (se registra fecha de envio)
-- **Enviada** → click "Aceptar" o "Rechazar"
-
-> Las propuestas se actualizan automaticamente cuando cambia el estado del lead:
-> - Lead pasa a "Reserva tomada" o "Evento confirmado" → ultima propuesta pasa a **Aceptada**
-> - Lead pasa a "Perdido" → ultima propuesta pasa a **Rechazada**
-
-### 4. Calendario - Reservar una Fecha
-- Ir a **Calendario** en el menu lateral
-- Click en el dia que se quiere gestionar
-- Se abre un modal con opciones:
-
-**Estados de fecha:**
-| Color | Estado | Significado |
+| Campo | Obligatorio | Detalle |
 |---|---|---|
-| Verde claro | Disponible | Fecha libre |
-| Amarillo | Bloqueada | Fecha bloqueada (sin lead asociado) |
-| Azul | Reservada | Fecha reservada para un lead |
-| Verde | Confirmada | Evento confirmado en esa fecha |
-| Violeta | Tentativa | Lead tiene fecha_tentativa en ese dia (se muestra automaticamente) |
+| Nombre | SI | Nombre completo del contacto |
+| Canal de origen | SI | WhatsApp, Web, Referido, Instagram, etc. |
+| Tipo de evento | SI | Fiesta de 15, Casamiento, Egresados, etc. |
+| Fecha del evento | No | Fecha tentativa del evento |
+| Valor estimado | No | Escribir el numero, los puntos de miles se agregan solos (ej: `1500000` → `1.500.000`) |
+| Cantidad de invitados | No | Se copia automaticamente al evento al firmar contrato |
+| Fecha visita al salon | No | Al cargarla, el estado pasa automaticamente a "Esperando visita" |
 
-**Reservar una fecha:**
-1. Click en el dia
-2. Si hay leads con fecha tentativa en ese dia, aparecen en violeta. Click para seleccionar uno
-3. Elegir estado **"Reservada"**
-4. Click **"Guardar"**
+### Pipeline de estados
 
-> Al reservar con un lead, automaticamente:
-> - El lead pasa a estado "Reserva tomada"
-> - Se limpia la fecha tentativa (desaparece el marcador violeta)
-> - Se crea un registro de Reservation
-> - La ultima propuesta del lead pasa a "Aceptada"
+Los leads siguen este flujo. Los estados con ⚡ cambian **automaticamente**:
 
-**Confirmar una fecha:**
-1. Click en el dia que ya esta Reservada
-2. Cambiar estado a **"Confirmada"**
-3. Click **"Guardar"**
+| # | Estado | Cuando ocurre | Avance |
+|---|---|---|---|
+| 1 | Lead nuevo | Al crearse en el sistema | — |
+| 2 | Contactado | Se establecio contacto | ⚡ Al registrar primera interaccion saliente |
+| 3 | Esperando visita | Visita agendada | ⚡ Al cargar fecha de visita al salon |
+| 4 | Visita al salon realizada | Fue al salon | Manual |
+| 5 | Enviar propuesta | Hay que preparar propuesta | Manual |
+| 6 | Propuesta enviada | Se envio la propuesta | ⚡ Al marcar propuesta como "Enviada" |
+| 7 | Propuesta Aceptada | El cliente acepto | ⚡ Al marcar propuesta como "Aceptada" |
+| 8 | Propuesta Rechazada | El cliente rechazo | ⚡ Al marcar propuesta como "Rechazada" |
+| 9 | Esperando Reserva | En negociacion de senal | Manual |
+| 10 | Reserva tomada | Pago la senal | ⚡ Al confirmar fecha como "Reservada" en calendario |
+| 11 | Contrato firmado | Firmo el contrato | ⚡ Al confirmar fecha como "Confirmada" en calendario |
+| 12 | Cliente activo | Evento proximo | Manual |
+| 13 | Evento realizado | El evento ocurrio | Manual |
+| 14 | Post-evento / cerrado | Cierre total | Manual |
+| 15 | Perdido | No avanzo (requiere motivo) | Manual |
 
-> Al confirmar, automaticamente:
-> - El lead pasa a estado "Evento confirmado"
-> - Se crea un registro de Event (con tipo de evento del lead)
-> - Aparece en la vista de Eventos
+### Cambiar estado manualmente
 
-**Liberar una fecha:**
-- Click en el dia → click **"Liberar fecha"** (boton rojo)
+Desde el detalle del lead → boton **"Cambiar estado"** → seleccionar nuevo estado → **Confirmar**.
 
-### 5. Eventos
-- Ir a **Eventos** en el menu lateral
-- Se muestran todos los eventos confirmados
-- Click en un evento para expandir el detalle
+- Para "Perdido" es obligatorio escribir un motivo
+- El boton se deshabilita durante el procesamiento (evita doble click)
 
-**Estado operativo del evento:**
+### Editar un lead
+
+Click en el icono de lapiz (✏️) en la lista de leads.
+
+- El campo **Fecha de firma de contrato** solo aparece a partir del estado "Visita al salon realizada"
+- El campo **Fecha limite de pago** se calcula automaticamente (fecha evento - 30 dias), no es editable
+
+### Vistas disponibles
+
+- **Vista lista**: tabla con busqueda por nombre/email/telefono, filtros por año, estado y canal
+- **Vista Kanban**: board por columnas de estado. El board ocupa el alto de pantalla disponible y cada columna scrollea internamente
+- **Vista movil**: cards desplegables por lead, sin scroll horizontal
+
+### Detalle de un lead (Timeline)
+
+Click en un lead para abrir el panel lateral. Muestra pestanas:
+- **Timeline**: historial cronologico de interacciones, visitas, cambios de estado y propuestas
+- **Interacciones**: registrar contactos
+- **Propuestas**: propuestas asociadas al lead
+
+---
+
+## 2. Interacciones
+
+Desde el detalle del lead, pestana **Timeline** → seccion "Registrar interaccion".
+
+| Tipo | Descripcion | Efecto automatico |
+|---|---|---|
+| Saliente (OUT) | Vos contactaste al lead | ⚡ Si el lead esta en "Lead nuevo", pasa a "Contactado" |
+| Entrante (IN) | El lead te contacto a vos | Sin efecto automatico |
+
+Canales disponibles: WhatsApp, Llamada, Email, Reunion, Web.
+
+---
+
+## 3. Propuestas
+
+### Crear propuesta
+
+1. Ir a **Propuestas** → **"Nueva Propuesta"**
+2. Seleccionar el lead asociado
+3. Escribir el contenido (descripcion de servicios, condiciones, precios)
+4. Ingresar el precio total
+5. La propuesta se crea como **Borrador**
+
+### Ciclo de estados de una propuesta
+
+```
+Borrador → Enviada → Aceptada
+                  ↘ Rechazada
+```
+
+| Accion | Efecto en la propuesta | Efecto automatico en el lead |
+|---|---|---|
+| Click "Enviar" | Propuesta → Enviada + registra fecha de envio | Lead → "Propuesta enviada" |
+| Click "Aceptar" | Propuesta → Aceptada | Lead → "Propuesta Aceptada" |
+| Click "Rechazar" | Propuesta → Rechazada | Lead → "Propuesta Rechazada" |
+
+> Los botones se deshabilitan durante el procesamiento para evitar doble envio.
+
+### Ver propuesta
+
+Cada card de propuesta tiene un boton **Ver** (👁) que abre un modal con el contenido completo, estado, precio total y fecha de envio.
+
+---
+
+## 4. Calendario
+
+### Estados de fecha
+
 | Estado | Significado |
 |---|---|
-| Pendiente | Evento registrado, sin preparacion |
-| En preparacion | Se esta organizando el evento |
-| Listo | Todo preparado para el dia del evento |
-| Realizado | El evento ya se llevo a cabo |
+| Disponible | Sin reserva |
+| Visita | Hay una visita al salon agendada ese dia |
+| Bloqueada | Fecha bloqueada manualmente |
+| Reservada | Senal tomada → lead pasa a "Reserva tomada" automaticamente |
+| Confirmada | Contrato firmado → lead pasa a "Contrato firmado" automaticamente |
 
-Desde el detalle expandido se puede:
-- Cambiar el estado operativo (click en los botones)
-- Editar tipo de evento e invitados estimados
-- Ver datos de contacto del lead
+### Reglas importantes
 
-### 6. Tareas
-- Ir a **Tareas** en el menu lateral
-- Vista **Kanban** con 4 columnas: Pendiente / En Proceso / Hecho / Cancelado
+- No pueden existir dos leads en la misma fecha con estado Reservada o Confirmada
+- Al cargar fecha de visita en el lead, se crea automaticamente un registro de Visita en el calendario
+- Al confirmar un evento, se crea automaticamente el evento en el modulo Eventos
 
-**Crear tarea:**
-1. Click en **"Nueva Tarea"**
-2. Completar: titulo (obligatorio), descripcion, lead asociado (opcional), asignar a usuario, prioridad, fecha limite
+### Liberar una fecha
 
-**Cambiar estado:**
-- Click en el icono circular de la tarea para rotar: Pendiente → En Proceso → Hecho → Pendiente
-
-**Tareas automaticas:**
-- Cuando un lead pasa a "Propuesta enviada", se crea automaticamente una tarea de seguimiento con prioridad Alta y vencimiento en 3 dias
-
-### 7. Dashboard
-- Ir a **Dashboard** en el menu lateral
-- Muestra metricas generales:
-  - Total de leads por estado (pipeline)
-  - Leads por canal de origen
-  - Tareas vencidas
-  - Eventos proximos
-  - Graficos de barras y torta
+Click en el dia → boton **"Liberar fecha"** (rojo).
 
 ---
 
-## Filtros Disponibles
+## 5. Eventos
 
-| Vista | Filtros |
+Muestra los eventos con contrato firmado. Click en un evento para expandir el detalle.
+
+### Campos editables
+
+| Campo | Detalle |
 |---|---|
-| Leads | Buscar por nombre/email/telefono, filtrar por ano, estado, canal |
-| Propuestas | Filtrar por estado (Borrador, Enviada, Aceptada, Rechazada) |
-| Eventos | Filtrar por estado operativo |
-| Tareas | Filtrar por estado, filtrar por usuario asignado |
+| Invitados estimados | Cantidad inicial copiada del lead, editable |
+| Tipo de evento | Actualizable si cambia |
+| Estado operativo | Pendiente / En preparacion / Listo / Realizado |
+| Estado de pago | Pendiente / Parcial / Completo |
+| Modalidad de precios | Precio fijo / Por tarjeta / Mixto |
+| Menu y tarjetas | Tipo de menu, minimo tarjetas, valores por tipo de comensal |
+| Valor total | Precio acordado total |
+
+### Registrar pagos
+
+Desde el detalle del evento → seccion Pagos → boton **"Nuevo Pago"**:
+- Monto, tipo (seña / parcial / final / devolucion), metodo, fecha, estado
 
 ---
 
-## Vistas disponibles
+## 6. Tareas
 
-| Vista | Que muestra | Como se accede |
-|---|---|---|
-| **Dashboard** | Metricas y graficos | Menu lateral |
-| **CRM Leads** | Todos los contactos (tabla o kanban) | Menu lateral |
-| **Calendario** | Fechas con estados y tentativas | Menu lateral |
-| **Propuestas** | Propuestas comerciales por estado | Menu lateral |
-| **Eventos** | Eventos confirmados y su estado | Menu lateral |
-| **Tareas** | Panel kanban de tareas | Menu lateral |
+Vista **Kanban** con 4 columnas: **Pendiente / En Proceso / Hecho / Cancelado**.
 
----
+### Crear tarea manualmente
 
-## Tipos de Evento
+Click en **"Nueva Tarea"** → completar titulo, descripcion, lead asociado (opcional), usuario asignado, prioridad y fecha limite.
 
-- Fiesta de 15
-- Egresados
-- Casamiento
-- Evento Corporativo
-- Otro
+### Cambiar estado
+
+Click en el icono circular de la tarea para rotar: Pendiente → En Proceso → Hecho → Pendiente.
+
+### Tareas automaticas
+
+| Disparador | Tarea creada | Prioridad | Vencimiento |
+|---|---|---|---|
+| Lead pasa a "Enviar propuesta" | "Enviar propuesta - [nombre lead]" | Alta | 1 dia |
+| Lead pasa a "Propuesta enviada" | "Seguimiento propuesta - [nombre lead]" | Alta | 3 dias |
 
 ---
 
-## Automatizaciones del Sistema
+## 7. Dashboard
 
-El sistema ejecuta estas acciones automaticamente para mantener la consistencia:
+Vista general con metricas del negocio:
+- Total de leads activos por estado (grafico de pipeline)
+- Leads por canal de origen
+- Eventos proximos
+- Graficos de conversion
+
+---
+
+## Automatizaciones completas del sistema
 
 | Accion del usuario | Que pasa automaticamente |
 |---|---|
+| Crear primera interaccion saliente en un "Lead nuevo" | Lead → "Contactado" |
+| Cargar fecha de visita al salon (lead en "Lead nuevo" o "Contactado") | Lead → "Esperando visita" + crea entrada Visita en calendario |
+| Marcar propuesta como "Enviada" | Lead → "Propuesta enviada" |
+| Marcar propuesta como "Aceptada" | Lead → "Propuesta Aceptada" |
+| Marcar propuesta como "Rechazada" | Lead → "Propuesta Rechazada" |
 | Reservar fecha con lead en calendario | Lead → "Reserva tomada" + crea Reservation + propuesta → "Aceptada" |
-| Confirmar fecha con lead en calendario | Lead → "Evento confirmado" + crea Event + propuesta → "Aceptada" |
-| Cambiar lead a "Propuesta enviada" | Se crea tarea de seguimiento (prioridad Alta, vence en 3 dias) |
-| Cambiar lead a "Reserva tomada" | Ultima propuesta → "Aceptada" |
-| Cambiar lead a "Evento confirmado" | Ultima propuesta → "Aceptada" |
-| Cambiar lead a "Perdido" | Ultima propuesta → "Rechazada" (si no estaba Aceptada) |
-| Enviar propuesta (Borrador → Enviada) | Se registra fecha de envio |
+| Confirmar fecha con lead en calendario | Lead → "Contrato firmado" + crea Event con invitados del lead + propuesta → "Aceptada" |
+| Lead pasa a "Enviar propuesta" | Tarea de alta prioridad (vence en 1 dia) |
+| Lead pasa a "Propuesta enviada" | Tarea de seguimiento (vence en 3 dias) |
+| Lead pasa a "Contrato firmado" (con fecha tentativa) | Crea Event + CalendarDate "Confirmada" + auto-set fecha firma |
+| Lead pasa a "Reserva tomada" o "Contrato firmado" | Ultima propuesta → "Aceptada" |
+| Lead pasa a "Perdido" | Ultima propuesta → "Rechazada" (si no estaba Aceptada) |
+| Cambiar valor estimado del lead | Actualiza precio_total de la ultima propuesta |
+
+Todos los cambios de estado automaticos quedan registrados en el historial del lead con motivo descriptivo.
+
+---
+
+## Filtros disponibles
+
+| Vista | Filtros |
+|---|---|
+| Leads | Buscar nombre/email/telefono, filtrar por año, estado, canal |
+| Propuestas | Filtrar por estado (Borrador, Enviada, Aceptada, Rechazada) |
+| Eventos | Filtrar por estado operativo |
+| Tareas | Filtrar por estado y usuario asignado |
 
 ---
 
 ## Notificaciones
 
-El sistema muestra notificaciones tipo "toast" en la esquina superior derecha:
+El sistema muestra notificaciones en la esquina de la pantalla:
 - **Verde**: Operacion exitosa
 - **Rojo**: Error
 - **Amarillo**: Advertencia o validacion
-
-Para eliminar un lead se pide confirmacion via toast con boton "Eliminar" / "Cancelar".
 
 ---
 
 ## Navegacion
 
-- **Desktop**: Menu lateral izquierdo, se puede colapsar con la flecha
-- **Mobile**: Boton hamburguesa (tres lineas) arriba a la izquierda para abrir el menu
+- **Desktop**: Menu lateral izquierdo, se puede colapsar
+- **Mobile**: Boton hamburguesa (tres lineas) para abrir el menu. La lista de leads muestra cards desplegables en lugar de tabla horizontal

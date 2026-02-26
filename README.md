@@ -238,6 +238,7 @@ Todos los componentes siguen este patrón:
 | anio_evento              | INTEGER | Auto-sync con año de fecha_tentativa |
 | estado_actual            | STRING  | Ver LEAD_STATES     |
 | valor_estimado           | FLOAT   |                    |
+| invitados_estimados      | INTEGER | Se copia al Event al firmar contrato/confirmar fecha |
 | notas                    | TEXT    |                    |
 | managed_by_user_id       | UUID    | FK → users         |
 | created_at               | DATE    | default: NOW       |
@@ -409,12 +410,17 @@ Definidas en `lib/api.js` (exportadas y usadas por todos los componentes fronten
 ```js
 LEAD_STATES = [
   "Lead nuevo",               // Estado inicial al crear lead
-  "Contactado",
+  "Contactado",               // ⚡ Auto al registrar primera interacción saliente (OUT)
+  "Esperando visita",         // ⚡ Auto al guardar fecha_visita_salon (desde "Lead nuevo" o "Contactado")
   "Visita al salón realizada",
-  "Propuesta enviada",        // Auto-crea Task seguimiento (+3 días)
-  "Reserva tomada",           // Auto al marcar CalendarDate "Reservada"
-  "Contrato firmado",         // Auto-crea Event + CalendarDate "Confirmada"
-  "Cliente activo",           // Auto al marcar CalendarDate "Confirmada"
+  "Enviar propuesta",         // Auto-crea Task (+1 día) + Proposal Borrador
+  "Propuesta enviada",        // ⚡ Auto al marcar propuesta "Enviada". Auto-crea Task seguimiento (+3 días)
+  "Propuesta Aceptada",       // ⚡ Auto al marcar propuesta "Aceptada"
+  "Propuesta Rechazada",      // ⚡ Auto al marcar propuesta "Rechazada"
+  "Esperando Reserva",        // Mide tiempo de decisión del cliente
+  "Reserva tomada",           // ⚡ Auto al marcar CalendarDate "Reservada"
+  "Contrato firmado",         // ⚡ Auto-crea Event + CalendarDate "Confirmada". Auto al marcar CalendarDate "Confirmada"
+  "Cliente activo",
   "Evento realizado",
   "Post-evento / cerrado",
   "Perdido",                  // Requiere motivo obligatorio
@@ -447,8 +453,9 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
 ## Reglas de Negocio (implementadas en API routes)
 
 1. **Lead → Perdido**: Requiere `motivo` obligatorio (400 si falta).
-2. **Lead → "Propuesta enviada"**: Auto-crea Task de seguimiento con `prioridad: Alta` y `due_date: +3 días`.
-2b. **Lead → estados avanzados del pipeline**: Auto-crea Proposal si no existe. Estados: "Propuesta enviada"→Enviada, "Visita al salón realizada"→Enviada, "Reserva tomada"→Aceptada, "Contrato firmado"→Aceptada.
+2. **Lead → "Enviar propuesta"**: Auto-crea Task `prioridad: Alta` y `due_date: +1 día`. Auto-crea Proposal en estado "Borrador".
+2a. **Lead → "Propuesta enviada"**: Auto-crea Task de seguimiento con `prioridad: Alta` y `due_date: +3 días`.
+2b. **Lead → estados avanzados del pipeline**: Auto-crea Proposal si no existe. Estados: "Enviar propuesta"→Borrador, "Propuesta enviada"→Enviada, "Visita al salón realizada"→Enviada, "Reserva tomada"→Aceptada, "Contrato firmado"→Aceptada.
 2c. **CalendarDate Reservada/Confirmada + lead**: Auto-crea Proposal "Aceptada" si no existe (o actualiza la última a Aceptada).
 3. **CalendarDate**: No puede haber dos leads con estado Reservada/Confirmada en la misma fecha (409 conflict).
 4. **Reservation**: Un lead solo puede tener una reserva, `lead_id` es UNIQUE (409 si ya existe).
@@ -459,7 +466,7 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
    - Actualiza lead a `estado_actual: "Cliente activo"`
 6b. **CalendarDate → Lead sync** (POST /api/calendar): Automáticamente:
    - Si `estado_fecha` = "Reservada" + `lead_id` → Lead pasa a `"Reserva tomada"` + historial + **auto-crea Reservation** si no existe
-   - Si `estado_fecha` = "Confirmada" + `lead_id` → Lead pasa a `"Cliente activo"` + historial + **auto-crea Event** si no existe
+   - Si `estado_fecha` = "Confirmada" + `lead_id` → Lead pasa a `"Contrato firmado"` + historial + **auto-crea Event** si no existe
    - En ambos casos: última propuesta del lead pasa a **"Aceptada"** automáticamente
 6c. **Lead → Propuesta auto-sync** (PUT /api/leads/:id/status):
    - Lead → "Reserva tomada" / "Contrato firmado" / "Cliente activo" → última propuesta pasa a **"Aceptada"**
@@ -816,6 +823,47 @@ Permite: upsell, reporting por servicio, estandarización de contratos futuros.
 ---
 
 #### PRIORIDAD MEDIA — Mejoras técnicas
+
+##### ⚠️ Tabla `lead_states` — Migrar estados de STRING hardcodeado a tabla en BD
+
+Actualmente `estado_actual` en `leads` es un STRING libre. Los estados posibles están hardcodeados en `lib/api.js` (`LEAD_STATES`) y en el frontend. Esto funciona pero tiene limitaciones importantes:
+
+- **No se puede medir tiempo por etapa** (sin saber cuándo entró/salió de cada estado en forma estructurada)
+- **No hay estadísticas reales de pipeline** (cuántos leads pasan por cada estado, cuántos quedan estancados)
+- **Cualquier typo rompe silenciosamente** el pipeline/kanban
+- **Impossible hacer filtros/reportes por estado sin hardcodear strings** en cada query
+
+**Solución propuesta:**
+```sql
+-- Nueva tabla
+lead_states: id, nombre, orden, color, descripcion, activo
+
+-- Campo nuevo en leads (o reemplazar estado_actual)
+estado_actual_id UUID FK → lead_states
+```
+
+- Los estados se gestionan desde un panel admin
+- `LeadStatusHistory` ya tiene `estado_anterior` / `estado_nuevo` como STRING → migrar a FK
+- Permite calcular tiempo promedio por etapa: `SELECT estado, AVG(tiempo_en_estado) FROM lead_status_history GROUP BY estado`
+- El frontend consume los estados desde `/api/lead-states` en vez de constante hardcodeada
+
+**Tareas:**
+- [ ] Migración: tabla `lead_states` con campos nombre, orden, color, activo
+- [ ] Migración: campo `estado_actual_id` en `leads` (o mantener STRING + agregar FK)
+- [ ] API: GET/POST/PUT `/api/lead-states`
+- [ ] UI: Panel admin para gestionar estados (sin tocar código)
+- [ ] Frontend: cargar estados desde API en vez de `LEAD_STATES` hardcodeado
+- [ ] Métricas: endpoint que calcule tiempo promedio en cada estado por lead
+
+---
+
+##### ⚠️ Pendientes UX / Features — detectados en testeo
+
+- [x] **Leads — Mostrar campo "Fecha de firma de contrato" condicionalmente**: visible solo desde `Visita al salón realizada` en adelante. Implementado con `LEAD_STATES.indexOf()` en `LeadForm`.
+- [ ] **Propuestas — Cargar documento adjunto**: además del campo de texto `contenido`, agregar subida de archivo (PDF/Word). Requiere Supabase Storage: crear bucket `proposals`, subir archivo, guardar URL en campo `documento_url` de la tabla `proposals`.
+- [ ] **Calendario — Soporte para múltiples eventos en la UI**: actualmente la vista de calendario solo permite crear/editar una fecha/evento por vez. Mejorar la interfaz para navegar y gestionar múltiples fechas cargadas de forma más ágil.
+
+---
 
 - [ ] **Optimistic UI + Redux** — patrón optimistic con Redux global state para respuesta instantánea; si falla la petición, se revierte
 - [ ] Sesiones server-side (JWT o NextAuth) — actualmente usa localStorage

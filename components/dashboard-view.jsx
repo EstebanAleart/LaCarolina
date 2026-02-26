@@ -33,14 +33,21 @@ import {
 } from "recharts"
 
 const PIPELINE_COLORS = {
-  "Consulta inicial": "#3b82f6",
-  "Propuesta enviada": "#8b5cf6",
-  "Esperando respuesta": "#f59e0b",
-  "Visita agendada": "#06b6d4",
-  "En negociacion": "#f97316",
-  "Reserva tomada": "#10b981",
-  "Evento confirmado": "#059669",
-  "Perdido": "#ef4444",
+  "Lead nuevo":                "#94a3b8",
+  "Contactado":                "#3b82f6",
+  "Esperando visita":          "#0ea5e9",
+  "Visita al salón realizada": "#06b6d4",
+  "Enviar propuesta":          "#a855f7",
+  "Propuesta enviada":         "#8b5cf6",
+  "Propuesta Aceptada":        "#84cc16",
+  "Propuesta Rechazada":       "#f43f5e",
+  "Esperando Reserva":         "#f97316",
+  "Reserva tomada":            "#f59e0b",
+  "Contrato firmado":          "#10b981",
+  "Cliente activo":            "#059669",
+  "Evento realizado":          "#14b8a6",
+  "Post-evento / cerrado":     "#6b7280",
+  "Perdido":                   "#ef4444",
 }
 
 function StatCard({ icon: Icon, label, value, sublabel, color }) {

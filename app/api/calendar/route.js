@@ -78,7 +78,7 @@ export async function POST(request) {
     if (finalLeadId && (finalEstado === 'Reservada' || finalEstado === 'Confirmada')) {
       const lead = await Lead.findByPk(finalLeadId);
       if (lead) {
-        const nuevoEstadoLead = finalEstado === 'Reservada' ? 'Reserva tomada' : 'Cliente activo';
+        const nuevoEstadoLead = finalEstado === 'Reservada' ? 'Reserva tomada' : 'Contrato firmado';
 
         if (lead.estado_actual !== nuevoEstadoLead) {
           await LeadStatusHistory.create({
@@ -119,6 +119,7 @@ export async function POST(request) {
               lead_id: lead.id,
               fecha_confirmada: body.fecha,
               tipo_evento: lead.tipo_evento || '',
+              invitados_estimados: lead.invitados_estimados || 0,
               estado_operativo: 'Pendiente',
             });
             // Asociar evento_id al CalendarDate
