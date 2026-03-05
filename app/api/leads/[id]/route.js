@@ -77,7 +77,8 @@ export async function PUT(request, { params }) {
     // Sync: si se estableció fecha_visita_salon, crear/actualizar CalendarDate como "Visita"
     if (updateData.fecha_visita_salon) {
       const fechaVisita = updateData.fecha_visita_salon.toString().substring(0, 10);
-      const existingCalDate = await CalendarDate.findOne({ where: { fecha: fechaVisita } });
+      // Buscar la entrada de calendario de este lead en esta fecha (no la de otros leads)
+      const existingCalDate = await CalendarDate.findOne({ where: { fecha: fechaVisita, lead_id: lead.id } });
       if (!existingCalDate) {
         await CalendarDate.create({
           fecha: fechaVisita,
@@ -86,11 +87,9 @@ export async function PUT(request, { params }) {
           lead_id: lead.id,
           nota: `Visita al salón: ${lead.nombre}`,
         });
-      } else if (existingCalDate.estado_fecha === 'Disponible' || existingCalDate.estado_fecha === 'Visita') {
-        // Solo actualizar si no está ya ocupada con una reserva/confirmación
+      } else {
         await existingCalDate.update({
           estado_fecha: 'Visita',
-          lead_id: lead.id,
           nota: `Visita al salón: ${lead.nombre}`,
         });
       }

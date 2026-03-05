@@ -107,13 +107,10 @@ export async function PUT(request, { params }) {
         });
       }
 
-      // Siempre actualizar CalendarDate a "Confirmada" (sea Tentativa, Reservada, o nueva)
-      const calDate = await CalendarDate.findOne({ where: { fecha: fechaEvento } });
+      // Actualizar/crear el CalendarDate de este lead específico a "Confirmada"
+      const calDate = await CalendarDate.findOne({ where: { fecha: fechaEvento, lead_id: id } });
       if (calDate) {
-        // Actualizar solo si es del mismo lead o está libre
-        if (!calDate.lead_id || calDate.lead_id === id) {
-          await calDate.update({ estado_fecha: 'Confirmada', lead_id: id, evento_id: evt.id });
-        }
+        await calDate.update({ estado_fecha: 'Confirmada', evento_id: evt.id });
       } else {
         await CalendarDate.create({
           fecha: fechaEvento,

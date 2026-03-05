@@ -21,18 +21,18 @@ export async function POST(request) {
   try {
     const body = await request.json();
 
-    // Regla: no puede haber dos leads en la misma fecha Reservada/Confirmada
+    // Regla: no puede haber dos leads distintos en la misma fecha Reservada/Confirmada
     if (
       body.lead_id &&
       (body.estado_fecha === 'Reservada' || body.estado_fecha === 'Confirmada')
     ) {
-      const conflict = await CalendarDate.findOne({
-        where: {
-          fecha: body.fecha,
-          lead_id: { [Op.ne]: body.lead_id },
-          estado_fecha: { [Op.in]: ['Reservada', 'Confirmada'] },
-        },
-      });
+      const conflictWhere = {
+        fecha: body.fecha,
+        lead_id: { [Op.ne]: body.lead_id },
+        estado_fecha: { [Op.in]: ['Reservada', 'Confirmada'] },
+      };
+      if (body.id) conflictWhere.id = { [Op.ne]: body.id };
+      const conflict = await CalendarDate.findOne({ where: conflictWhere });
 
       if (conflict) {
         return NextResponse.json(
@@ -42,10 +42,15 @@ export async function POST(request) {
       }
     }
 
-    // Buscar si ya existe la fecha
-    const existing = await CalendarDate.findOne({
-      where: { fecha: body.fecha },
-    });
+    // Buscar entrada existente: por id, por (fecha+lead), o por (fecha sin lead)
+    let existing = null;
+    if (body.id) {
+      existing = await CalendarDate.findByPk(body.id);
+    } else if (body.lead_id) {
+      existing = await CalendarDate.findOne({ where: { fecha: body.fecha, lead_id: body.lead_id } });
+    } else {
+      existing = await CalendarDate.findOne({ where: { fecha: body.fecha, lead_id: null } });
+    }
 
     let result;
     let isNew = false;
