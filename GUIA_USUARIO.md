@@ -104,34 +104,67 @@ Canales disponibles: WhatsApp, Llamada, Email, Reunion, Web.
 
 ---
 
-## 3. Propuestas
+## 3. Contratos
 
-### Crear propuesta
+La seccion antes llamada "Propuestas" ahora se llama **Contratos**. Incluye todos los datos del acuerdo comercial con el cliente.
 
-1. Ir a **Propuestas** → **"Nueva Propuesta"**
+### Crear contrato
+
+1. Ir a **Contratos** → **"Nuevo Contrato"**
 2. Seleccionar el lead asociado
-3. Escribir el contenido (descripcion de servicios, condiciones, precios)
-4. Ingresar el precio total
-5. La propuesta se crea como **Borrador**
+3. Completar los campos del contrato (ver tabla abajo)
+4. El contrato se crea como **Borrador**
 
-### Ciclo de estados de una propuesta
+### Campos del contrato
+
+| Seccion | Campo | Detalle |
+|---|---|---|
+| Evento | Tipo de evento | Se copia al Evento al aceptar |
+| Evento | Cantidad de invitados estimados | Se copia al Evento al aceptar |
+| Financiero | Precio de seña ($) | Monto del anticipo/seña |
+| Financiero | Valor total del evento ($) | Precio total acordado. Se copia al Evento al aceptar |
+| Financiero | Modalidad de actualizacion de precios | Precio fijo / Por tarjeta / Mixto. Se copia al Evento |
+| Servicios base | Salon / Catering | Seleccion multiple. Se copia al Evento al aceptar |
+| Adicionales | Nombre + opciones de precio | Ver detalle abajo |
+| Produccion | Menu seleccionado | Se copia al Evento al aceptar |
+| Produccion | Minimo de tarjetas | Se copia al Evento al aceptar |
+| Produccion | Valor tarjeta Adulto / Adolescente / Niño | Se copia al Evento al aceptar |
+| Notas | Condiciones especiales | Texto libre |
+
+### Adicionales con multiples opciones de precio
+
+Cada adicional (DJ extra, Fotografia, Decoracion, etc.) puede tener **mas de una opcion de precio**. El cliente elige una al firmar.
+
+- Click **"Agregar Adicional"** → escribir el nombre del servicio
+- Click **"Agregar otra opcion"** → agregar descripcion y precio por opcion
+- Hacer click en el **circulo verde** a la izquierda de la opcion para marcarla como elegida por el cliente
+- La opcion elegida se muestra destacada en verde en la vista de detalle
+
+### Ciclo de estados de un contrato
 
 ```
 Borrador → Enviada → Aceptada
                   ↘ Rechazada
 ```
 
-| Accion | Efecto en la propuesta | Efecto automatico en el lead |
-|---|---|---|
-| Click "Enviar" | Propuesta → Enviada + registra fecha de envio | Lead → "Propuesta enviada" |
-| Click "Aceptar" | Propuesta → Aceptada | Lead → "Propuesta Aceptada" |
-| Click "Rechazar" | Propuesta → Rechazada | Lead → "Propuesta Rechazada" |
+| Accion | Efecto en el contrato | Efecto automatico en el lead | Efecto en el Evento |
+|---|---|---|---|
+| Click "Enviar" | → Enviada + registra fecha de envio | Lead → "Propuesta enviada" | — |
+| Click "Aceptar" | → Aceptada | Lead → "Propuesta Aceptada" | Si ya existe: actualiza con datos del contrato |
+| Click "Rechazar" | → Rechazada | Lead → "Propuesta Rechazada" | — |
+
+> Al aceptar un contrato, **todos los campos** (invitados, servicios, tarjetas, etc.) se copian automaticamente al Evento si ya fue creado.
+> Si el Evento aun no existe (se crea al firmar contrato), se llenara con los datos del contrato aceptado.
 
 > Los botones se deshabilitan durante el procesamiento para evitar doble envio.
 
-### Ver propuesta
+### Editar contrato
 
-Cada card de propuesta tiene un boton **Ver** (👁) que abre un modal con el contenido completo, estado, precio total y fecha de envio.
+Cada card de contrato tiene un boton **Editar** (lapiz) que abre el formulario completo precargado con todos los datos actuales.
+
+### Ver detalle del contrato
+
+El boton **Ver** (ojo) abre un modal con todos los campos: financiero, produccion, servicios base, adicionales con sus opciones (resaltando la elegida) y notas.
 
 ---
 
@@ -223,10 +256,10 @@ Vista general con metricas del negocio:
 | Marcar propuesta como "Aceptada" | Lead → "Propuesta Aceptada" |
 | Marcar propuesta como "Rechazada" | Lead → "Propuesta Rechazada" |
 | Reservar fecha con lead en calendario | Lead → "Reserva tomada" + crea Reservation + propuesta → "Aceptada" |
-| Confirmar fecha con lead en calendario | Lead → "Contrato firmado" + crea Event con invitados del lead + propuesta → "Aceptada" |
+| Confirmar fecha con lead en calendario | Lead → "Contrato firmado" + crea Event con datos del contrato aceptado + propuesta → "Aceptada" |
 | Lead pasa a "Enviar propuesta" | Tarea de alta prioridad (vence en 1 dia) |
 | Lead pasa a "Propuesta enviada" | Tarea de seguimiento (vence en 3 dias) |
-| Lead pasa a "Contrato firmado" (con fecha tentativa) | Crea Event + CalendarDate "Confirmada" + auto-set fecha firma |
+| Lead pasa a "Contrato firmado" (con fecha tentativa) | Crea Event con datos del contrato aceptado + CalendarDate "Confirmada" + auto-set fecha firma |
 | Lead pasa a "Reserva tomada" o "Contrato firmado" | Ultima propuesta → "Aceptada" |
 | Lead pasa a "Perdido" | Ultima propuesta → "Rechazada" (si no estaba Aceptada) |
 | Cambiar valor estimado del lead | Actualiza precio_total de la ultima propuesta |
@@ -240,7 +273,7 @@ Todos los cambios de estado automaticos quedan registrados en el historial del l
 | Vista | Filtros |
 |---|---|
 | Leads | Buscar nombre/email/telefono, filtrar por año, estado, canal |
-| Propuestas | Filtrar por estado (Borrador, Enviada, Aceptada, Rechazada) |
+| Contratos | Filtrar por estado (Borrador, Enviada, Aceptada, Rechazada) |
 | Eventos | Filtrar por estado operativo |
 | Tareas | Filtrar por estado y usuario asignado |
 
