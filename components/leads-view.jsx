@@ -107,7 +107,21 @@ function LeadForm({ onSubmit, onCancel, initial }) {
 
   function handleSubmit(e) {
     e.preventDefault()
-    onSubmit(form)
+    onSubmit({
+      nombre:              form.nombre,
+      telefono:            form.telefono,
+      email:               form.email,
+      canal_origen:        form.canal_origen,
+      tipo_evento:         form.tipo_evento,
+      tipo_cliente:        form.tipo_cliente,
+      fecha_tentativa:     form.fecha_tentativa || null,
+      fecha_visita_salon:  form.fecha_visita_salon || null,
+      fecha_firma_contrato: form.fecha_firma_contrato || null,
+      anio_evento:         Number(form.anio_evento),
+      valor_estimado:      typeof form.valor_estimado === 'number' ? form.valor_estimado : Number(String(form.valor_estimado).replace(/\D/g, '')) || 0,
+      invitados_estimados: form.invitados_estimados === '' ? null : Number(form.invitados_estimados),
+      notas:               form.notas,
+    })
   }
 
   const inputCls = "rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
@@ -162,7 +176,7 @@ function LeadForm({ onSubmit, onCancel, initial }) {
             <input name="fecha_tentativa" type="date" value={form.fecha_tentativa} onChange={handleChange} className={inputCls} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className={labelCls}>Ano evento</label>
+            <label className={labelCls}>Año evento</label>
             <input name="anio_evento" type="number" value={form.anio_evento} onChange={handleChange} className={inputCls} />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -170,7 +184,7 @@ function LeadForm({ onSubmit, onCancel, initial }) {
             <input name="fecha_visita_salon" type="date" value={form.fecha_visita_salon} onChange={handleChange} className={inputCls} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className={labelCls}>Valor estimado ($)</label>
+            <label className={labelCls}>Valor de Seña ($)</label>
             <input
               type="text"
               inputMode="numeric"
@@ -349,7 +363,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
               <span className="font-medium text-card-foreground">Canal:</span> {lead.canal_origen}
             </div>
             <div className="text-muted-foreground">
-              <span className="font-medium text-card-foreground">Valor:</span> ${(lead.valor_estimado || 0).toLocaleString()}
+              <span className="font-medium text-card-foreground">Seña:</span> ${(lead.valor_estimado || 0).toLocaleString()}
             </div>
             {lead.fecha_tentativa && (
               <div className="text-muted-foreground">
@@ -805,7 +819,7 @@ export default function LeadsView() {
                           </div>
                         )}
                         <div className="flex flex-col">
-                          <span className="text-muted-foreground">Valor estimado</span>
+                          <span className="text-muted-foreground">Valor de Seña</span>
                           <span className="text-foreground font-semibold">${(lead.valor_estimado || 0).toLocaleString()}</span>
                         </div>
                         {lead.fecha_tentativa && (
@@ -851,7 +865,7 @@ export default function LeadsView() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground hidden md:table-cell">Tipo</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground hidden lg:table-cell">Canal</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground">Estado</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-secondary-foreground hidden lg:table-cell">Valor</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-secondary-foreground hidden lg:table-cell">Seña</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-secondary-foreground">Acciones</th>
                 </tr>
               </thead>
