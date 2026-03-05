@@ -103,7 +103,7 @@ export async function PUT(request, { params }) {
         order: [['created_at', 'DESC']],
       });
       if (lastProposal) {
-        await lastProposal.update({ precio_total: updateData.valor_estimado });
+        await lastProposal.update({ precio_senia: updateData.valor_estimado });
       }
     }
 
