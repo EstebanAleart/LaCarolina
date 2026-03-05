@@ -115,12 +115,30 @@ export async function POST(request) {
         if (finalEstado === 'Confirmada') {
           const existingEvt = await Event.findOne({ where: { lead_id: lead.id } });
           if (!existingEvt) {
+            // Buscar la última propuesta aceptada para copiar datos del contrato
+            const contrato = await Proposal.findOne({
+              where: { lead_id: lead.id, estado: 'Aceptada' },
+              order: [['created_at', 'DESC']],
+            });
+            const serviciosBase = contrato?.servicios_base || [];
+            const adicionalesElegidos = (contrato?.adicionales || [])
+              .filter(a => a.opcion_elegida !== null && a.opcion_elegida !== undefined)
+              .map(a => a.nombre);
             const evt = await Event.create({
               lead_id: lead.id,
               fecha_confirmada: body.fecha,
-              tipo_evento: lead.tipo_evento || '',
-              invitados_estimados: lead.invitados_estimados || 0,
+              tipo_evento: contrato?.tipo_evento || lead.tipo_evento || '',
+              invitados_estimados: contrato?.invitados_estimados || lead.invitados_estimados || 0,
+              servicios_contratados: [...serviciosBase, ...adicionalesElegidos],
               estado_operativo: 'Pendiente',
+              estado_pago: 'Pendiente',
+              modalidad_actualizacion_precios: contrato?.modalidad_actualizacion_precios || null,
+              valor_total_evento: contrato?.valor_total_evento || lead.valor_estimado || null,
+              menu_seleccionado: contrato?.menu_seleccionado || null,
+              minimo_tarjetas: contrato?.minimo_tarjetas || null,
+              valor_tarjeta_adulto: contrato?.valor_tarjeta_adulto || null,
+              valor_tarjeta_adolescente: contrato?.valor_tarjeta_adolescente || null,
+              valor_tarjeta_nino: contrato?.valor_tarjeta_nino || null,
             });
             // Asociar evento_id al CalendarDate
             await result.update({ evento_id: evt.id });

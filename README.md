@@ -266,18 +266,30 @@ Todos los componentes siguen este patrón:
 | notas              | TEXT   |             |
 | created_by_user_id | UUID   | FK → users  |
 
-### proposals
-| Campo              | Tipo    | Restricción |
-|--------------------|---------|-------------|
-| id                 | UUID    | PK, auto    |
-| lead_id            | UUID    | FK → leads, NOT NULL |
-| version            | INTEGER | NOT NULL (auto-incrementa por lead) |
-| contenido_html     | TEXT    |             |
-| precio_total       | FLOAT   |             |
-| estado             | STRING  | (Borrador, Enviada, Aceptada, Rechazada) |
-| fecha_envio        | DATE    | (auto cuando estado → Enviada) |
-| created_by_user_id | UUID    | FK → users  |
-| created_at         | DATE    | default: NOW|
+### proposals (ahora llamada "Contratos" en la UI)
+| Campo                           | Tipo    | Restricción |
+|---------------------------------|---------|-------------|
+| id                              | UUID    | PK, auto    |
+| lead_id                         | UUID    | FK → leads, NOT NULL |
+| version                         | INTEGER | NOT NULL (auto-incrementa por lead) |
+| contenido_html                  | TEXT    | Notas / condiciones |
+| precio_total                    | FLOAT   | Compatibilidad (reemplazado por precio_senia) |
+| precio_senia                    | FLOAT   | Monto de seña/anticipo |
+| tipo_evento                     | STRING  | Se copia al Event al aceptar |
+| invitados_estimados             | INTEGER | Se copia al Event al aceptar |
+| valor_total_evento              | FLOAT   | Se copia al Event al aceptar |
+| modalidad_actualizacion_precios | STRING  | Se copia al Event al aceptar |
+| servicios_base                  | JSON    | Array de strings ["Salón", "Catering"]. Se copia al Event |
+| adicionales                     | JSON    | Array de {nombre, opciones:[{descripcion,precio}], opcion_elegida}. Se fusiona al Event |
+| menu_seleccionado               | STRING  | Se copia al Event al aceptar |
+| minimo_tarjetas                 | INTEGER | Se copia al Event al aceptar |
+| valor_tarjeta_adulto            | FLOAT   | Se copia al Event al aceptar |
+| valor_tarjeta_adolescente       | FLOAT   | Se copia al Event al aceptar |
+| valor_tarjeta_nino              | FLOAT   | Se copia al Event al aceptar |
+| estado                          | STRING  | Borrador / Enviada / Aceptada / Rechazada |
+| fecha_envio                     | DATE    | Auto cuando estado → Enviada |
+| created_by_user_id              | UUID    | FK → users  |
+| created_at                      | DATE    | default: NOW|
 
 ### calendar_dates
 | Campo           | Tipo   | Restricción       |
@@ -480,6 +492,8 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
 9. **fecha_limite_pago_total**: Auto-calculado server-side como `fecha_tentativa - 30 días`. Se recalcula en cada PUT del lead.
 10. **Proposal.version**: Se auto-incrementa contando `Proposal.count({ where: { lead_id } })`.
 11. **Proposal → "Enviada"** (PUT /api/proposals/:id): Auto-registra `fecha_envio` si no tenía.
+12. **Proposal → "Aceptada"** (PUT /api/proposals/:id): Si el lead ya tiene un Event creado → sincroniza automáticamente `tipo_evento`, `invitados_estimados`, `valor_total_evento`, `modalidad_actualizacion_precios`, `servicios_contratados` (base + adicionales elegidos), `menu_seleccionado`, valores de tarjetas.
+13. **Event creado** (status/route.js o calendar/route.js): Busca la última propuesta "Aceptada" del lead y copia todos sus campos al nuevo Event. Si no hay propuesta aceptada, usa los datos del lead como fallback.
 12. **Delete Lead** (DELETE /api/leads/:id): Cascade manual → destruye en orden:
     - Interactions → Visits → Proposals → LeadStatusHistory → Reservations → Tasks → Events → CalendarDates (+ elimina de Google Calendar) → Lead
 13. **Update Lead** (PUT /api/leads/:id): Sanitiza body (excluye id, estado_actual, created_at). Convierte fechas vacías a null. Si cambia valor_estimado → actualiza precio_total de la última propuesta.
@@ -598,7 +612,7 @@ POST   /api/seed                     → Crea 3 usuarios demo si la tabla está 
 | Dashboard       | dashboard-view.jsx   | 5 fetches en paralelo    | Métricas: leads por estado, pipeline, gráficos recharts |
 | Leads           | leads-view.jsx       | fetchLeads + fetchLeadById | CRUD completo + detalle slideout con tabs (timeline, interacciones, propuestas) |
 | Calendario      | calendar-view.jsx    | fetchCalendarDates + fetchLeads | Gestión de fechas + fechas tentativas de leads (purple) |
-| Propuestas      | proposals-view.jsx   | fetchAllProposals        | Grid de propuestas con acciones (enviar, aceptar, rechazar) |
+| Contratos       | proposals-view.jsx   | fetchAllProposals + fetchLeads | Grid de contratos con form completo (tipo, invitados, seña, total, servicios base, adicionales con N opciones, producción). Editar + Ver + Enviar/Aceptar/Rechazar |
 | Eventos         | events-view.jsx      | fetchEvents              | Lista expandible de eventos confirmados con estado operativo, servicios, detalle lead |
 | Tareas          | tasks-view.jsx       | fetchTasks               | Panel Kanban 4 columnas (Pendiente/En Proceso/Hecho/Cancelado) |
 | Guía            | guide-view.jsx       | (estático)               | Guía de usuario integrada con secciones colapsables |
@@ -732,6 +746,11 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
   - POST crea pago, PUT solo cambia estado/observacion (inmutable)
   - Auto-recalcula `estado_pago` del evento (Pendiente/Parcial/Completo) al confirmar/anular
   - Historial inline con cobrado acumulado y saldo pendiente en tiempo real
+- [x] **Módulo de Contratos** (proposals renombrado en UI) - 12 campos nuevos + adicionales con opciones múltiples
+  - `precio_senia`, `tipo_evento`, `invitados_estimados`, `valor_total_evento`, `modalidad_actualizacion_precios`, `servicios_base`, `adicionales`, `menu_seleccionado`, tarjetas
+  - `adicionales` JSON: `[{nombre, opciones:[{descripcion,precio}], opcion_elegida}]` — cliente elige una opción por adicional
+  - Sync automático: Aceptar contrato → copia todos los campos al Event (si existe)
+  - Al crear Event: busca última propuesta "Aceptada" y copia sus campos (fallback: datos del lead)
 
 ### Pendiente - Roadmap
 
