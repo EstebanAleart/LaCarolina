@@ -122,7 +122,7 @@ export async function POST(request) {
           if (!existingEvt) {
             // Buscar la última propuesta aceptada para copiar datos del contrato
             const contrato = await Proposal.findOne({
-              where: { lead_id: lead.id, estado: 'Aceptada' },
+              where: { lead_id: lead.id, estado: 'Firmada' },
               order: [['created_at', 'DESC']],
             });
             const serviciosBase = contrato?.servicios_base || [];
@@ -156,9 +156,9 @@ export async function POST(request) {
           order: [['created_at', 'DESC']],
         });
         if (lastProposal) {
-          if (lastProposal.estado !== 'Aceptada') {
+          if (lastProposal.estado !== 'Firmada') {
             await lastProposal.update({
-              estado: 'Aceptada',
+              estado: 'Firmada',
               fecha_envio: lastProposal.fecha_envio || new Date(),
             });
           }
@@ -166,7 +166,7 @@ export async function POST(request) {
           await Proposal.create({
             lead_id: lead.id,
             version: 1,
-            estado: 'Aceptada',
+            estado: 'Firmada',
             precio_total: lead.valor_estimado || 0,
             fecha_envio: new Date(),
           });

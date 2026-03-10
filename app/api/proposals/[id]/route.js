@@ -1,33 +1,6 @@
 import { NextResponse } from 'next/server';
-const { Proposal, Lead, LeadStatusHistory, Event } = require('@/lib/models/associations');
-
-// Mapa: estado de propuesta → nuevo estado del lead
-const PROPOSAL_TO_LEAD_STATE = {
-  'Enviada':   'Propuesta enviada',
-  'Aceptada':  'Propuesta Aceptada',
-  'Rechazada': 'Propuesta Rechazada',
-};
-
-// Extrae los campos de contrato de una propuesta para sincronizar con el evento
-function getEventDataFromProposal(proposal) {
-  const serviciosBase = proposal.servicios_base || [];
-  const adicionalesElegidos = (proposal.adicionales || [])
-    .filter(a => a.opcion_elegida !== null && a.opcion_elegida !== undefined)
-    .map(a => a.nombre);
-  const servicios = [...serviciosBase, ...adicionalesElegidos];
-  const data = {};
-  if (proposal.tipo_evento) data.tipo_evento = proposal.tipo_evento;
-  if (proposal.invitados_estimados) data.invitados_estimados = proposal.invitados_estimados;
-  if (proposal.valor_total_evento) data.valor_total_evento = proposal.valor_total_evento;
-  if (proposal.modalidad_actualizacion_precios) data.modalidad_actualizacion_precios = proposal.modalidad_actualizacion_precios;
-  if (servicios.length > 0) data.servicios_contratados = servicios;
-  if (proposal.menu_seleccionado) data.menu_seleccionado = proposal.menu_seleccionado;
-  if (proposal.minimo_tarjetas) data.minimo_tarjetas = proposal.minimo_tarjetas;
-  if (proposal.valor_tarjeta_adulto) data.valor_tarjeta_adulto = proposal.valor_tarjeta_adulto;
-  if (proposal.valor_tarjeta_adolescente) data.valor_tarjeta_adolescente = proposal.valor_tarjeta_adolescente;
-  if (proposal.valor_tarjeta_nino) data.valor_tarjeta_nino = proposal.valor_tarjeta_nino;
-  return data;
-}
+const { Proposal, Lead, LeadStatusHistory, Event, CalendarDate } = require('@/lib/models/associations');
+const { PROPOSAL_TO_LEAD_STATE, getEventDataFromProposal } = require('@/lib/automations');
 
 // PUT /api/proposals/:id - Actualizar propuesta/contrato
 export async function PUT(request, { params }) {
@@ -62,13 +35,46 @@ export async function PUT(request, { params }) {
         await lead.update({ estado_actual: nuevoEstadoLead, updated_at: new Date() });
       }
 
-      // Si se Aceptó: sincronizar campos del contrato al Event (si ya existe)
-      if (body.estado === 'Aceptada') {
-        const evt = await Event.findOne({ where: { lead_id: proposal.lead_id } });
+      // Si se Firmó: sincronizar campos del contrato al Event (solo al firmar)
+      if (body.estado === 'Firmada' && lead) {
+        // Auto-set fecha_firma_contrato
+        if (!lead.fecha_firma_contrato) {
+          await lead.update({ fecha_firma_contrato: new Date(), updated_at: new Date() });
+        }
+
+        const eventData = getEventDataFromProposal(proposal);
+
+        // Buscar o crear Event
+        let evt = await Event.findOne({ where: { lead_id: proposal.lead_id } });
         if (evt) {
-          const eventData = getEventDataFromProposal(proposal);
           if (Object.keys(eventData).length > 0) {
             await evt.update(eventData);
+          }
+        } else if (lead.fecha_tentativa) {
+          // Crear Event solo si hay fecha confirmada
+          evt = await Event.create({
+            lead_id: proposal.lead_id,
+            fecha_confirmada: new Date(lead.fecha_tentativa).toISOString().substring(0, 10),
+            estado_operativo: 'Pendiente',
+            estado_pago: 'Pendiente',
+            ...eventData,
+          });
+        }
+
+        // Crear/actualizar CalendarDate como Confirmada si hay fecha
+        if (lead.fecha_tentativa) {
+          const fechaEvento = new Date(lead.fecha_tentativa).toISOString().substring(0, 10);
+          const calDate = await CalendarDate.findOne({ where: { fecha: fechaEvento, lead_id: proposal.lead_id } });
+          if (calDate) {
+            await calDate.update({ estado_fecha: 'Confirmada', evento_id: evt?.id || calDate.evento_id });
+          } else {
+            await CalendarDate.create({
+              fecha: fechaEvento,
+              estado_fecha: 'Confirmada',
+              fuente: 'CRM',
+              lead_id: proposal.lead_id,
+              evento_id: evt?.id || null,
+            });
           }
         }
       }
