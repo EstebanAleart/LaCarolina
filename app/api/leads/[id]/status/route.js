@@ -75,31 +75,42 @@ export async function PUT(request, { params }) {
 
     // Auto-crear Event + confirmar fecha al firmar contrato
     if (estado === 'Contrato firmado' && lead.fecha_tentativa) {
-      const fechaEvento = lead.fecha_tentativa.toString().substring(0, 10);
+      const fechaEvento = new Date(lead.fecha_tentativa).toISOString().substring(0, 10);
 
       // Crear Event si no existe
       let evt = await Event.findOne({ where: { lead_id: id } });
       if (!evt) {
+        // Buscar la última propuesta aceptada para copiar datos del contrato
+        const contrato = await Proposal.findOne({
+          where: { lead_id: id, estado: 'Firmada' },
+          order: [['created_at', 'DESC']],
+        });
+        const serviciosBase = contrato?.servicios_base || [];
+        const adicionalesElegidos = (contrato?.adicionales || [])
+          .filter(a => a.opcion_elegida !== null && a.opcion_elegida !== undefined)
+          .map(a => a.nombre);
         evt = await Event.create({
           lead_id: id,
           fecha_confirmada: fechaEvento,
-          tipo_evento: lead.tipo_evento || '',
-          invitados_estimados: lead.invitados_estimados || 0,
-          servicios_contratados: [],
+          tipo_evento: contrato?.tipo_evento || lead.tipo_evento || '',
+          invitados_estimados: contrato?.invitados_estimados || lead.invitados_estimados || 0,
+          servicios_contratados: [...serviciosBase, ...adicionalesElegidos],
           estado_operativo: 'Pendiente',
           estado_pago: 'Pendiente',
-          modalidad_actualizacion_precios: 'Precio fijo',
-          valor_total_evento: lead.valor_estimado || null,
+          modalidad_actualizacion_precios: contrato?.modalidad_actualizacion_precios || 'Precio fijo',
+          valor_total_evento: contrato?.valor_total_evento || lead.valor_estimado || null,
+          menu_seleccionado: contrato?.menu_seleccionado || null,
+          minimo_tarjetas: contrato?.minimo_tarjetas || null,
+          valor_tarjeta_adulto: contrato?.valor_tarjeta_adulto || null,
+          valor_tarjeta_adolescente: contrato?.valor_tarjeta_adolescente || null,
+          valor_tarjeta_nino: contrato?.valor_tarjeta_nino || null,
         });
       }
 
-      // Siempre actualizar CalendarDate a "Confirmada" (sea Tentativa, Reservada, o nueva)
-      const calDate = await CalendarDate.findOne({ where: { fecha: fechaEvento } });
+      // Actualizar/crear el CalendarDate de este lead específico a "Confirmada"
+      const calDate = await CalendarDate.findOne({ where: { fecha: fechaEvento, lead_id: id } });
       if (calDate) {
-        // Actualizar solo si es del mismo lead o está libre
-        if (!calDate.lead_id || calDate.lead_id === id) {
-          await calDate.update({ estado_fecha: 'Confirmada', lead_id: id, evento_id: evt.id });
-        }
+        await calDate.update({ estado_fecha: 'Confirmada', evento_id: evt.id });
       } else {
         await CalendarDate.create({
           fecha: fechaEvento,
@@ -119,13 +130,13 @@ export async function PUT(request, { params }) {
         const estadoMap = {
           'Propuesta enviada': 'Enviada',
           'Visita al salón realizada': 'Enviada',
-          'Reserva tomada': 'Aceptada',
-          'Contrato firmado': 'Aceptada',
+          'Reserva tomada': 'Aprobada',
+          'Contrato firmado': 'Firmada',
         };
         await Proposal.create({
           lead_id: id,
           version: 1,
-          estado: estadoMap[estado] || 'Borrador',
+          estado: estadoMap[estado] || 'Creada',
           precio_total: lead.valor_estimado || 0,
           fecha_envio: new Date(),
         });
@@ -133,14 +144,27 @@ export async function PUT(request, { params }) {
     }
 
     // Auto-actualizar última propuesta según nuevo estado del lead
-    if (estado === 'Reserva tomada' || estado === 'Contrato firmado' || estado === 'Cliente activo') {
+    if (estado === 'Reserva tomada') {
       const lastProposal = await Proposal.findOne({
         where: { lead_id: id },
         order: [['created_at', 'DESC']],
       });
-      if (lastProposal && lastProposal.estado !== 'Aceptada') {
+      if (lastProposal && lastProposal.estado !== 'Aprobada' && lastProposal.estado !== 'Firmada') {
         await lastProposal.update({
-          estado: 'Aceptada',
+          estado: 'Aprobada',
+          fecha_envio: lastProposal.fecha_envio || new Date(),
+        });
+      }
+    }
+
+    if (estado === 'Contrato firmado' || estado === 'Cliente activo') {
+      const lastProposal = await Proposal.findOne({
+        where: { lead_id: id },
+        order: [['created_at', 'DESC']],
+      });
+      if (lastProposal && lastProposal.estado !== 'Firmada') {
+        await lastProposal.update({
+          estado: 'Firmada',
           fecha_envio: lastProposal.fecha_envio || new Date(),
         });
       }
@@ -151,7 +175,7 @@ export async function PUT(request, { params }) {
         where: { lead_id: id },
         order: [['created_at', 'DESC']],
       });
-      if (lastProposal && lastProposal.estado !== 'Rechazada' && lastProposal.estado !== 'Aceptada') {
+      if (lastProposal && lastProposal.estado !== 'Rechazada' && lastProposal.estado !== 'Firmada') {
         await lastProposal.update({ estado: 'Rechazada' });
       }
     }

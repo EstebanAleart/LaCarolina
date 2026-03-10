@@ -31,7 +31,7 @@ export async function POST(request, { params }) {
       version: existingCount + 1,
       contenido_html: body.contenido_html || body.contenido || '',
       precio_total: body.precio_total || 0,
-      estado: 'Borrador',
+      estado: 'Creada',
       fecha_envio: null,
       created_by_user_id: body.created_by_user_id || null,
     });

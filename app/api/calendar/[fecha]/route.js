@@ -5,15 +5,16 @@ const { CalendarDate, Reservation } = require('@/lib/models/associations');
 // DELETE /api/calendar/:fecha - Liberar/eliminar una fecha
 export async function DELETE(request, { params }) {
   try {
-    const { fecha } = await params;
+    const { fecha: id } = await params;
 
-    // Buscar por fecha exacta o por substring (por si hay timestamp)
-    let record = await CalendarDate.findOne({ where: { fecha } });
-
+    // Intentar primero por UUID (comportamiento nuevo), luego por fecha (compatibilidad)
+    let record = await CalendarDate.findByPk(id);
     if (!record) {
-      // Fallback: buscar todas y comparar por substring YYYY-MM-DD
+      record = await CalendarDate.findOne({ where: { fecha: id } });
+    }
+    if (!record) {
       const all = await CalendarDate.findAll();
-      record = all.find(d => d.fecha && d.fecha.toString().substring(0, 10) === fecha);
+      record = all.find(d => d.fecha && d.fecha.toString().substring(0, 10) === id);
     }
 
     if (!record) {

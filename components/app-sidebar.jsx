@@ -20,7 +20,7 @@ const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "leads", label: "CRM Leads", icon: Users },
   { id: "calendar", label: "Calendario", icon: CalendarDays },
-  { id: "proposals", label: "Propuestas", icon: FileText },
+  { id: "proposals", label: "Contratos", icon: FileText },
   { id: "events", label: "Eventos", icon: Sparkles },
   { id: "payments", label: "Pagos", icon: CreditCard },
   // { id: "tasks", label: "Tareas", icon: CheckSquare },
