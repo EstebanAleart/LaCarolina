@@ -228,8 +228,29 @@ Muestra los eventos con contrato firmado. Click en un evento para expandir el de
 
 ### Registrar pagos
 
-Desde el detalle del evento → seccion Pagos → boton **"Nuevo Pago"**:
-- Monto, tipo (seña / parcial / final / devolucion), metodo, fecha, estado
+Desde el detalle del evento → seccion **Pagos** → boton **"Nuevo Pago"**:
+
+| Campo | Detalle |
+|---|---|
+| Monto | Importe del pago |
+| Tipo | Seña / Parcial / Final / Devolución |
+| Método | Efectivo / Transferencia / Tarjeta / Otro |
+| Fecha | Fecha del pago |
+| Observación | Notas opcionales |
+
+El pago se crea en estado **Confirmado**. El sistema recalcula automáticamente el estado de pago del evento:
+
+| Estado pago evento | Cuando ocurre |
+|---|---|
+| Pendiente | Sin pagos confirmados |
+| Parcial | Hay pagos pero no cubren el total |
+| Completo | Los pagos confirmados cubren el valor total |
+
+### Reglas de pagos
+
+- Los pagos son **inmutables**: una vez registrado, no se puede editar el monto ni el tipo
+- Se puede **Anular** un pago si fue un error — el sistema recalcula el saldo automáticamente
+- El cobrado acumulado y el saldo pendiente se actualizan en tiempo real en el detalle del evento
 
 ---
 
