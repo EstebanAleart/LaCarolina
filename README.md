@@ -116,6 +116,7 @@ LaCarolina/
 │
 ├── lib/
 │   ├── api.js                        # Cliente API: funciones fetch wrapper + constantes del negocio
+│   ├── automations.js                # Funciones puras de automatización (getEventDataFromProposal, PROPOSAL_TO_LEAD_STATE)
 │   ├── db.js                         # Exporta sequelize + todos los modelos (entry point backend)
 │   ├── googleCalendar.js             # Servicio Google Calendar (JWT auth, CRUD eventos, webhooks)
 │   ├── store.js                      # ⚠️ DEPRECADO - Store in-memory con localStorage (ya no se usa)
@@ -131,13 +132,21 @@ LaCarolina/
 │       ├── proposal.js               # Tabla: proposals
 │       ├── calendar_date.js          # Tabla: calendar_dates
 │       ├── reservation.js            # Tabla: reservations
-│       ├── event.js                  # Tabla: events
+│       ├── event.js                  # Tabla: events (incluye precio_senia y adicionales JSONB)
+│       ├── payment.js                # Tabla: payments
 │       ├── task.js                   # Tabla: tasks
 │       └── lead_status_history.js    # Tabla: lead_status_history
+│
+├── __tests__/                        # Tests automáticos con Jest
+│   ├── __mocks__/models.js           # Mock compartido de todos los modelos Sequelize
+│   ├── field-sync.test.js            # 6 tests: getEventDataFromProposal (función pura)
+│   ├── proposals-automation.test.js  # 8 tests: automatizaciones del PUT /api/proposals/:id
+│   └── status-automation.test.js     # 8 tests: automatizaciones del PUT /api/leads/:id/status
 │
 ├── public/images/                    # Assets estáticos (logos, fotos salón)
 ├── .env                              # DATABASE_URL (no commitear, ver Setup)
 ├── .gitignore                        # node_modules, .next, .env*.local, .DS_Store, .claude
+├── jest.config.js                    # Config Jest: next/jest, testEnvironment: node, moduleNameMapper @/
 ├── package.json
 ├── pnpm-lock.yaml
 ├── next.config.mjs                   # serverExternalPackages: sequelize, pg, pg-hstore
@@ -266,18 +275,30 @@ Todos los componentes siguen este patrón:
 | notas              | TEXT   |             |
 | created_by_user_id | UUID   | FK → users  |
 
-### proposals
-| Campo              | Tipo    | Restricción |
-|--------------------|---------|-------------|
-| id                 | UUID    | PK, auto    |
-| lead_id            | UUID    | FK → leads, NOT NULL |
-| version            | INTEGER | NOT NULL (auto-incrementa por lead) |
-| contenido_html     | TEXT    |             |
-| precio_total       | FLOAT   |             |
-| estado             | STRING  | (Borrador, Enviada, Aceptada, Rechazada) |
-| fecha_envio        | DATE    | (auto cuando estado → Enviada) |
-| created_by_user_id | UUID    | FK → users  |
-| created_at         | DATE    | default: NOW|
+### proposals (ahora llamada "Contratos" en la UI)
+| Campo                           | Tipo    | Restricción |
+|---------------------------------|---------|-------------|
+| id                              | UUID    | PK, auto    |
+| lead_id                         | UUID    | FK → leads, NOT NULL |
+| version                         | INTEGER | NOT NULL (auto-incrementa por lead) |
+| contenido_html                  | TEXT    | Notas / condiciones |
+| precio_total                    | FLOAT   | Compatibilidad (reemplazado por precio_senia) |
+| precio_senia                    | FLOAT   | Monto de seña/anticipo |
+| tipo_evento                     | STRING  | Se copia al Event al firmar |
+| invitados_estimados             | INTEGER | Se copia al Event al firmar |
+| valor_total_evento              | FLOAT   | Se copia al Event al firmar |
+| modalidad_actualizacion_precios | STRING  | Se copia al Event al firmar |
+| servicios_base                  | JSON    | Array de strings ["Salón", "Catering"]. Se copia al Event |
+| adicionales                     | JSON    | Array de {nombre, opciones:[{descripcion,precio}], opcion_elegida}. Se fusiona al Event |
+| menu_seleccionado               | STRING  | Se copia al Event al firmar |
+| minimo_tarjetas                 | INTEGER | Se copia al Event al firmar |
+| valor_tarjeta_adulto            | FLOAT   | Se copia al Event al firmar |
+| valor_tarjeta_adolescente       | FLOAT   | Se copia al Event al firmar |
+| valor_tarjeta_nino              | FLOAT   | Se copia al Event al firmar |
+| estado                          | STRING  | Creada / Enviada / Aprobada / Rechazada / Firmada |
+| fecha_envio                     | DATE    | Auto cuando estado → Enviada |
+| created_by_user_id              | UUID    | FK → users  |
+| created_at                      | DATE    | default: NOW|
 
 ### calendar_dates
 | Campo           | Tipo   | Restricción       |
@@ -323,7 +344,22 @@ Todos los componentes siguen este patrón:
 | valor_tarjeta_adulto           | FLOAT   |                        |
 | valor_tarjeta_adolescente      | FLOAT   |                        |
 | valor_tarjeta_nino             | FLOAT   |                        |
+| precio_senia                   | FLOAT   | Monto de seña/anticipo (ALTER TABLE) |
+| adicionales                    | JSONB   | Array de {nombre, opciones, opcion_elegida} (ALTER TABLE, default '[]') |
 | created_at                     | DATE    | default: NOW           |
+
+### payments
+| Campo        | Tipo    | Restricción                              |
+|--------------|---------|------------------------------------------|
+| id           | UUID    | PK, auto                                 |
+| evento_id    | UUID    | FK → events, NOT NULL                    |
+| monto        | FLOAT   | NOT NULL                                 |
+| tipo         | STRING  | Seña / Parcial / Final / Devolución      |
+| metodo       | STRING  | Efectivo / Transferencia / Tarjeta / Otro|
+| fecha        | DATE    |                                          |
+| estado       | STRING  | Confirmado / Anulado                     |
+| observacion  | TEXT    | nullable                                 |
+| created_at   | DATE    | default: NOW                             |
 
 ### tasks
 | Campo               | Tipo    | Restricción |
@@ -373,7 +409,8 @@ Proposal    ──┬── belongsTo ──→ Lead (lead_id)
 
 Event       ──┬── belongsTo ──→ Lead         (lead_id)
               ├── belongsTo ──→ CalendarDate  (calendar_date_id)
-              └── hasMany   ──→ Task          (evento_id)
+              ├── hasMany   ──→ Task          (evento_id)
+              └── hasMany   ──→ Payment       (evento_id)
 
 Task        ──┬── belongsTo ──→ Lead  (lead_id)
               ├── belongsTo ──→ Event (evento_id)
@@ -394,7 +431,8 @@ LeadStatusHistory ──┬── belongsTo ──→ Lead (lead_id)
 
 ### Alias importantes para includes en queries
 - Lead: `interactions`, `visits`, `proposals`, `status_history`, `reservation`, `event`
-- Event: `lead`, `calendar_date`, `tasks`
+- Event: `lead`, `calendar_date`, `tasks`, `payments`
+- Payment: `event`
 - Task: `lead`, `event`, `assigned_user`
 - Reservation: `lead`, `calendar_date`
 - Proposal: `lead`, `creator`
@@ -413,9 +451,9 @@ LEAD_STATES = [
   "Contactado",               // ⚡ Auto al registrar primera interacción saliente (OUT)
   "Esperando visita",         // ⚡ Auto al guardar fecha_visita_salon (desde "Lead nuevo" o "Contactado")
   "Visita al salón realizada",
-  "Enviar propuesta",         // Auto-crea Task (+1 día) + Proposal Borrador
+  "Enviar propuesta",         // Auto-crea Task (+1 día) + Proposal Creada
   "Propuesta enviada",        // ⚡ Auto al marcar propuesta "Enviada". Auto-crea Task seguimiento (+3 días)
-  "Propuesta Aceptada",       // ⚡ Auto al marcar propuesta "Aceptada"
+  "Propuesta Aceptada",       // ⚡ Auto al marcar propuesta "Aprobada"
   "Propuesta Rechazada",      // ⚡ Auto al marcar propuesta "Rechazada"
   "Esperando Reserva",        // Mide tiempo de decisión del cliente
   "Reserva tomada",           // ⚡ Auto al marcar CalendarDate "Reservada"
@@ -453,10 +491,10 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
 ## Reglas de Negocio (implementadas en API routes)
 
 1. **Lead → Perdido**: Requiere `motivo` obligatorio (400 si falta).
-2. **Lead → "Enviar propuesta"**: Auto-crea Task `prioridad: Alta` y `due_date: +1 día`. Auto-crea Proposal en estado "Borrador".
+2. **Lead → "Enviar propuesta"**: Auto-crea Task `prioridad: Alta` y `due_date: +1 día`. Auto-crea Proposal en estado "Creada".
 2a. **Lead → "Propuesta enviada"**: Auto-crea Task de seguimiento con `prioridad: Alta` y `due_date: +3 días`.
-2b. **Lead → estados avanzados del pipeline**: Auto-crea Proposal si no existe. Estados: "Enviar propuesta"→Borrador, "Propuesta enviada"→Enviada, "Visita al salón realizada"→Enviada, "Reserva tomada"→Aceptada, "Contrato firmado"→Aceptada.
-2c. **CalendarDate Reservada/Confirmada + lead**: Auto-crea Proposal "Aceptada" si no existe (o actualiza la última a Aceptada).
+2b. **Lead → estados avanzados del pipeline**: Auto-crea Proposal si no existe. Estados: "Enviar propuesta"→Creada, "Propuesta enviada"→Enviada, "Visita al salón realizada"→Enviada, "Reserva tomada"→Aprobada, "Contrato firmado"→Firmada.
+2c. **CalendarDate Reservada/Confirmada + lead**: Auto-crea Proposal "Aprobada" si no existe (o actualiza la última a Aprobada).
 3. **CalendarDate**: No puede haber dos leads con estado Reservada/Confirmada en la misma fecha (409 conflict).
 4. **Reservation**: Un lead solo puede tener una reserva, `lead_id` es UNIQUE (409 si ya existe).
 5. **Event**: Un lead solo puede tener un evento, `lead_id` es UNIQUE (409 si ya existe).
@@ -467,10 +505,12 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
 6b. **CalendarDate → Lead sync** (POST /api/calendar): Automáticamente:
    - Si `estado_fecha` = "Reservada" + `lead_id` → Lead pasa a `"Reserva tomada"` + historial + **auto-crea Reservation** si no existe
    - Si `estado_fecha` = "Confirmada" + `lead_id` → Lead pasa a `"Contrato firmado"` + historial + **auto-crea Event** si no existe
-   - En ambos casos: última propuesta del lead pasa a **"Aceptada"** automáticamente
+   - CalendarDate "Reservada" + lead → última propuesta pasa a **"Aprobada"** automáticamente
+   - CalendarDate "Confirmada" + lead → última propuesta pasa a **"Firmada"** automáticamente
 6c. **Lead → Propuesta auto-sync** (PUT /api/leads/:id/status):
-   - Lead → "Reserva tomada" / "Contrato firmado" / "Cliente activo" → última propuesta pasa a **"Aceptada"**
-   - Lead → "Perdido" → última propuesta pasa a **"Rechazada"** (si no estaba Aceptada)
+   - Lead → "Reserva tomada" → última propuesta pasa a **"Aprobada"**
+   - Lead → "Contrato firmado" / "Cliente activo" → última propuesta pasa a **"Firmada"**
+   - Lead → "Perdido" → última propuesta pasa a **"Rechazada"** (si no estaba Firmada o Rechazada)
 6d. **Lead → "Contrato firmado"** (PUT /api/leads/:id/status): Automáticamente:
    - Auto-set `fecha_firma_contrato` si no estaba seteada
    - Si hay `fecha_tentativa` y no existe Event → **auto-crea Event** con fecha, tipo y valor_estimado del lead
@@ -480,6 +520,8 @@ USER_ROLES = ["Admin", "Comercial", "Operaciones", "Viewer"]
 9. **fecha_limite_pago_total**: Auto-calculado server-side como `fecha_tentativa - 30 días`. Se recalcula en cada PUT del lead.
 10. **Proposal.version**: Se auto-incrementa contando `Proposal.count({ where: { lead_id } })`.
 11. **Proposal → "Enviada"** (PUT /api/proposals/:id): Auto-registra `fecha_envio` si no tenía.
+12. **Proposal → "Firmada"** (PUT /api/proposals/:id): Sincroniza automáticamente al Event todos los campos del contrato: `tipo_evento`, `invitados_estimados`, `precio_senia`, `valor_total_evento`, `modalidad_actualizacion_precios`, `servicios_contratados` (base + adicionales elegidos), `menu_seleccionado`, valores de tarjetas, `adicionales`. También actualiza el lead a "Contrato firmado", crea CalendarDate "Confirmada" si hay fecha_tentativa, y setea `fecha_firma_contrato`.
+13. **Event creado** (status/route.js o calendar/route.js): Busca la última propuesta "Firmada" del lead y copia todos sus campos al nuevo Event. Si no hay propuesta firmada, usa los datos del lead como fallback.
 12. **Delete Lead** (DELETE /api/leads/:id): Cascade manual → destruye en orden:
     - Interactions → Visits → Proposals → LeadStatusHistory → Reservations → Tasks → Events → CalendarDates (+ elimina de Google Calendar) → Lead
 13. **Update Lead** (PUT /api/leads/:id): Sanitiza body (excluye id, estado_actual, created_at). Convierte fechas vacías a null. Si cambia valor_estimado → actualiza precio_total de la última propuesta.
@@ -555,6 +597,15 @@ POST   /api/events                   → Body: { lead_id, fecha_confirmada, tipo
 PUT    /api/events/:id               → Body: cualquier campo del modelo (acepta parcial)
 ```
 
+### Payments
+```
+GET    /api/payments                 → Todos con includes: event. Order: created_at DESC. Filtro: ?evento_id=X
+POST   /api/payments                 → Body: { evento_id, monto, tipo, metodo, fecha?, observacion? }. Estado: "Confirmado".
+                                         Auto-recalcula estado_pago del evento (Pendiente/Parcial/Completo)
+PUT    /api/payments/:id             → Solo permite actualizar estado (Confirmado/Anulado) y observacion.
+                                         Auto-recalcula estado_pago del evento
+```
+
 ### Tasks
 ```
 GET    /api/tasks                    → Todas con includes: lead, event, assigned_user. Order: created_at DESC
@@ -598,7 +649,7 @@ POST   /api/seed                     → Crea 3 usuarios demo si la tabla está 
 | Dashboard       | dashboard-view.jsx   | 5 fetches en paralelo    | Métricas: leads por estado, pipeline, gráficos recharts |
 | Leads           | leads-view.jsx       | fetchLeads + fetchLeadById | CRUD completo + detalle slideout con tabs (timeline, interacciones, propuestas) |
 | Calendario      | calendar-view.jsx    | fetchCalendarDates + fetchLeads | Gestión de fechas + fechas tentativas de leads (purple) |
-| Propuestas      | proposals-view.jsx   | fetchAllProposals        | Grid de propuestas con acciones (enviar, aceptar, rechazar) |
+| Contratos       | proposals-view.jsx   | fetchAllProposals + fetchLeads | Grid de contratos con form completo (tipo, invitados, seña, total, servicios base, adicionales con N opciones, producción). Editar + Ver + Enviar/Aprobar/Rechazar/Firmar/Imprimir |
 | Eventos         | events-view.jsx      | fetchEvents              | Lista expandible de eventos confirmados con estado operativo, servicios, detalle lead |
 | Tareas          | tasks-view.jsx       | fetchTasks               | Panel Kanban 4 columnas (Pendiente/En Proceso/Hecho/Cancelado) |
 | Guía            | guide-view.jsx       | (estático)               | Guía de usuario integrada con secciones colapsables |
@@ -637,7 +688,9 @@ POST   /api/seed                     → Crea 3 usuarios demo si la tabla está 
 - Carga: `fetchAllProposals()` + `fetchLeads()` en paralelo
 - GET /api/proposals incluye lead y creator → usa `p.lead?.nombre` directo
 - `apiCreateProposal(leadId, data)` - leadId va como path param
-- Acciones por estado: Borrador→Enviar, Enviada→Aceptar/Rechazar
+- Acciones por estado: Creada→Enviar, Enviada→Aprobar/Rechazar, Aprobada→Firmar
+- Estado "Firmada": inmutable (sin botón Editar), muestra botón "Imprimir" (window.print())
+- `disabled={!!submittingId}` bloquea todos los botones de cards mientras hay una petición en curso
 
 **dashboard-view.jsx**
 - Carga 5 endpoints en paralelo con `Promise.allSettled()`: leads, calendar, tasks, events, proposals (resiliente: si un fetch falla, los demás cargan igual)
@@ -711,7 +764,7 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
 - [x] **Auto-crear Event** al marcar fecha como "Confirmada" + lead en calendario (con tipo_evento del lead)
 - [x] **Vista Eventos** (events-view.jsx) - lista expandible con estado operativo, tipo, invitados, servicios, detalle lead
 - [x] **Sidebar actualizado** - nueva entrada "Eventos" con icono Sparkles
-- [x] **Auto-sync Propuestas ↔ Lead status** - Reserva/Confirmado → propuesta "Aceptada", Perdido → propuesta "Rechazada"
+- [x] **Auto-sync Propuestas ↔ Lead status** - Reserva → propuesta "Aprobada", Confirmado/Firmado → propuesta "Firmada", Perdido → propuesta "Rechazada"
 - [x] **Guía de usuario** (GUIA_USUARIO.md) - documentación completa para usuarios finales
 - [x] **Guía integrada en la plataforma** (guide-view.jsx) - accesible desde el sidebar "Guía"
 - [x] **Google Calendar bidireccional** - sync con Google Calendar via service account (JWT)
@@ -722,6 +775,35 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
   - `google_event_id` en CalendarDate para trackeo bidireccional
   - Fix: convertido de CommonJS a ESM (`import`/`export`) — `require()` en try/catch fallaba silenciosamente en Next.js App Router
   - Fix: `fecha.toString()` en Date de Sequelize daba formato incorrecto → cambiado a `new Date(fecha).toISOString().substring(0,10)`
+- [x] **Pipeline de 15 estados** con automatizaciones: interacción OUT → "Contactado", fecha_visita → "Esperando visita", propuesta → sync lead state
+- [x] **Campo invitados_estimados en leads** - se copia al Event al confirmar
+- [x] **Valor estimado con formato** - separadores de miles al escribir (es-AR)
+- [x] **Vista Kanban altura completa** - ocupa viewport, cada columna scrollea internamente
+- [x] **Anti-doble-click** en cambio de estado y acciones de propuesta
+- [x] **Servicios contratados UI modular** (events-view) - multiselect Base + Adicionales con toggle
+- [x] **Módulo de Pagos completo** - tabla `payments` + API routes + UI en detalle de evento
+  - POST crea pago, PUT solo cambia estado/observacion (inmutable)
+  - Auto-recalcula `estado_pago` del evento (Pendiente/Parcial/Completo) al confirmar/anular
+  - Historial inline con cobrado acumulado y saldo pendiente en tiempo real
+- [x] **Módulo de Contratos** (proposals renombrado en UI) - 12 campos nuevos + adicionales con opciones múltiples
+  - `precio_senia`, `tipo_evento`, `invitados_estimados`, `valor_total_evento`, `modalidad_actualizacion_precios`, `servicios_base`, `adicionales`, `menu_seleccionado`, tarjetas
+  - `adicionales` JSON: `[{nombre, opciones:[{descripcion,precio}], opcion_elegida}]` — cliente elige una opción por adicional
+  - Estados: Creada → Enviada → Aprobada → Firmada (o Rechazada). Firmada es el disparador de todas las automatizaciones.
+  - Firmada: inmutable, botón "Imprimir". Editar solo disponible en Creada/Enviada/Aprobada.
+  - `disabled={!!submittingId}` bloquea todos los botones mientras cualquier petición está en curso
+  - Sync automático: Firmar contrato → copia todos los campos al Event + lead → "Contrato firmado" + CalendarDate "Confirmada"
+  - Al crear Event: busca última propuesta "Firmada" del lead y copia sus campos (fallback: datos del lead)
+- [x] **Nuevos campos en events**: `precio_senia` (FLOAT) + `adicionales` (JSONB) — paridad total con proposals
+  - SQL: `ALTER TABLE events ADD COLUMN IF NOT EXISTS precio_senia FLOAT;`
+  - SQL: `ALTER TABLE events ADD COLUMN IF NOT EXISTS adicionales JSONB DEFAULT '[]';`
+- [x] **Anti-double-submit en LeadForm** - `submitting` state + botón disabled durante creación/edición de lead
+- [x] **Suite de tests automáticos** (Jest 30) - 26 tests cubriendo automatizaciones críticas
+  - `lib/automations.js` - funciones puras extraídas para testear sin DB: `getEventDataFromProposal`, `PROPOSAL_TO_LEAD_STATE`
+  - `field-sync.test.js` - 6 tests: mapeo completo propuesta → event (financiero, servicios, adicionales, omisión de nulls)
+  - `proposals-automation.test.js` - 8 tests: Firmada→lead+event, no duplica Event/CalendarDate, sincroniza precio_senia/adicionales, Aprobada/Rechazada
+  - `status-automation.test.js` - 8 tests: Contrato firmado, Reserva tomada, Perdido, 404
+  - Mock compartido en `__tests__/__mocks__/models.js`
+  - Correr: `pnpm test` o `pnpm test:watch`
 
 ### Pendiente - Roadmap
 
@@ -860,8 +942,17 @@ estado_actual_id UUID FK → lead_states
 ##### ⚠️ Pendientes UX / Features — detectados en testeo
 
 - [x] **Leads — Mostrar campo "Fecha de firma de contrato" condicionalmente**: visible solo desde `Visita al salón realizada` en adelante. Implementado con `LEAD_STATES.indexOf()` en `LeadForm`.
+- [x] **Servicios contratados — UI modular**: multiselect con Base (Salón/Catering) + Adicionales (Mesa dulce, Fotografía, etc.) con toggle en detalle de evento.
+- [x] **Módulo de Pagos**: tabla `payments` + modelo + asociaciones + `GET/POST /api/payments` + `PUT /api/payments/:id` + UI inline en detalle de evento. Auto-recalcula `estado_pago` del evento.
 - [ ] **Propuestas — Cargar documento adjunto**: además del campo de texto `contenido`, agregar subida de archivo (PDF/Word). Requiere Supabase Storage: crear bucket `proposals`, subir archivo, guardar URL en campo `documento_url` de la tabla `proposals`.
-- [ ] **Calendario — Soporte para múltiples eventos en la UI**: actualmente la vista de calendario solo permite crear/editar una fecha/evento por vez. Mejorar la interfaz para navegar y gestionar múltiples fechas cargadas de forma más ágil.
+- [x] **Calendario — Múltiples entradas por día**: un día puede tener N entradas (visitas, bloqueos, etc.). UI muestra lista con Editar/Eliminar por entrada + "Agregar otra". Regla de negocio mantenida: solo un lead puede tener Reservada/Confirmada por día. DB: se eliminó la constraint UNIQUE en `calendar_dates.fecha`.
+- [ ] **Tareas — Mejoras completas al módulo**: actualmente solo permite crear y ciclar estado. Falta:
+  - Editar tarea (título, descripción, prioridad, fecha límite, lead asociado, usuario asignado)
+  - Mover entre columnas Kanban (drag & drop o botones ← →)
+  - Eliminar tarea con confirmación
+  - Ver detalle expandido
+  - Filtro por lead asociado
+  - Badge de vencida si `due_date` < hoy y estado no es Hecho/Cancelado
 
 ---
 
@@ -871,38 +962,20 @@ estado_actual_id UUID FK → lead_states
 - [ ] Pasar `user_id` real al cambiar estado de lead (actualmente pasa `null`)
 - [ ] Migraciones de BD (actualmente usa `sequelize.sync({ alter: true })`)
 - [ ] Validaciones server-side con Zod en las API routes
-- [ ] Tests (unit + integration)
+- [x] Tests automáticos con Jest (26 tests — ver sección Testing en "Hecho")
 - [ ] Eliminar `lib/store.js` (ya no se usa, queda como referencia)
 
 ---
 
 #### PRIORIDAD BAJA — Features avanzadas
 
-##### 5. Módulo de Pagos (`payments`)
+##### ✅ 5. Módulo de Pagos (`payments`) — IMPLEMENTADO
 
-Nueva tabla para registro inmutable de pagos (no se editan — solo se anulan con registro nuevo):
-
-| Campo               | Tipo   | Notas                                                        |
-|---------------------|--------|--------------------------------------------------------------|
-| `id`                | UUID   | PK                                                           |
-| `reservation_id`    | UUID   | FK → reservations                                            |
-| `monto`             | FLOAT  |                                                              |
-| `currency`          | STRING | default: ARS                                                 |
-| `tipo`              | ENUM   | `seña`, `pago_parcial`, `pago_final`, `devolucion`           |
-| `metodo_pago`       | STRING | efectivo, transferencia, tarjeta, etc.                       |
-| `fecha_pago`        | DATE   |                                                              |
-| `estado`            | ENUM   | `pendiente`, `confirmado`, `anulado`                         |
-| `comprobante_url`   | STRING | nullable                                                     |
-| `observacion`       | TEXT   | nullable                                                     |
-| `created_by_user_id`| UUID   | FK → users                                                   |
-
-> **IMPORTANTE:** No permitir borrar/editar pagos. Para corregir: crear nuevo registro con `tipo: devolucion` o `estado: anulado`.
-
-- [ ] Migración + modelo + asociaciones
-- [ ] API CRUD (`/api/payments`, `/api/payments/:id`)
-- [ ] UI para registrar pagos desde detalle de reserva/evento
-- [ ] Historial de pagos en vista de evento/lead
-- [ ] `saldo_pendiente` calculado automáticamente desde historial de pagos
+- [x] Tabla `payments` en DB (event_id, lead_id, monto, tipo, metodo_pago, fecha_pago, estado, observacion, created_by_user_id)
+- [x] Modelo Sequelize + asociaciones (Event.hasMany(Payment), Payment.belongsTo(Event/Lead))
+- [x] `GET/POST /api/payments` + `PUT /api/payments/:id` (solo estado/observacion — monto inmutable)
+- [x] UI inline en detalle de evento: historial, cobrado acumulado, saldo pendiente, Confirmar/Anular
+- [x] Auto-recalcula `estado_pago` del evento al cambiar estado de cualquier pago
 
 ##### 6. Dashboard de Métricas (Business Intelligence)
 

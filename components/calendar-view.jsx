@@ -77,7 +77,11 @@ export default function CalendarView() {
 
   const calendarDates = useMemo(() => {
     const map = {}
-    calendarDatesRaw.forEach((d) => (map[d.fecha ? d.fecha.substring(0, 10) : ""] = d))
+    calendarDatesRaw.forEach((d) => {
+      const key = d.fecha ? d.fecha.substring(0, 10) : ""
+      if (!map[key]) map[key] = []
+      map[key].push(d)
+    })
     return map
   }, [calendarDatesRaw])
 
@@ -135,11 +139,11 @@ export default function CalendarView() {
   // Day cells
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = formatDate(day)
-    const calEntry = calendarDates[dateStr]
+    const calEntries = calendarDates[dateStr] || []
     const tentativeLeads = tentativeMap[dateStr] || []
     // Solo mostrar tentativas que no tengan ya un CalendarDate con lead asociado
     const filteredTentative = tentativeLeads.filter(
-      (l) => !calEntry || calEntry.lead_id !== l.id
+      (l) => !calEntries.some(e => e.lead_id === l.id)
     )
     const isToday =
       day === today.getDate() &&
@@ -169,10 +173,13 @@ export default function CalendarView() {
               {l.nombre}
             </div>
           ))}
-          {calEntry && (
-            <div className={cn("w-full rounded px-1 py-0.5 text-[10px] font-medium truncate", STATE_COLORS[calEntry.estado_fecha])}>
-              {calEntry.estado_fecha}
+          {calEntries.slice(0, 2).map((entry) => (
+            <div key={entry.id} className={cn("w-full rounded px-1 py-0.5 text-[10px] font-medium truncate", STATE_COLORS[entry.estado_fecha])}>
+              {entry.estado_fecha}
             </div>
+          ))}
+          {calEntries.length > 2 && (
+            <div className="text-[9px] text-muted-foreground px-1">+{calEntries.length - 2} más</div>
           )}
         </div>
       </button>
@@ -233,7 +240,7 @@ export default function CalendarView() {
       {showForm && selectedDate && (
         <DateFormModal
           date={selectedDate}
-          existing={calendarDates[selectedDate] || null}
+          existingEntries={calendarDates[selectedDate] || []}
           leads={leads}
           tentativeLeads={tentativeMap[selectedDate] || []}
           onClose={() => { setShowForm(false); setSelectedDate(null) }}
@@ -244,62 +251,94 @@ export default function CalendarView() {
   )
 }
 
-function DateFormModal({ date, existing, leads, tentativeLeads = [], onClose, onSave }) {
-  const [estado, setEstado] = useState(existing?.estado_fecha || "Bloqueada")
-  const [leadId, setLeadId] = useState(existing?.lead_id || "")
-  const [nota, setNota] = useState(existing?.nota || "")
+function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onClose, onSave }) {
+  const [editingEntry, setEditingEntry] = useState(null)
+  const [formOpen, setFormOpen] = useState(existingEntries.length === 0)
+  const [estado, setEstado] = useState("Bloqueada")
+  const [leadId, setLeadId] = useState("")
+  const [nota, setNota] = useState("")
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState("")
+
+  const inputCls = "rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+  const labelCls = "text-xs font-medium text-foreground"
+
+  function startEdit(entry) {
+    setEditingEntry(entry)
+    setEstado(entry.estado_fecha)
+    setLeadId(entry.lead_id || "")
+    setNota(entry.nota || "")
+    setFormOpen(true)
+  }
+
+  function startNew() {
+    setEditingEntry(null)
+    setEstado("Bloqueada")
+    setLeadId("")
+    setNota("")
+    setFormOpen(true)
+  }
+
+  function cancelForm() {
+    setEditingEntry(null)
+    setFormOpen(false)
+    if (existingEntries.length === 0) onClose()
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
+    setSubmitting(true)
     try {
       await apiSetCalendarDate({
+        ...(editingEntry ? { id: editingEntry.id } : {}),
         fecha: date,
         estado_fecha: estado,
         lead_id: leadId || null,
         nota,
         fuente: "CRM",
       })
-      toast.success(`Fecha ${existing ? "actualizada" : "guardada"} como ${estado}`)
+      toast.success(editingEntry ? "Entrada actualizada" : `Fecha guardada como ${estado}`)
       onSave()
     } catch (err) {
       setError(err.message)
       toast.error("Error al guardar fecha")
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  function handleRemove() {
-    toast('¿Seguro que quieres liberar/eliminar esta fecha?', {
-      description: existing?.lead_id ? 'Se eliminará la fecha y su asociación con el lead' : 'Se eliminará la fecha del calendario',
+  async function handleDelete(entry) {
+    toast('¿Seguro que quieres eliminar esta entrada?', {
+      description: entry.lead_id
+        ? `Se eliminará la entrada de ${leads.find(l => l.id === entry.lead_id)?.nombre || 'este lead'}`
+        : 'Se eliminará la entrada del calendario',
       action: {
         label: 'Sí, eliminar',
         onClick: async () => {
           try {
-            await apiRemoveCalendarDate(date)
-            toast.success("Fecha liberada")
+            await apiRemoveCalendarDate(entry.id)
+            toast.success("Entrada eliminada")
             onSave()
           } catch (err) {
-            setError(err.message)
-            toast.error("Error al liberar fecha")
+            toast.error("Error al eliminar")
           }
         },
       },
-      cancel: {
-        label: 'Cancelar',
-      },
+      cancel: { label: 'Cancelar' },
       duration: 10000,
     })
   }
 
   function handleSelectTentative(lead) {
     setLeadId(lead.id)
-    if (!existing) setEstado("Reservada")
+    if (!editingEntry) setEstado("Reservada")
+    if (!formOpen) setFormOpen(true)
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-foreground/20" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-lg mx-4">
+      <div className="relative z-10 w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-lg mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-card-foreground">
             {new Date(date + "T12:00:00").toLocaleDateString("es-AR", {
@@ -313,6 +352,43 @@ function DateFormModal({ date, existing, leads, tentativeLeads = [], onClose, on
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Entradas existentes en este día */}
+        {existingEntries.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Entradas en este día
+            </p>
+            <div className="flex flex-col gap-2">
+              {existingEntries.map((entry) => {
+                const leadName = leads.find(l => l.id === entry.lead_id)?.nombre
+                return (
+                  <div key={entry.id} className={cn("flex items-center justify-between rounded-md px-3 py-2 text-xs", STATE_COLORS[entry.estado_fecha] || "bg-secondary text-secondary-foreground")}>
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="font-semibold">
+                        {entry.estado_fecha}{leadName ? ` — ${leadName}` : ''}
+                      </span>
+                      {entry.nota && <span className="text-[10px] truncate opacity-75">{entry.nota}</span>}
+                    </div>
+                    <div className="flex items-center gap-1 ml-2 shrink-0">
+                      <button type="button" onClick={() => startEdit(entry)} className="rounded px-2 py-0.5 text-[10px] bg-white/40 hover:bg-white/70 transition-colors">
+                        Editar
+                      </button>
+                      <button type="button" onClick={() => handleDelete(entry)} className="rounded px-2 py-0.5 text-[10px] bg-red-100 text-red-700 hover:bg-red-200 transition-colors">
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {!formOpen && (
+              <button type="button" onClick={startNew} className="mt-3 flex items-center gap-1.5 text-xs text-primary hover:underline">
+                <Plus className="h-3.5 w-3.5" /> Agregar otra entrada
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Leads con fecha tentativa en este día */}
         {tentativeLeads.length > 0 && (
@@ -345,39 +421,41 @@ function DateFormModal({ date, existing, leads, tentativeLeads = [], onClose, on
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-foreground">Estado de la Fecha</label>
-            <select value={estado} onChange={(e) => setEstado(e.target.value)} className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring">
-              {CALENDAR_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-foreground">Lead Asociado (opcional)</label>
-            <select value={leadId} onChange={(e) => setLeadId(e.target.value)} className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring">
-              <option value="">Sin lead asociado</option>
-              {leads.map((l) => <option key={l.id} value={l.id}>{l.nombre} - {l.tipo_evento}</option>)}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-foreground">Nota</label>
-            <input value={nota} onChange={(e) => setNota(e.target.value)} className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" placeholder="Nota sobre esta fecha..." />
-          </div>
-
-          <div className="flex items-center justify-between">
-            {existing && (
-              <button type="button" onClick={handleRemove} className="rounded-md border border-destructive px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors">
-                Liberar fecha
-              </button>
+        {/* Formulario nueva entrada / editar */}
+        {formOpen && (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {existingEntries.length > 0 && (
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {editingEntry ? 'Editando entrada' : 'Nueva entrada'}
+              </p>
             )}
-            <div className="flex items-center gap-2 ml-auto">
-              <button type="button" onClick={onClose} className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors">Cancelar</button>
-              <button type="submit" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity">Guardar</button>
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Estado de la Fecha</label>
+              <select value={estado} onChange={(e) => setEstado(e.target.value)} className={inputCls}>
+                {CALENDAR_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
-          </div>
-        </form>
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Lead Asociado (opcional)</label>
+              <select value={leadId} onChange={(e) => setLeadId(e.target.value)} className={inputCls}>
+                <option value="">Sin lead asociado</option>
+                {leads.map((l) => <option key={l.id} value={l.id}>{l.nombre} - {l.tipo_evento}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Nota</label>
+              <input value={nota} onChange={(e) => setNota(e.target.value)} className={inputCls} placeholder="Nota sobre esta fecha..." />
+            </div>
+            <div className="flex items-center gap-2 justify-end">
+              <button type="button" onClick={cancelForm} className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors">
+                Cancelar
+              </button>
+              <button type="submit" disabled={submitting} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50">
+                {submitting ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   )
