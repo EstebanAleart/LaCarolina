@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Plus, X, Send, Check, XCircle, FileText, Eye, Pencil, Trash2 } from "lucide-react"
+import { Plus, X, Send, Check, XCircle, FileText, Eye, Pencil, Trash2, Printer, PenLine } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -16,10 +16,11 @@ import {
 } from "@/lib/api"
 
 const STATUS_STYLES = {
-  Borrador: "bg-secondary text-secondary-foreground",
+  Creada:   "bg-secondary text-secondary-foreground",
   Enviada:  "bg-blue-100 text-blue-800",
-  Aceptada: "bg-green-100 text-green-800",
+  Aprobada: "bg-amber-100 text-amber-800",
   Rechazada:"bg-red-100 text-red-800",
+  Firmada:  "bg-green-100 text-green-800",
 }
 
 const labelCls = "text-xs font-medium text-foreground"
@@ -114,7 +115,7 @@ export default function ProposalsView() {
           className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">Todos los estados</option>
-          {["Borrador", "Enviada", "Aceptada", "Rechazada"].map(s => (
+          {["Creada", "Enviada", "Aprobada", "Rechazada", "Firmada"].map(s => (
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
@@ -218,10 +219,10 @@ function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdat
 
       {/* Acciones */}
       <div className="flex items-center gap-1 border-t border-border px-4 py-2 flex-wrap">
-        {p.estado === "Borrador" && (
+        {p.estado === "Creada" && (
           <button
             onClick={() => onStatusUpdate(p.id, "Enviada")}
-            disabled={submittingId === p.id}
+            disabled={!!submittingId}
             className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send className="h-3 w-3" /> {submittingId === p.id ? "..." : "Enviar"}
@@ -230,27 +231,38 @@ function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdat
         {p.estado === "Enviada" && (
           <>
             <button
-              onClick={() => onStatusUpdate(p.id, "Aceptada")}
-              disabled={submittingId === p.id}
-              className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => onStatusUpdate(p.id, "Aprobada")}
+              disabled={!!submittingId}
+              className="flex items-center gap-1 rounded-md bg-amber-500 px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Check className="h-3 w-3" /> {submittingId === p.id ? "..." : "Aceptar"}
+              <Check className="h-3 w-3" /> {submittingId === p.id ? "..." : "Aprobar"}
             </button>
             <button
               onClick={() => onStatusUpdate(p.id, "Rechazada")}
-              disabled={submittingId === p.id}
+              disabled={!!submittingId}
               className="flex items-center gap-1 rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <XCircle className="h-3 w-3" /> {submittingId === p.id ? "..." : "Rechazar"}
             </button>
           </>
         )}
-        <button
-          onClick={onEdit}
-          className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary"
-        >
-          <Pencil className="h-3 w-3" /> Editar
-        </button>
+        {p.estado === "Aprobada" && (
+          <button
+            onClick={() => onStatusUpdate(p.id, "Firmada")}
+            disabled={!!submittingId}
+            className="flex items-center gap-1 rounded-md bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <PenLine className="h-3 w-3" /> {submittingId === p.id ? "..." : "Firmar"}
+          </button>
+        )}
+        {p.estado !== "Firmada" && (
+          <button
+            onClick={onEdit}
+            className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary"
+          >
+            <Pencil className="h-3 w-3" /> Editar
+          </button>
+        )}
         <button
           onClick={onView}
           className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary ml-auto"
@@ -283,9 +295,19 @@ function ContractDetail({ proposal: p, onClose }) {
               <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_STYLES[p.estado])}>{p.estado}</span>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-secondary">
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {p.estado === "Firmada" && (
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+              >
+                <Printer className="h-3.5 w-3.5" /> Imprimir
+              </button>
+            )}
+            <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-secondary">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-5">

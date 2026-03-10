@@ -75,14 +75,14 @@ export async function PUT(request, { params }) {
 
     // Auto-crear Event + confirmar fecha al firmar contrato
     if (estado === 'Contrato firmado' && lead.fecha_tentativa) {
-      const fechaEvento = lead.fecha_tentativa.toString().substring(0, 10);
+      const fechaEvento = new Date(lead.fecha_tentativa).toISOString().substring(0, 10);
 
       // Crear Event si no existe
       let evt = await Event.findOne({ where: { lead_id: id } });
       if (!evt) {
         // Buscar la última propuesta aceptada para copiar datos del contrato
         const contrato = await Proposal.findOne({
-          where: { lead_id: id, estado: 'Aceptada' },
+          where: { lead_id: id, estado: 'Firmada' },
           order: [['created_at', 'DESC']],
         });
         const serviciosBase = contrato?.servicios_base || [];
@@ -130,13 +130,13 @@ export async function PUT(request, { params }) {
         const estadoMap = {
           'Propuesta enviada': 'Enviada',
           'Visita al salón realizada': 'Enviada',
-          'Reserva tomada': 'Aceptada',
-          'Contrato firmado': 'Aceptada',
+          'Reserva tomada': 'Aprobada',
+          'Contrato firmado': 'Firmada',
         };
         await Proposal.create({
           lead_id: id,
           version: 1,
-          estado: estadoMap[estado] || 'Borrador',
+          estado: estadoMap[estado] || 'Creada',
           precio_total: lead.valor_estimado || 0,
           fecha_envio: new Date(),
         });
@@ -144,14 +144,27 @@ export async function PUT(request, { params }) {
     }
 
     // Auto-actualizar última propuesta según nuevo estado del lead
-    if (estado === 'Reserva tomada' || estado === 'Contrato firmado' || estado === 'Cliente activo') {
+    if (estado === 'Reserva tomada') {
       const lastProposal = await Proposal.findOne({
         where: { lead_id: id },
         order: [['created_at', 'DESC']],
       });
-      if (lastProposal && lastProposal.estado !== 'Aceptada') {
+      if (lastProposal && lastProposal.estado !== 'Aprobada' && lastProposal.estado !== 'Firmada') {
         await lastProposal.update({
-          estado: 'Aceptada',
+          estado: 'Aprobada',
+          fecha_envio: lastProposal.fecha_envio || new Date(),
+        });
+      }
+    }
+
+    if (estado === 'Contrato firmado' || estado === 'Cliente activo') {
+      const lastProposal = await Proposal.findOne({
+        where: { lead_id: id },
+        order: [['created_at', 'DESC']],
+      });
+      if (lastProposal && lastProposal.estado !== 'Firmada') {
+        await lastProposal.update({
+          estado: 'Firmada',
           fecha_envio: lastProposal.fecha_envio || new Date(),
         });
       }
@@ -162,7 +175,7 @@ export async function PUT(request, { params }) {
         where: { lead_id: id },
         order: [['created_at', 'DESC']],
       });
-      if (lastProposal && lastProposal.estado !== 'Rechazada' && lastProposal.estado !== 'Aceptada') {
+      if (lastProposal && lastProposal.estado !== 'Rechazada' && lastProposal.estado !== 'Firmada') {
         await lastProposal.update({ estado: 'Rechazada' });
       }
     }
