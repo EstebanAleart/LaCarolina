@@ -75,7 +75,7 @@ export async function PUT(request, { params }) {
 
     // Auto-crear Event + confirmar fecha al firmar contrato
     if (estado === 'Contrato firmado' && lead.fecha_tentativa) {
-      const fechaEvento = lead.fecha_tentativa.toString().substring(0, 10);
+      const fechaEvento = new Date(lead.fecha_tentativa).toISOString().substring(0, 10);
 
       // Crear Event si no existe
       let evt = await Event.findOne({ where: { lead_id: id } });

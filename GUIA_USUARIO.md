@@ -180,15 +180,20 @@ El boton **Ver** (ojo) abre un modal con todos los campos: financiero, produccio
 | Reservada | Senal tomada → lead pasa a "Reserva tomada" automaticamente |
 | Confirmada | Contrato firmado → lead pasa a "Contrato firmado" automaticamente |
 
+### Multiples entradas por dia
+
+Un mismo dia puede tener varias entradas (por ejemplo, tres visitas distintas). Al hacer click en un dia con entradas existentes, el modal muestra la lista de entradas con opciones para **Editar** o **Eliminar** cada una, y un boton **"Agregar otra entrada"** para sumar una nueva.
+
 ### Reglas importantes
 
-- No pueden existir dos leads en la misma fecha con estado Reservada o Confirmada
-- Al cargar fecha de visita en el lead, se crea automaticamente un registro de Visita en el calendario
+- Puede haber multiples entradas (Visita, Bloqueada, etc.) en el mismo dia
+- No pueden existir dos leads DISTINTOS con estado Reservada o Confirmada en el mismo dia (un solo evento por fecha)
+- Al cargar fecha de visita en el lead, se crea automaticamente un registro de Visita en el calendario para ese lead
 - Al confirmar un evento, se crea automaticamente el evento en el modulo Eventos
 
-### Liberar una fecha
+### Gestionar entradas de un dia
 
-Click en el dia → boton **"Liberar fecha"** (rojo).
+Click en el dia → el modal muestra las entradas existentes con botones **Editar** / **Eliminar** por entrada → **Agregar otra entrada** para sumar una nueva.
 
 ---
 

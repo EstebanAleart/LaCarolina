@@ -892,7 +892,7 @@ estado_actual_id UUID FK → lead_states
 - [x] **Servicios contratados — UI modular**: multiselect con Base (Salón/Catering) + Adicionales (Mesa dulce, Fotografía, etc.) con toggle en detalle de evento.
 - [x] **Módulo de Pagos**: tabla `payments` + modelo + asociaciones + `GET/POST /api/payments` + `PUT /api/payments/:id` + UI inline en detalle de evento. Auto-recalcula `estado_pago` del evento.
 - [ ] **Propuestas — Cargar documento adjunto**: además del campo de texto `contenido`, agregar subida de archivo (PDF/Word). Requiere Supabase Storage: crear bucket `proposals`, subir archivo, guardar URL en campo `documento_url` de la tabla `proposals`.
-- [ ] **Calendario — Soporte para múltiples eventos en la UI**: actualmente la vista de calendario solo permite crear/editar una fecha/evento por vez. Mejorar la interfaz para navegar y gestionar múltiples fechas cargadas de forma más ágil.
+- [x] **Calendario — Múltiples entradas por día**: un día puede tener N entradas (visitas, bloqueos, etc.). UI muestra lista con Editar/Eliminar por entrada + "Agregar otra". Regla de negocio mantenida: solo un lead puede tener Reservada/Confirmada por día. DB: se eliminó la constraint UNIQUE en `calendar_dates.fecha`.
 - [ ] **Tareas — Mejoras completas al módulo**: actualmente solo permite crear y ciclar estado. Falta:
   - Editar tarea (título, descripción, prioridad, fecha límite, lead asociado, usuario asignado)
   - Mover entre columnas Kanban (drag & drop o botones ← →)
