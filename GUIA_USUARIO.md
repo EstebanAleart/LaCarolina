@@ -52,11 +52,11 @@ Los leads siguen este flujo. Los estados con ⚡ cambian **automaticamente**:
 | 4 | Visita al salon realizada | Fue al salon | Manual |
 | 5 | Enviar propuesta | Hay que preparar propuesta | Manual |
 | 6 | Propuesta enviada | Se envio la propuesta | ⚡ Al marcar propuesta como "Enviada" |
-| 7 | Propuesta Aceptada | El cliente acepto | ⚡ Al marcar propuesta como "Aceptada" |
+| 7 | Propuesta Aceptada | El cliente acepto verbalmente | ⚡ Al marcar propuesta como "Aprobada" |
 | 8 | Propuesta Rechazada | El cliente rechazo | ⚡ Al marcar propuesta como "Rechazada" |
 | 9 | Esperando Reserva | En negociacion de senal | Manual |
 | 10 | Reserva tomada | Pago la senal | ⚡ Al confirmar fecha como "Reservada" en calendario |
-| 11 | Contrato firmado | Firmo el contrato | ⚡ Al confirmar fecha como "Confirmada" en calendario |
+| 11 | Contrato firmado | Firmo el contrato | ⚡ Al marcar contrato como "Firmada" O al confirmar fecha como "Confirmada" en calendario |
 | 12 | Cliente activo | Evento proximo | Manual |
 | 13 | Evento realizado | El evento ocurrio | Manual |
 | 14 | Post-evento / cerrado | Cierre total | Manual |
@@ -113,22 +113,22 @@ La seccion antes llamada "Propuestas" ahora se llama **Contratos**. Incluye todo
 1. Ir a **Contratos** → **"Nuevo Contrato"**
 2. Seleccionar el lead asociado
 3. Completar los campos del contrato (ver tabla abajo)
-4. El contrato se crea como **Borrador**
+4. El contrato se crea como **Creada**
 
 ### Campos del contrato
 
 | Seccion | Campo | Detalle |
 |---|---|---|
-| Evento | Tipo de evento | Se copia al Evento al aceptar |
-| Evento | Cantidad de invitados estimados | Se copia al Evento al aceptar |
-| Financiero | Precio de seña ($) | Monto del anticipo/seña |
-| Financiero | Valor total del evento ($) | Precio total acordado. Se copia al Evento al aceptar |
+| Evento | Tipo de evento | Se copia al Evento al firmar |
+| Evento | Cantidad de invitados estimados | Se copia al Evento al firmar |
+| Financiero | Precio de seña ($) | Monto del anticipo/seña. Se copia al Evento al firmar |
+| Financiero | Valor total del evento ($) | Precio total acordado. Se copia al Evento al firmar |
 | Financiero | Modalidad de actualizacion de precios | Precio fijo / Por tarjeta / Mixto. Se copia al Evento |
-| Servicios base | Salon / Catering | Seleccion multiple. Se copia al Evento al aceptar |
-| Adicionales | Nombre + opciones de precio | Ver detalle abajo |
-| Produccion | Menu seleccionado | Se copia al Evento al aceptar |
-| Produccion | Minimo de tarjetas | Se copia al Evento al aceptar |
-| Produccion | Valor tarjeta Adulto / Adolescente / Niño | Se copia al Evento al aceptar |
+| Servicios base | Salon / Catering | Seleccion multiple. Se copia al Evento al firmar |
+| Adicionales | Nombre + opciones de precio | Ver detalle abajo. Se copian al Evento al firmar |
+| Produccion | Menu seleccionado | Se copia al Evento al firmar |
+| Produccion | Minimo de tarjetas | Se copia al Evento al firmar |
+| Produccion | Valor tarjeta Adulto / Adolescente / Niño | Se copia al Evento al firmar |
 | Notas | Condiciones especiales | Texto libre |
 
 ### Adicionales con multiples opciones de precio
@@ -143,24 +143,37 @@ Cada adicional (DJ extra, Fotografia, Decoracion, etc.) puede tener **mas de una
 ### Ciclo de estados de un contrato
 
 ```
-Borrador → Enviada → Aceptada
-                  ↘ Rechazada
+Creada → Enviada → Aprobada → Firmada
+                ↘ Rechazada
+                            ↘ Rechazada
 ```
+
+| Estado | Significado | Botones disponibles |
+|---|---|---|
+| Creada | Borrador inicial, no enviado al cliente | Enviar / Editar |
+| Enviada | Enviado al cliente, esperando respuesta | Aprobar / Rechazar / Editar |
+| Aprobada | El cliente aprueba verbalmente | Firmar / Editar |
+| Rechazada | El cliente rechazo | — |
+| Firmada | Contrato firmado fisicamente — **estado final** | Imprimir (solo lectura) |
 
 | Accion | Efecto en el contrato | Efecto automatico en el lead | Efecto en el Evento |
 |---|---|---|---|
 | Click "Enviar" | → Enviada + registra fecha de envio | Lead → "Propuesta enviada" | — |
-| Click "Aceptar" | → Aceptada | Lead → "Propuesta Aceptada" | Si ya existe: actualiza con datos del contrato |
+| Click "Aprobar" | → Aprobada | Lead → "Propuesta Aceptada" | — |
 | Click "Rechazar" | → Rechazada | Lead → "Propuesta Rechazada" | — |
+| Click "Firmar" | → Firmada | Lead → "Contrato firmado" + auto-set fecha firma | Crea o actualiza con TODOS los datos del contrato. Crea CalendarDate "Confirmada" si hay fecha tentativa |
 
-> Al aceptar un contrato, **todos los campos** (invitados, servicios, tarjetas, etc.) se copian automaticamente al Evento si ya fue creado.
-> Si el Evento aun no existe (se crea al firmar contrato), se llenara con los datos del contrato aceptado.
+> Al **firmar** un contrato, todos los campos (invitados, seña, servicios, adicionales, tarjetas, etc.) se copian automaticamente al Evento.
+> Si el Evento aun no existe, se crea automaticamente con los datos del contrato.
 
-> Los botones se deshabilitan durante el procesamiento para evitar doble envio.
+> Un contrato **Firmada** es inmutable: no tiene boton Editar. Solo tiene el boton **Imprimir**.
+> Los botones se deshabilitan mientras cualquier peticion esta en curso para evitar doble envio.
 
 ### Editar contrato
 
-Cada card de contrato tiene un boton **Editar** (lapiz) que abre el formulario completo precargado con todos los datos actuales.
+Los contratos en estado **Creada**, **Enviada** o **Aprobada** tienen un boton **Editar** (lapiz) que abre el formulario completo precargado con todos los datos actuales.
+
+Los contratos en estado **Firmada** son inmutables: no tienen boton Editar. Solo muestran el boton **Imprimir**.
 
 ### Ver detalle del contrato
 
@@ -180,15 +193,20 @@ El boton **Ver** (ojo) abre un modal con todos los campos: financiero, produccio
 | Reservada | Senal tomada → lead pasa a "Reserva tomada" automaticamente |
 | Confirmada | Contrato firmado → lead pasa a "Contrato firmado" automaticamente |
 
+### Multiples entradas por dia
+
+Un mismo dia puede tener varias entradas (por ejemplo, tres visitas distintas). Al hacer click en un dia con entradas existentes, el modal muestra la lista de entradas con opciones para **Editar** o **Eliminar** cada una, y un boton **"Agregar otra entrada"** para sumar una nueva.
+
 ### Reglas importantes
 
-- No pueden existir dos leads en la misma fecha con estado Reservada o Confirmada
-- Al cargar fecha de visita en el lead, se crea automaticamente un registro de Visita en el calendario
+- Puede haber multiples entradas (Visita, Bloqueada, etc.) en el mismo dia
+- No pueden existir dos leads DISTINTOS con estado Reservada o Confirmada en el mismo dia (un solo evento por fecha)
+- Al cargar fecha de visita en el lead, se crea automaticamente un registro de Visita en el calendario para ese lead
 - Al confirmar un evento, se crea automaticamente el evento en el modulo Eventos
 
-### Liberar una fecha
+### Gestionar entradas de un dia
 
-Click en el dia → boton **"Liberar fecha"** (rojo).
+Click en el dia → el modal muestra las entradas existentes con botones **Editar** / **Eliminar** por entrada → **Agregar otra entrada** para sumar una nueva.
 
 ---
 
@@ -210,8 +228,29 @@ Muestra los eventos con contrato firmado. Click en un evento para expandir el de
 
 ### Registrar pagos
 
-Desde el detalle del evento → seccion Pagos → boton **"Nuevo Pago"**:
-- Monto, tipo (seña / parcial / final / devolucion), metodo, fecha, estado
+Desde el detalle del evento → seccion **Pagos** → boton **"Nuevo Pago"**:
+
+| Campo | Detalle |
+|---|---|
+| Monto | Importe del pago |
+| Tipo | Seña / Parcial / Final / Devolución |
+| Método | Efectivo / Transferencia / Tarjeta / Otro |
+| Fecha | Fecha del pago |
+| Observación | Notas opcionales |
+
+El pago se crea en estado **Confirmado**. El sistema recalcula automáticamente el estado de pago del evento:
+
+| Estado pago evento | Cuando ocurre |
+|---|---|
+| Pendiente | Sin pagos confirmados |
+| Parcial | Hay pagos pero no cubren el total |
+| Completo | Los pagos confirmados cubren el valor total |
+
+### Reglas de pagos
+
+- Los pagos son **inmutables**: una vez registrado, no se puede editar el monto ni el tipo
+- Se puede **Anular** un pago si fue un error — el sistema recalcula el saldo automáticamente
+- El cobrado acumulado y el saldo pendiente se actualizan en tiempo real en el detalle del evento
 
 ---
 
@@ -253,15 +292,17 @@ Vista general con metricas del negocio:
 | Crear primera interaccion saliente en un "Lead nuevo" | Lead → "Contactado" |
 | Cargar fecha de visita al salon (lead en "Lead nuevo" o "Contactado") | Lead → "Esperando visita" + crea entrada Visita en calendario |
 | Marcar propuesta como "Enviada" | Lead → "Propuesta enviada" |
-| Marcar propuesta como "Aceptada" | Lead → "Propuesta Aceptada" |
+| Marcar propuesta como "Aprobada" | Lead → "Propuesta Aceptada" |
 | Marcar propuesta como "Rechazada" | Lead → "Propuesta Rechazada" |
-| Reservar fecha con lead en calendario | Lead → "Reserva tomada" + crea Reservation + propuesta → "Aceptada" |
-| Confirmar fecha con lead en calendario | Lead → "Contrato firmado" + crea Event con datos del contrato aceptado + propuesta → "Aceptada" |
+| Marcar propuesta como "Firmada" | Lead → "Contrato firmado" + auto-set fecha firma + copia datos al Evento + CalendarDate "Confirmada" (si hay fecha tentativa) |
+| Reservar fecha con lead en calendario | Lead → "Reserva tomada" + crea Reservation + propuesta → "Aprobada" |
+| Confirmar fecha con lead en calendario | Lead → "Contrato firmado" + crea Event con datos del contrato + propuesta → "Firmada" |
 | Lead pasa a "Enviar propuesta" | Tarea de alta prioridad (vence en 1 dia) |
 | Lead pasa a "Propuesta enviada" | Tarea de seguimiento (vence en 3 dias) |
-| Lead pasa a "Contrato firmado" (con fecha tentativa) | Crea Event con datos del contrato aceptado + CalendarDate "Confirmada" + auto-set fecha firma |
-| Lead pasa a "Reserva tomada" o "Contrato firmado" | Ultima propuesta → "Aceptada" |
-| Lead pasa a "Perdido" | Ultima propuesta → "Rechazada" (si no estaba Aceptada) |
+| Lead pasa a "Contrato firmado" (con fecha tentativa) | Crea Event con datos del contrato firmado + CalendarDate "Confirmada" + auto-set fecha firma |
+| Lead pasa a "Reserva tomada" | Ultima propuesta → "Aprobada" |
+| Lead pasa a "Contrato firmado" o "Cliente activo" | Ultima propuesta → "Firmada" |
+| Lead pasa a "Perdido" | Ultima propuesta → "Rechazada" (si no estaba Firmada o Rechazada) |
 | Cambiar valor estimado del lead | Actualiza precio_total de la ultima propuesta |
 
 Todos los cambios de estado automaticos quedan registrados en el historial del lead con motivo descriptivo.
@@ -273,7 +314,7 @@ Todos los cambios de estado automaticos quedan registrados en el historial del l
 | Vista | Filtros |
 |---|---|
 | Leads | Buscar nombre/email/telefono, filtrar por año, estado, canal |
-| Contratos | Filtrar por estado (Borrador, Enviada, Aceptada, Rechazada) |
+| Contratos | Filtrar por estado (Creada, Enviada, Aprobada, Rechazada, Firmada) |
 | Eventos | Filtrar por estado operativo |
 | Tareas | Filtrar por estado y usuario asignado |
 
