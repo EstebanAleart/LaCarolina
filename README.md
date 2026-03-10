@@ -116,6 +116,7 @@ LaCarolina/
 │
 ├── lib/
 │   ├── api.js                        # Cliente API: funciones fetch wrapper + constantes del negocio
+│   ├── automations.js                # Funciones puras de automatización (getEventDataFromProposal, PROPOSAL_TO_LEAD_STATE)
 │   ├── db.js                         # Exporta sequelize + todos los modelos (entry point backend)
 │   ├── googleCalendar.js             # Servicio Google Calendar (JWT auth, CRUD eventos, webhooks)
 │   ├── store.js                      # ⚠️ DEPRECADO - Store in-memory con localStorage (ya no se usa)
@@ -131,13 +132,21 @@ LaCarolina/
 │       ├── proposal.js               # Tabla: proposals
 │       ├── calendar_date.js          # Tabla: calendar_dates
 │       ├── reservation.js            # Tabla: reservations
-│       ├── event.js                  # Tabla: events
+│       ├── event.js                  # Tabla: events (incluye precio_senia y adicionales JSONB)
+│       ├── payment.js                # Tabla: payments
 │       ├── task.js                   # Tabla: tasks
 │       └── lead_status_history.js    # Tabla: lead_status_history
+│
+├── __tests__/                        # Tests automáticos con Jest
+│   ├── __mocks__/models.js           # Mock compartido de todos los modelos Sequelize
+│   ├── field-sync.test.js            # 6 tests: getEventDataFromProposal (función pura)
+│   ├── proposals-automation.test.js  # 8 tests: automatizaciones del PUT /api/proposals/:id
+│   └── status-automation.test.js     # 8 tests: automatizaciones del PUT /api/leads/:id/status
 │
 ├── public/images/                    # Assets estáticos (logos, fotos salón)
 ├── .env                              # DATABASE_URL (no commitear, ver Setup)
 ├── .gitignore                        # node_modules, .next, .env*.local, .DS_Store, .claude
+├── jest.config.js                    # Config Jest: next/jest, testEnvironment: node, moduleNameMapper @/
 ├── package.json
 ├── pnpm-lock.yaml
 ├── next.config.mjs                   # serverExternalPackages: sequelize, pg, pg-hstore
@@ -339,6 +348,19 @@ Todos los componentes siguen este patrón:
 | adicionales                    | JSONB   | Array de {nombre, opciones, opcion_elegida} (ALTER TABLE, default '[]') |
 | created_at                     | DATE    | default: NOW           |
 
+### payments
+| Campo        | Tipo    | Restricción                              |
+|--------------|---------|------------------------------------------|
+| id           | UUID    | PK, auto                                 |
+| evento_id    | UUID    | FK → events, NOT NULL                    |
+| monto        | FLOAT   | NOT NULL                                 |
+| tipo         | STRING  | Seña / Parcial / Final / Devolución      |
+| metodo       | STRING  | Efectivo / Transferencia / Tarjeta / Otro|
+| fecha        | DATE    |                                          |
+| estado       | STRING  | Confirmado / Anulado                     |
+| observacion  | TEXT    | nullable                                 |
+| created_at   | DATE    | default: NOW                             |
+
 ### tasks
 | Campo               | Tipo    | Restricción |
 |---------------------|---------|-------------|
@@ -387,7 +409,8 @@ Proposal    ──┬── belongsTo ──→ Lead (lead_id)
 
 Event       ──┬── belongsTo ──→ Lead         (lead_id)
               ├── belongsTo ──→ CalendarDate  (calendar_date_id)
-              └── hasMany   ──→ Task          (evento_id)
+              ├── hasMany   ──→ Task          (evento_id)
+              └── hasMany   ──→ Payment       (evento_id)
 
 Task        ──┬── belongsTo ──→ Lead  (lead_id)
               ├── belongsTo ──→ Event (evento_id)
@@ -408,7 +431,8 @@ LeadStatusHistory ──┬── belongsTo ──→ Lead (lead_id)
 
 ### Alias importantes para includes en queries
 - Lead: `interactions`, `visits`, `proposals`, `status_history`, `reservation`, `event`
-- Event: `lead`, `calendar_date`, `tasks`
+- Event: `lead`, `calendar_date`, `tasks`, `payments`
+- Payment: `event`
 - Task: `lead`, `event`, `assigned_user`
 - Reservation: `lead`, `calendar_date`
 - Proposal: `lead`, `creator`
@@ -571,6 +595,15 @@ POST   /api/events                   → Body: { lead_id, fecha_confirmada, tipo
                                          minimo_tarjetas?, valor_tarjeta_adulto/adolescente/nino?, user_id? }
                                          Auto: CalendarDate → "Confirmada", Lead → "Cliente activo" + historial
 PUT    /api/events/:id               → Body: cualquier campo del modelo (acepta parcial)
+```
+
+### Payments
+```
+GET    /api/payments                 → Todos con includes: event. Order: created_at DESC. Filtro: ?evento_id=X
+POST   /api/payments                 → Body: { evento_id, monto, tipo, metodo, fecha?, observacion? }. Estado: "Confirmado".
+                                         Auto-recalcula estado_pago del evento (Pendiente/Parcial/Completo)
+PUT    /api/payments/:id             → Solo permite actualizar estado (Confirmado/Anulado) y observacion.
+                                         Auto-recalcula estado_pago del evento
 ```
 
 ### Tasks
@@ -764,6 +797,13 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
   - SQL: `ALTER TABLE events ADD COLUMN IF NOT EXISTS precio_senia FLOAT;`
   - SQL: `ALTER TABLE events ADD COLUMN IF NOT EXISTS adicionales JSONB DEFAULT '[]';`
 - [x] **Anti-double-submit en LeadForm** - `submitting` state + botón disabled durante creación/edición de lead
+- [x] **Suite de tests automáticos** (Jest 30) - 26 tests cubriendo automatizaciones críticas
+  - `lib/automations.js` - funciones puras extraídas para testear sin DB: `getEventDataFromProposal`, `PROPOSAL_TO_LEAD_STATE`
+  - `field-sync.test.js` - 6 tests: mapeo completo propuesta → event (financiero, servicios, adicionales, omisión de nulls)
+  - `proposals-automation.test.js` - 8 tests: Firmada→lead+event, no duplica Event/CalendarDate, sincroniza precio_senia/adicionales, Aprobada/Rechazada
+  - `status-automation.test.js` - 8 tests: Contrato firmado, Reserva tomada, Perdido, 404
+  - Mock compartido en `__tests__/__mocks__/models.js`
+  - Correr: `pnpm test` o `pnpm test:watch`
 
 ### Pendiente - Roadmap
 
@@ -922,7 +962,7 @@ estado_actual_id UUID FK → lead_states
 - [ ] Pasar `user_id` real al cambiar estado de lead (actualmente pasa `null`)
 - [ ] Migraciones de BD (actualmente usa `sequelize.sync({ alter: true })`)
 - [ ] Validaciones server-side con Zod en las API routes
-- [ ] Tests (unit + integration)
+- [x] Tests automáticos con Jest (26 tests — ver sección Testing en "Hecho")
 - [ ] Eliminar `lib/store.js` (ya no se usa, queda como referencia)
 
 ---
