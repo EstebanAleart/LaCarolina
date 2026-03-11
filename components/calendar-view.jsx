@@ -216,9 +216,26 @@ export default function CalendarView() {
         <button onClick={prevMonth} className="rounded-md p-1.5 text-foreground hover:bg-secondary transition-colors" aria-label="Mes anterior">
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <span className="text-sm font-bold text-card-foreground">
-          {MONTHS[currentMonth]} {currentYear}
-        </span>
+        <div className="flex items-center gap-2">
+          <select
+            value={currentMonth}
+            onChange={(e) => setCurrentMonth(Number(e.target.value))}
+            className="rounded-md border border-input bg-card px-2 py-1 text-sm font-semibold text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+          >
+            {MONTHS.map((m, i) => (
+              <option key={m} value={i}>{m}</option>
+            ))}
+          </select>
+          <select
+            value={currentYear}
+            onChange={(e) => setCurrentYear(Number(e.target.value))}
+            className="rounded-md border border-input bg-card px-2 py-1 text-sm font-semibold text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+          >
+            {Array.from({ length: 7 }, (_, i) => today.getFullYear() - 1 + i).map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
         <button onClick={nextMonth} className="rounded-md p-1.5 text-foreground hover:bg-secondary transition-colors" aria-label="Mes siguiente">
           <ChevronRight className="h-5 w-5" />
         </button>
