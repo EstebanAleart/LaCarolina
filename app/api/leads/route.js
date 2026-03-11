@@ -49,13 +49,14 @@ export async function POST(request) {
       anio_evento: body.anio_evento || new Date().getFullYear(),
       estado_actual: 'Lead nuevo',
       valor_estimado: body.valor_estimado || 0,
+      invitados_estimados: body.invitados_estimados || 0,
       notas: body.notas || '',
     });
 
-    // Sync: si se estableció fecha_visita_salon, crear CalendarDate como "Visita"
+    // Sync: si se estableció fecha_visita_salon, crear CalendarDate como "Visita" para este lead
     if (body.fecha_visita_salon) {
       const fechaVisita = body.fecha_visita_salon.toString().substring(0, 10);
-      const existingCalDate = await CalendarDate.findOne({ where: { fecha: fechaVisita } });
+      const existingCalDate = await CalendarDate.findOne({ where: { fecha: fechaVisita, lead_id: lead.id } });
       if (!existingCalDate) {
         await CalendarDate.create({
           fecha: fechaVisita,
@@ -64,10 +65,9 @@ export async function POST(request) {
           lead_id: lead.id,
           nota: `Visita al salón: ${lead.nombre}`,
         });
-      } else if (existingCalDate.estado_fecha === 'Disponible' || existingCalDate.estado_fecha === 'Visita') {
+      } else {
         await existingCalDate.update({
           estado_fecha: 'Visita',
-          lead_id: lead.id,
           nota: `Visita al salón: ${lead.nombre}`,
         });
       }

@@ -150,25 +150,17 @@ export async function POST(request) {
           }
         }
 
-        // Auto-crear propuesta si no existe + actualizar estado
-        const lastProposal = await Proposal.findOne({
-          where: { lead_id: lead.id },
-          order: [['created_at', 'DESC']],
-        });
-        if (lastProposal) {
-          if (lastProposal.estado !== 'Firmada') {
-            await lastProposal.update({
-              estado: 'Firmada',
-              fecha_envio: lastProposal.fecha_envio || new Date(),
-            });
-          }
-        } else {
+        // Auto-crear propuesta solo si no existe ninguna (estado inicial: Creada)
+        // El estado del contrato se gestiona exclusivamente desde la sección Contratos
+        const existingProposal = await Proposal.findOne({ where: { lead_id: lead.id } });
+        if (!existingProposal) {
           await Proposal.create({
             lead_id: lead.id,
             version: 1,
-            estado: 'Firmada',
+            estado: 'Creada',
             precio_total: lead.valor_estimado || 0,
-            fecha_envio: new Date(),
+            precio_senia: lead.valor_estimado || 0,
+            invitados_estimados: lead.invitados_estimados || 0,
           });
         }
       }
