@@ -242,7 +242,7 @@ export default function CalendarView() {
           date={selectedDate}
           existingEntries={calendarDates[selectedDate] || []}
           leads={leads}
-          tentativeLeads={tentativeMap[selectedDate] || []}
+          tentativeLeads={(tentativeMap[selectedDate] || []).filter(l => !(calendarDates[selectedDate] || []).some(e => e.lead_id === l.id))}
           onClose={() => { setShowForm(false); setSelectedDate(null) }}
           onSave={async () => { setShowForm(false); setSelectedDate(null); await loadData() }}
         />
