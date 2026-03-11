@@ -11,6 +11,7 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronUp,
+  CreditCard,
 } from "lucide-react"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
@@ -18,12 +19,17 @@ import { cn } from "@/lib/utils"
 const FLUJO = [
   { label: "Lead nuevo", color: "bg-slate-100 text-slate-700" },
   { label: "Contactado", color: "bg-sky-100 text-sky-700" },
-  { label: "Visita al salón", color: "bg-violet-100 text-violet-700" },
+  { label: "Esperando visita", color: "bg-cyan-100 text-cyan-700" },
+  { label: "Visita al salón realizada", color: "bg-violet-100 text-violet-700" },
+  { label: "Enviar propuesta", color: "bg-yellow-100 text-yellow-700" },
   { label: "Propuesta enviada", color: "bg-orange-100 text-orange-700" },
-  { label: "Reserva tomada", color: "bg-blue-100 text-blue-700" },
-  { label: "Contrato firmado", color: "bg-indigo-100 text-indigo-700" },
+  { label: "Propuesta Aceptada", color: "bg-lime-100 text-lime-700" },
+  { label: "Esperando Reserva", color: "bg-blue-100 text-blue-700" },
+  { label: "Reserva tomada", color: "bg-indigo-100 text-indigo-700" },
+  { label: "Contrato firmado", color: "bg-emerald-100 text-emerald-700" },
   { label: "Cliente activo", color: "bg-green-100 text-green-700" },
   { label: "Evento realizado", color: "bg-teal-100 text-teal-700" },
+  { label: "Post-evento / cerrado", color: "bg-gray-100 text-gray-700" },
   { label: "Perdido", color: "bg-red-100 text-red-700" },
 ]
 
@@ -39,9 +45,10 @@ const CALENDAR_COLORS = [
 const SECTIONS = [
   { id: "acceso", icon: Users, title: "Acceso al Sistema", content: AccesoSection },
   { id: "leads", icon: Users, title: "Leads (CRM)", content: LeadsSection },
-  { id: "propuestas", icon: FileText, title: "Propuestas", content: ProposalsSection },
+  { id: "contratos", icon: FileText, title: "Contratos", content: ContratosSection },
   { id: "calendario", icon: CalendarDays, title: "Calendario", content: CalendarSection },
   { id: "eventos", icon: Sparkles, title: "Eventos", content: EventsSection },
+  { id: "pagos", icon: CreditCard, title: "Pagos", content: PagosSection },
   { id: "tareas", icon: CheckSquare, title: "Tareas", content: TasksSection },
   { id: "dashboard", icon: LayoutDashboard, title: "Dashboard", content: DashboardSection },
   { id: "automatizaciones", icon: Sparkles, title: "Automatizaciones", content: AutoSection },
@@ -72,47 +79,60 @@ function LeadsSection() {
           <li>Ir a <span className="font-medium text-foreground">CRM Leads</span> en el menu lateral</li>
           <li>Click en <span className="font-medium text-foreground">&quot;Nuevo Lead&quot;</span></li>
           <li><span className="font-medium text-foreground">Contacto:</span> nombre (obligatorio), telefono, email, canal, tipo de cliente, tipo de evento</li>
-          <li><span className="font-medium text-foreground">Primera instancia:</span> fecha del evento, fecha visita al salon, valor estimado</li>
+          <li><span className="font-medium text-foreground">Primera instancia:</span> fecha del evento (tentativa), fecha visita al salon, valor estimado, cantidad de invitados</li>
           <li>El lead se crea con estado <span className="font-medium">&quot;Lead nuevo&quot;</span></li>
         </ol>
-        <p className="text-xs text-muted-foreground mt-2">Si se completa la <span className="font-medium text-foreground">fecha visita al salon</span>, automaticamente aparece como marcador naranja en el calendario.</p>
+        <p className="text-xs text-muted-foreground mt-2">Si se carga la <span className="font-medium text-foreground">fecha visita al salon</span>, el estado pasa a &quot;Esperando visita&quot; y aparece como marcador naranja en el calendario.</p>
       </div>
       <div>
         <h4 className="text-sm font-bold text-foreground mb-1">Gestionar el Lead</h4>
         <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4">
           <li><span className="font-medium text-foreground">Cambiar Estado:</span> Click en &quot;Cambiar Estado&quot;. Si es &quot;Perdido&quot; requiere motivo obligatorio</li>
           <li><span className="font-medium text-foreground">Segunda instancia (al editar):</span> fecha firma contrato, fecha limite pago (auto-calculada = fecha evento - 30 dias)</li>
-          <li><span className="font-medium text-foreground">Interacciones:</span> registrar canal (WhatsApp/Llamada/Email/Presencial) y direccion (→ Saliente / ← Entrante)</li>
-          <li><span className="font-medium text-foreground">Timeline:</span> historial completo (estados, interacciones con canal/direccion, propuestas, visitas)</li>
+          <li><span className="font-medium text-foreground">Interacciones:</span> registrar canal (WhatsApp/Llamada/Email/Presencial) y direccion (→ Saliente / ← Entrante). La primera interaccion saliente desde &quot;Lead nuevo&quot; cambia automaticamente a &quot;Contactado&quot;</li>
+          <li><span className="font-medium text-foreground">Timeline:</span> historial completo (estados, interacciones con canal/direccion, contratos, visitas)</li>
         </ul>
       </div>
     </div>
   )
 }
 
-function ProposalsSection() {
+function ContratosSection() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h4 className="text-sm font-bold text-foreground mb-1">Ciclo de la propuesta</h4>
+        <h4 className="text-sm font-bold text-foreground mb-1">Ciclo del contrato</h4>
         <div className="flex items-center gap-2 flex-wrap text-xs">
-          <span className="rounded-md bg-slate-100 text-slate-700 px-2 py-1 font-medium">Borrador</span>
+          <span className="rounded-md bg-slate-100 text-slate-700 px-2 py-1 font-medium">Creada</span>
           <ArrowRight className="h-3 w-3 text-muted-foreground" />
           <span className="rounded-md bg-blue-100 text-blue-700 px-2 py-1 font-medium">Enviada</span>
           <ArrowRight className="h-3 w-3 text-muted-foreground" />
-          <span className="rounded-md bg-green-100 text-green-700 px-2 py-1 font-medium">Aceptada</span>
+          <span className="rounded-md bg-green-100 text-green-700 px-2 py-1 font-medium">Aprobada</span>
+          <ArrowRight className="h-3 w-3 text-muted-foreground" />
+          <span className="rounded-md bg-emerald-100 text-emerald-800 px-2 py-1 font-medium">Firmada</span>
           <span className="text-muted-foreground">o</span>
           <span className="rounded-md bg-red-100 text-red-700 px-2 py-1 font-medium">Rechazada</span>
         </div>
+        <p className="text-xs text-muted-foreground mt-2">Solo el estado <span className="font-medium text-foreground">Firmada</span> sincroniza todos los datos del contrato al Evento (precio, invitados, servicios, adicionales). Los contratos firmados son <span className="font-medium text-foreground">inmutables</span> — no se pueden editar, solo imprimir.</p>
       </div>
       <div>
-        <h4 className="text-sm font-bold text-foreground mb-1">Automatizaciones de propuestas</h4>
+        <h4 className="text-sm font-bold text-foreground mb-1">Campos del contrato</h4>
         <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4">
-          <li>Lead → &quot;Propuesta enviada&quot; o &quot;Visita al salon realizada&quot; → crea propuesta &quot;Enviada&quot; si no existe</li>
-          <li>Lead → &quot;Reserva tomada&quot; o &quot;Contrato firmado&quot; → crea propuesta &quot;Aceptada&quot; o actualiza la ultima a Aceptada</li>
-          <li>Reservar/confirmar fecha desde calendario → propuesta pasa a &quot;Aceptada&quot;</li>
-          <li>Lead → &quot;Perdido&quot; → propuesta pasa a &quot;Rechazada&quot;</li>
-          <li>Editar valor estimado del lead → actualiza precio de la ultima propuesta</li>
+          <li><span className="font-medium text-foreground">Precio senia:</span> monto de reserva/adelanto</li>
+          <li><span className="font-medium text-foreground">Valor total del evento:</span> precio final acordado</li>
+          <li><span className="font-medium text-foreground">Modalidad de actualizacion de precios:</span> fija, por inflacion, etc.</li>
+          <li><span className="font-medium text-foreground">Servicios base:</span> Salon, Catering, etc. (checkboxes incluidos/no incluidos)</li>
+          <li><span className="font-medium text-foreground">Adicionales:</span> items con opciones y precio (Mesa dulce, Fotografia, DJ, etc.)</li>
+          <li><span className="font-medium text-foreground">Produccion:</span> menu seleccionado, minimo de tarjetas, valor por tipo (adulto/adolescente/nino)</li>
+        </ul>
+      </div>
+      <div>
+        <h4 className="text-sm font-bold text-foreground mb-1">Efectos al firmar</h4>
+        <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4">
+          <li>Lead pasa a <span className="font-medium text-foreground">&quot;Contrato firmado&quot;</span></li>
+          <li>Se crea o actualiza el Evento con todos los datos del contrato</li>
+          <li>Si hay fecha tentativa, la entrada del calendario pasa a <span className="font-medium text-foreground">&quot;Confirmada&quot;</span></li>
+          <li>Se registra automaticamente la fecha de firma</li>
         </ul>
       </div>
     </div>
@@ -137,6 +157,10 @@ function CalendarSection() {
         </div>
       </div>
       <div>
+        <h4 className="text-sm font-bold text-foreground mb-1">Multiples entradas por dia</h4>
+        <p className="text-xs text-muted-foreground">Un mismo dia puede tener varias entradas (por ejemplo, una visita y una reserva de leads distintos). Cada entrada tiene su propio boton Editar/Eliminar. Se puede agregar una nueva entrada con &quot;Agregar otra&quot;. Solo se permite una entrada Reservada o Confirmada por lead por dia.</p>
+      </div>
+      <div>
         <h4 className="text-sm font-bold text-foreground mb-1">Reservar una fecha</h4>
         <ol className="text-xs text-muted-foreground flex flex-col gap-1 list-decimal pl-4">
           <li>Click en el dia en el calendario</li>
@@ -144,20 +168,20 @@ function CalendarSection() {
           <li>Elegir estado <span className="font-medium text-foreground">&quot;Reservada&quot;</span></li>
           <li>Click <span className="font-medium text-foreground">&quot;Guardar&quot;</span></li>
         </ol>
-        <p className="text-xs text-muted-foreground mt-2">Al reservar: lead → &quot;Reserva tomada&quot;, se crea Reservation, propuesta → &quot;Aceptada&quot;, sync Google Calendar.</p>
+        <p className="text-xs text-muted-foreground mt-2">Al reservar: lead → &quot;Reserva tomada&quot;, se crea Reservation, sync Google Calendar.</p>
       </div>
       <div>
         <h4 className="text-sm font-bold text-foreground mb-1">Confirmar desde el calendario</h4>
-        <p className="text-xs text-muted-foreground">Cambiar fecha a &quot;Confirmada&quot; → lead → &quot;Cliente activo&quot;, se crea Event, aparece en Eventos, sync Google Calendar.</p>
+        <p className="text-xs text-muted-foreground">Cambiar fecha a &quot;Confirmada&quot; → lead → &quot;Contrato firmado&quot;, se crea Event, aparece en Eventos, sync Google Calendar.</p>
       </div>
       <div>
-        <h4 className="text-sm font-bold text-foreground mb-1">Visitas al salon</h4>
-        <p className="text-xs text-muted-foreground">Al guardar la <span className="font-medium text-foreground">fecha visita al salon</span> en el form del lead, aparece automaticamente como marcador naranja (&quot;Visita&quot;) en el calendario. No bloquea el dia para reservas.</p>
+        <h4 className="text-sm font-bold text-foreground mb-1">Navegacion</h4>
+        <p className="text-xs text-muted-foreground">El selector de año cubre desde <span className="font-medium text-foreground">10 anos atras</span> hasta 6 anos adelante, para poder cargar o consultar eventos historicos.</p>
       </div>
       <div>
         <h4 className="text-sm font-bold text-foreground mb-1">Google Calendar</h4>
         <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4">
-          <li>Fechas <span className="font-medium text-foreground">Reservadas</span> y <span className="font-medium text-foreground">Confirmadas</span> se sincronizan con Google Calendar</li>
+          <li>Fechas <span className="font-medium text-foreground">Reservadas</span> y <span className="font-medium text-foreground">Confirmadas</span> se sincronizan automaticamente</li>
           <li>Al liberar una fecha, se elimina de Google Calendar</li>
           <li>Colores en GCal: Reservada (azul), Confirmada (verde), Bloqueada (amarillo)</li>
         </ul>
@@ -169,7 +193,7 @@ function CalendarSection() {
 function EventsSection() {
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-xs text-muted-foreground">Los eventos se crean automaticamente al confirmar una fecha en el calendario O al firmar contrato desde el lead. Se muestran en la vista <span className="font-medium text-foreground">Eventos</span>.</p>
+      <p className="text-xs text-muted-foreground">Los eventos se crean automaticamente al <span className="font-medium text-foreground">firmar un contrato</span> o al <span className="font-medium text-foreground">confirmar una fecha en el calendario</span>. Se muestran en la vista Eventos.</p>
       <div>
         <h4 className="text-sm font-bold text-foreground mb-2">Estado operativo</h4>
         <div className="flex flex-wrap gap-2">
@@ -186,11 +210,49 @@ function EventsSection() {
       <div>
         <h4 className="text-sm font-bold text-foreground mb-1">Informacion del evento (expandido)</h4>
         <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4">
-          <li><span className="font-medium text-foreground">Finanzas:</span> valor total, estado de pago (Pendiente/Parcial/Completo), modalidad de precios, saldo pendiente calculado automaticamente</li>
-          <li><span className="font-medium text-foreground">Servicios:</span> checkboxes de servicios base (Salon, Catering) y adicionales (Mesa dulce, Fotografia, Video, DJ extra, etc.) — click para marcar/desmarcar y guarda al instante</li>
+          <li><span className="font-medium text-foreground">Finanzas:</span> valor total, precio senia, estado de pago (Pendiente/Parcial/Completo), modalidad de precios, saldo pendiente calculado en tiempo real</li>
+          <li><span className="font-medium text-foreground">Invitados:</span> cantidad copiada automaticamente desde el contrato al confirmar</li>
+          <li><span className="font-medium text-foreground">Servicios:</span> checkboxes de servicios base y adicionales — click para marcar/desmarcar, guarda al instante</li>
           <li><span className="font-medium text-foreground">Produccion:</span> menu seleccionado, minimo de tarjetas, valores por tarjeta adulto/adolescente/nino</li>
         </ul>
         <p className="text-xs text-muted-foreground mt-2">Todos los campos se guardan con <span className="font-medium text-foreground">blur</span> (al salir del campo) o con click en el caso de servicios y estado.</p>
+      </div>
+    </div>
+  )
+}
+
+function PagosSection() {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-muted-foreground">Cada evento tiene un historial de pagos inline. Permite registrar cobros parciales y lleva el control del saldo pendiente automaticamente.</p>
+      <div>
+        <h4 className="text-sm font-bold text-foreground mb-1">Registrar un pago</h4>
+        <ol className="text-xs text-muted-foreground flex flex-col gap-1 list-decimal pl-4">
+          <li>Abrir el detalle del evento (click en la fila)</li>
+          <li>En la seccion &quot;Pagos&quot;, click en <span className="font-medium text-foreground">&quot;Registrar Pago&quot;</span></li>
+          <li>Completar: monto, descripcion (opcional)</li>
+          <li>El saldo pendiente y el estado de pago se actualizan automaticamente</li>
+        </ol>
+      </div>
+      <div>
+        <h4 className="text-sm font-bold text-foreground mb-1">Estados de pago del evento</h4>
+        <div className="flex gap-2 flex-wrap">
+          {[
+            { label: "Pendiente", color: "bg-amber-100 text-amber-800" },
+            { label: "Parcial", color: "bg-blue-100 text-blue-800" },
+            { label: "Completo", color: "bg-green-100 text-green-800" },
+          ].map((s) => (
+            <span key={s.label} className={cn("rounded-md px-2.5 py-1 text-xs font-medium", s.color)}>{s.label}</span>
+          ))}
+        </div>
+      </div>
+      <div>
+        <h4 className="text-sm font-bold text-foreground mb-1">Reglas</h4>
+        <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4">
+          <li>Los pagos registrados son <span className="font-medium text-foreground">inmutables</span> — solo se puede cambiar el estado (Confirmado/Anulado) y la observacion</li>
+          <li>Anular un pago recalcula automaticamente el saldo pendiente y el estado del evento</li>
+          <li>El cobrado acumulado y el saldo pendiente se muestran en tiempo real en el detalle</li>
+        </ul>
       </div>
     </div>
   )
@@ -211,7 +273,13 @@ function TasksSection() {
         <h4 className="text-sm font-bold text-foreground mb-1">Cambiar estado</h4>
         <p className="text-xs text-muted-foreground">Click en el icono circular de la tarea para rotar: Pendiente → En Proceso → Hecho → Pendiente</p>
       </div>
-      <p className="text-xs text-muted-foreground">Cuando un lead pasa a &quot;Propuesta enviada&quot;, se crea automaticamente una tarea de seguimiento con prioridad Alta y vencimiento en 3 dias.</p>
+      <div>
+        <h4 className="text-sm font-bold text-foreground mb-1">Tareas automaticas</h4>
+        <ul className="text-xs text-muted-foreground flex flex-col gap-1 list-disc pl-4">
+          <li>Lead → &quot;Enviar propuesta&quot; → tarea de prioridad Alta con vencimiento en 1 dia</li>
+          <li>Lead → &quot;Propuesta enviada&quot; → tarea de seguimiento con prioridad Alta y vencimiento en 3 dias</li>
+        </ul>
+      </div>
     </div>
   )
 }
@@ -233,20 +301,23 @@ function DashboardSection() {
 
 function AutoSection() {
   const AUTOS = [
-    { accion: "Guardar fecha visita al salon en lead (crear o editar)", resultado: "CalendarDate → \"Visita\" (naranja) creada/actualizada automaticamente" },
-    { accion: "Cambiar fecha tentativa del lead", resultado: "Anio evento se auto-sincroniza con el año de la fecha" },
-    { accion: "Reservar fecha con lead en calendario", resultado: "Lead → \"Reserva tomada\" + crea Reservation + propuesta → \"Aceptada\" + sync Google Calendar" },
-    { accion: "Confirmar fecha con lead en calendario", resultado: "Lead → \"Cliente activo\" + crea Event + propuesta → \"Aceptada\" + sync Google Calendar" },
-    { accion: "Cambiar lead a \"Contrato firmado\"", resultado: "fecha_firma_contrato auto-set + crea Event (si hay fecha tentativa) + CalendarDate → \"Confirmada\"" },
-    { accion: "Cambiar lead a \"Propuesta enviada\"", resultado: "Crea tarea de seguimiento (Alta, 3 dias) + propuesta \"Enviada\" si no existe" },
-    { accion: "Cambiar lead a \"Visita al salon realizada\"", resultado: "Crea propuesta \"Enviada\" si no existe" },
-    { accion: "Cambiar lead a \"Reserva tomada\" / \"Contrato firmado\" / \"Cliente activo\"", resultado: "Ultima propuesta → \"Aceptada\"" },
-    { accion: "Cambiar lead a \"Perdido\"", resultado: "Ultima propuesta → \"Rechazada\"" },
-    { accion: "Editar valor estimado del lead", resultado: "precio_total de la ultima propuesta se actualiza automaticamente" },
+    { accion: "Primera interaccion saliente desde \"Lead nuevo\"", resultado: "Lead → \"Contactado\" automaticamente" },
+    { accion: "Guardar fecha visita al salon en lead", resultado: "Lead → \"Esperando visita\" + CalendarDate \"Visita\" (naranja) creada/actualizada" },
+    { accion: "Lead → \"Enviar propuesta\"", resultado: "Crea tarea Alta con vencimiento en 1 dia" },
+    { accion: "Lead → \"Propuesta enviada\"", resultado: "Crea tarea de seguimiento Alta con vencimiento en 3 dias" },
+    { accion: "Contrato → \"Enviada\"", resultado: "Lead → \"Propuesta enviada\"" },
+    { accion: "Contrato → \"Aprobada\"", resultado: "Lead → \"Propuesta Aceptada\"" },
+    { accion: "Contrato → \"Rechazada\"", resultado: "Lead → \"Propuesta Rechazada\"" },
+    { accion: "Contrato → \"Firmada\"", resultado: "Lead → \"Contrato firmado\" + sync todos los datos al Evento + CalendarDate → \"Confirmada\" (si hay fecha tentativa) + registra fecha de firma" },
+    { accion: "Reservar fecha con lead en calendario", resultado: "Lead → \"Reserva tomada\" + crea Reservation + sync Google Calendar" },
+    { accion: "Confirmar fecha con lead en calendario", resultado: "Lead → \"Contrato firmado\" + crea Event + sync Google Calendar" },
+    { accion: "Lead → \"Contrato firmado\" (manual)", resultado: "Crea Event si hay fecha tentativa + CalendarDate → \"Confirmada\"" },
+    { accion: "Editar valor estimado del lead", resultado: "precio_senia de la ultima propuesta se actualiza automaticamente" },
+    { accion: "Editar invitados estimados del lead", resultado: "Se copia al Evento al confirmarlo" },
     { accion: "Guardar fecha tentativa del lead", resultado: "fecha_limite_pago_total = fecha_tentativa - 30 dias (auto-calculada)" },
-    { accion: "Enviar propuesta (Borrador → Enviada)", resultado: "Se registra fecha de envio automaticamente" },
-    { accion: "Eliminar un lead", resultado: "Cascade: interacciones, propuestas, tareas, eventos, fechas calendario + Google Calendar" },
-    { accion: "Liberar fecha del calendario", resultado: "Confirmacion con toast + elimina de Google Calendar si estaba sincronizada + libera reservas del lead" },
+    { accion: "Anular un pago", resultado: "Recalcula saldo pendiente y estado de pago del evento (Pendiente/Parcial/Completo)" },
+    { accion: "Liberar fecha del calendario", resultado: "Elimina de Google Calendar si estaba sincronizada + libera reservas del lead" },
+    { accion: "Eliminar un lead", resultado: "Cascade: interacciones, contratos, tareas, eventos, fechas calendario + Google Calendar" },
   ]
 
   return (

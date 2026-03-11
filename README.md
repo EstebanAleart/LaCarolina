@@ -141,7 +141,8 @@ LaCarolina/
 │   ├── __mocks__/models.js           # Mock compartido de todos los modelos Sequelize
 │   ├── field-sync.test.js            # 6 tests: getEventDataFromProposal (función pura)
 │   ├── proposals-automation.test.js  # 8 tests: automatizaciones del PUT /api/proposals/:id
-│   └── status-automation.test.js     # 8 tests: automatizaciones del PUT /api/leads/:id/status
+│   ├── status-automation.test.js     # 8 tests: automatizaciones del PUT /api/leads/:id/status
+│   └── e2e-full-flow.test.js         # 57 tests: flujo completo lead→contrato→evento→pagos
 │
 ├── public/images/                    # Assets estáticos (logos, fotos salón)
 ├── .env                              # DATABASE_URL (no commitear, ver Setup)
@@ -304,7 +305,7 @@ Todos los componentes siguen este patrón:
 | Campo           | Tipo   | Restricción       |
 |-----------------|--------|-------------------|
 | id              | UUID   | PK, auto          |
-| fecha           | DATE   | NOT NULL, UNIQUE   |
+| fecha           | DATE   | NOT NULL (UNIQUE eliminado — múltiples entradas por día) |
 | estado_fecha    | STRING | Disponible / Bloqueada / Reservada / Confirmada / Visita |
 | fuente          | STRING |                    |
 | lead_id         | UUID   | FK → leads (nullable) |
@@ -797,11 +798,12 @@ Al cargar la app, `page.jsx` hace `fetch('/api/seed', { method: 'POST' })`:
   - SQL: `ALTER TABLE events ADD COLUMN IF NOT EXISTS precio_senia FLOAT;`
   - SQL: `ALTER TABLE events ADD COLUMN IF NOT EXISTS adicionales JSONB DEFAULT '[]';`
 - [x] **Anti-double-submit en LeadForm** - `submitting` state + botón disabled durante creación/edición de lead
-- [x] **Suite de tests automáticos** (Jest 30) - 26 tests cubriendo automatizaciones críticas
+- [x] **Suite de tests automáticos** (Jest) - 79 tests cubriendo automatizaciones críticas y flujo e2e
   - `lib/automations.js` - funciones puras extraídas para testear sin DB: `getEventDataFromProposal`, `PROPOSAL_TO_LEAD_STATE`
   - `field-sync.test.js` - 6 tests: mapeo completo propuesta → event (financiero, servicios, adicionales, omisión de nulls)
   - `proposals-automation.test.js` - 8 tests: Firmada→lead+event, no duplica Event/CalendarDate, sincroniza precio_senia/adicionales, Aprobada/Rechazada
   - `status-automation.test.js` - 8 tests: Contrato firmado, Reserva tomada, Perdido, 404
+  - `e2e-full-flow.test.js` - 57 tests: flujo completo lead→interacción→propuesta→firmada→evento→pagos→anulación
   - Mock compartido en `__tests__/__mocks__/models.js`
   - Correr: `pnpm test` o `pnpm test:watch`
 
@@ -945,7 +947,7 @@ estado_actual_id UUID FK → lead_states
 - [x] **Servicios contratados — UI modular**: multiselect con Base (Salón/Catering) + Adicionales (Mesa dulce, Fotografía, etc.) con toggle en detalle de evento.
 - [x] **Módulo de Pagos**: tabla `payments` + modelo + asociaciones + `GET/POST /api/payments` + `PUT /api/payments/:id` + UI inline en detalle de evento. Auto-recalcula `estado_pago` del evento.
 - [ ] **Propuestas — Cargar documento adjunto**: además del campo de texto `contenido`, agregar subida de archivo (PDF/Word). Requiere Supabase Storage: crear bucket `proposals`, subir archivo, guardar URL en campo `documento_url` de la tabla `proposals`.
-- [x] **Calendario — Múltiples entradas por día**: un día puede tener N entradas (visitas, bloqueos, etc.). UI muestra lista con Editar/Eliminar por entrada + "Agregar otra". Regla de negocio mantenida: solo un lead puede tener Reservada/Confirmada por día. DB: se eliminó la constraint UNIQUE en `calendar_dates.fecha`.
+- [x] **Calendario — Múltiples entradas por día**: un día puede tener N entradas (visitas, bloqueos, etc.). UI muestra lista con Editar/Eliminar por entrada + "Agregar otra". Regla de negocio mantenida: solo un lead puede tener Reservada/Confirmada por día. DB: se eliminó la constraint UNIQUE en `calendar_dates.fecha`. Selector de año: cubre desde 10 años atrás hasta 6 adelante para cargar eventos históricos.
 - [ ] **Tareas — Mejoras completas al módulo**: actualmente solo permite crear y ciclar estado. Falta:
   - Editar tarea (título, descripción, prioridad, fecha límite, lead asociado, usuario asignado)
   - Mover entre columnas Kanban (drag & drop o botones ← →)

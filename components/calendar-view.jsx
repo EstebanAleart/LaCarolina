@@ -231,7 +231,7 @@ export default function CalendarView() {
             onChange={(e) => setCurrentYear(Number(e.target.value))}
             className="rounded-md border border-input bg-card px-2 py-1 text-sm font-semibold text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
           >
-            {Array.from({ length: 7 }, (_, i) => today.getFullYear() - 1 + i).map((y) => (
+            {Array.from({ length: 17 }, (_, i) => today.getFullYear() - 10 + i).map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
