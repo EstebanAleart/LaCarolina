@@ -123,60 +123,19 @@ export async function PUT(request, { params }) {
     }
 
     // Auto-crear propuesta si no existe para estados avanzados del pipeline
+    // El estado del contrato se gestiona exclusivamente desde la sección Contratos
     const PROPOSAL_STATES = ['Enviar propuesta', 'Propuesta enviada', 'Visita al salón realizada', 'Reserva tomada', 'Contrato firmado'];
     if (PROPOSAL_STATES.includes(estado)) {
       const existingProposal = await Proposal.findOne({ where: { lead_id: id } });
       if (!existingProposal) {
-        const estadoMap = {
-          'Propuesta enviada': 'Enviada',
-          'Visita al salón realizada': 'Enviada',
-          'Reserva tomada': 'Aprobada',
-          'Contrato firmado': 'Firmada',
-        };
         await Proposal.create({
           lead_id: id,
           version: 1,
-          estado: estadoMap[estado] || 'Creada',
+          estado: 'Creada',
           precio_total: lead.valor_estimado || 0,
-          fecha_envio: new Date(),
+          precio_senia: lead.valor_estimado || 0,
+          invitados_estimados: lead.invitados_estimados || 0,
         });
-      }
-    }
-
-    // Auto-actualizar última propuesta según nuevo estado del lead
-    if (estado === 'Reserva tomada') {
-      const lastProposal = await Proposal.findOne({
-        where: { lead_id: id },
-        order: [['created_at', 'DESC']],
-      });
-      if (lastProposal && lastProposal.estado !== 'Aprobada' && lastProposal.estado !== 'Firmada') {
-        await lastProposal.update({
-          estado: 'Aprobada',
-          fecha_envio: lastProposal.fecha_envio || new Date(),
-        });
-      }
-    }
-
-    if (estado === 'Contrato firmado' || estado === 'Cliente activo') {
-      const lastProposal = await Proposal.findOne({
-        where: { lead_id: id },
-        order: [['created_at', 'DESC']],
-      });
-      if (lastProposal && lastProposal.estado !== 'Firmada') {
-        await lastProposal.update({
-          estado: 'Firmada',
-          fecha_envio: lastProposal.fecha_envio || new Date(),
-        });
-      }
-    }
-
-    if (estado === 'Perdido') {
-      const lastProposal = await Proposal.findOne({
-        where: { lead_id: id },
-        order: [['created_at', 'DESC']],
-      });
-      if (lastProposal && lastProposal.estado !== 'Rechazada' && lastProposal.estado !== 'Firmada') {
-        await lastProposal.update({ estado: 'Rechazada' });
       }
     }
 
