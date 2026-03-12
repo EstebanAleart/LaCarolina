@@ -12,3 +12,4 @@ node_modules/
 .env*.local
 .DS_Store
 .claude/
+supabase_dump.sql
