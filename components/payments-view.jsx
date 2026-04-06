@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
-import { CreditCard, Plus, CheckCircle, XCircle, ChevronDown, ChevronUp, DollarSign, Clock, TrendingUp } from "lucide-react"
+import { CreditCard, Plus, CheckCircle, XCircle, ChevronDown, ChevronUp, DollarSign, Clock, TrendingUp, Search } from "lucide-react"
 import {
   fetchPayments,
   fetchEvents,
@@ -10,6 +10,7 @@ import {
   apiUpdatePayment,
   TIPOS_PAGO,
   METODOS_PAGO,
+  CONCEPTOS_PAGO,
 } from "@/lib/api"
 
 const ESTADO_COLORS = {
@@ -50,12 +51,16 @@ export default function PaymentsView() {
   const [showForm, setShowForm] = useState(false)
   const [filterEstado, setFilterEstado] = useState("")
   const [filterTipo, setFilterTipo] = useState("")
+  const [filterConcepto, setFilterConcepto] = useState("")
+  const [searchNombre, setSearchNombre] = useState("")
+  const [filterFecha, setFilterFecha] = useState("")
 
   const [form, setForm] = useState({
     event_id: "",
     monto: "",
     tipo: "seña",
     metodo_pago: "efectivo",
+    concepto: "Salon",
     fecha_pago: new Date().toISOString().substring(0, 10),
     estado: "pendiente",
     observacion: "",
@@ -79,12 +84,19 @@ export default function PaymentsView() {
   }, [])
 
   const filtered = useMemo(() => {
+    const q = searchNombre.toLowerCase().trim()
     return payments.filter((p) => {
       if (filterEstado && p.estado !== filterEstado) return false
       if (filterTipo && p.tipo !== filterTipo) return false
+      if (filterConcepto && (p.concepto || "") !== filterConcepto) return false
+      if (q) {
+        const nombre = (p.event?.lead?.nombre || p.lead?.nombre || "").toLowerCase()
+        if (!nombre.includes(q)) return false
+      }
+      if (filterFecha && p.fecha_pago?.substring(0, 10) !== filterFecha) return false
       return true
     })
-  }, [payments, filterEstado, filterTipo])
+  }, [payments, filterEstado, filterTipo, filterConcepto, searchNombre, filterFecha])
 
   // Stats globales
   const stats = useMemo(() => {
@@ -108,7 +120,8 @@ export default function PaymentsView() {
   async function handleCreate(e) {
     e.preventDefault()
     if (!form.event_id) { toast.error("Seleccioná un evento"); return }
-    if (!form.monto || Number(form.monto) <= 0) { toast.error("El monto debe ser mayor a 0"); return }
+    const montoRaw = parseInt(String(form.monto).replace(/\./g, "").replace(/[^\d]/g, ""), 10)
+    if (!montoRaw || montoRaw <= 0) { toast.error("El monto debe ser mayor a 0"); return }
 
     // Obtener lead_id del evento seleccionado
     const evt = events.find((ev) => ev.id === form.event_id)
@@ -118,9 +131,10 @@ export default function PaymentsView() {
       await apiCreatePayment({
         event_id: form.event_id,
         lead_id,
-        monto: Number(form.monto),
+        monto: montoRaw,
         tipo: form.tipo,
         metodo_pago: form.metodo_pago,
+        concepto: form.concepto || null,
         fecha_pago: form.fecha_pago,
         estado: form.estado,
         observacion: form.observacion || null,
@@ -132,6 +146,7 @@ export default function PaymentsView() {
         monto: "",
         tipo: "seña",
         metodo_pago: "efectivo",
+        concepto: "Salon",
         fecha_pago: new Date().toISOString().substring(0, 10),
         estado: "pendiente",
         observacion: "",
@@ -226,6 +241,23 @@ export default function PaymentsView() {
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-3">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchNombre}
+            onChange={(e) => setSearchNombre(e.target.value)}
+            placeholder="Buscar persona..."
+            className="rounded-md border border-border bg-card pl-8 pr-3 py-1.5 text-sm text-foreground w-48"
+          />
+        </div>
+        <input
+          type="date"
+          value={filterFecha}
+          onChange={(e) => setFilterFecha(e.target.value)}
+          className="rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground"
+          title="Filtrar por fecha de pago"
+        />
         <select
           value={filterEstado}
           onChange={(e) => setFilterEstado(e.target.value)}
@@ -246,9 +278,19 @@ export default function PaymentsView() {
             <option key={t} value={t}>{TIPO_LABELS[t] || t}</option>
           ))}
         </select>
-        {(filterEstado || filterTipo) && (
+        <select
+          value={filterConcepto}
+          onChange={(e) => setFilterConcepto(e.target.value)}
+          className="rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground"
+        >
+          <option value="">Todos los conceptos</option>
+          {CONCEPTOS_PAGO.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        {(filterEstado || filterTipo || filterConcepto || searchNombre || filterFecha) && (
           <button
-            onClick={() => { setFilterEstado(""); setFilterTipo("") }}
+            onClick={() => { setFilterEstado(""); setFilterTipo(""); setFilterConcepto(""); setSearchNombre(""); setFilterFecha("") }}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             Limpiar filtros
@@ -265,10 +307,11 @@ export default function PaymentsView() {
         <div className="rounded-lg border border-border bg-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
+              <thead >
                 <tr className="border-b border-border bg-secondary/30">
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Evento / Lead</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Tipo</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Concepto</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Monto</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Método</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Fecha</th>
@@ -296,6 +339,7 @@ export default function PaymentsView() {
                           {TIPO_LABELS[p.tipo] || p.tipo}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-muted-foreground text-sm">{p.concepto || "—"}</td>
                       <td className="px-4 py-3 font-semibold text-foreground">{fmt(p.monto)}</td>
                       <td className="px-4 py-3 text-muted-foreground capitalize">{p.metodo_pago || "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{fmtFecha(p.fecha_pago)}</td>
@@ -375,11 +419,14 @@ export default function PaymentsView() {
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Monto *</label>
                   <input
-                    type="number"
-                    min="1"
-                    step="any"
+                    type="text"
+                    inputMode="numeric"
                     value={form.monto}
-                    onChange={(e) => setForm((f) => ({ ...f, monto: e.target.value }))}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\./g, "").replace(/[^\d]/g, "")
+                      const num = digits !== "" ? parseInt(digits, 10) : ""
+                      setForm((f) => ({ ...f, monto: digits !== "" ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : "" }))
+                    }}
                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
                     placeholder="0"
                     required
@@ -396,7 +443,7 @@ export default function PaymentsView() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Tipo</label>
                   <select
@@ -406,6 +453,18 @@ export default function PaymentsView() {
                   >
                     {TIPOS_PAGO.map((t) => (
                       <option key={t} value={t}>{TIPO_LABELS[t] || t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Concepto</label>
+                  <select
+                    value={form.concepto}
+                    onChange={(e) => setForm((f) => ({ ...f, concepto: e.target.value }))}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                  >
+                    {CONCEPTOS_PAGO.map((c) => (
+                      <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
                 </div>

@@ -28,6 +28,7 @@ import {
   fetchLeadById,
   fetchUsers,
   apiCreateInteraction,
+  fetchCalendarDates,
   LEAD_STATES,
   CANALES,
   TIPOS_EVENTO,
@@ -52,7 +53,7 @@ const STATE_COLORS = {
   "Perdido":                   "bg-red-100 text-red-800",
 }
 
-function LeadForm({ onSubmit, onCancel, initial }) {
+function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
   const [form, setForm] = useState(() => {
     if (initial) {
       return {
@@ -87,13 +88,36 @@ function LeadForm({ onSubmit, onCancel, initial }) {
   const [valorDisplay, setValorDisplay] = useState(() =>
     initial?.valor_estimado ? Number(initial.valor_estimado).toLocaleString("es-AR", { maximumFractionDigits: 0 }) : ""
   )
+  const [invitadosDisplay, setInvitadosDisplay] = useState(() =>
+    initial?.invitados_estimados ? Number(initial.invitados_estimados).toLocaleString("es-AR", { maximumFractionDigits: 0 }) : ""
+  )
   const [submitting, setSubmitting] = useState(false)
+  const [fechaOcupadaWarning, setFechaOcupadaWarning] = useState("")
 
   function handleChange(e) {
     const { name, value } = e.target
-    if (name === "fecha_tentativa" && value) {
-      const year = new Date(value + "T12:00:00").getFullYear()
-      setForm((prev) => ({ ...prev, fecha_tentativa: value, anio_evento: year }))
+    if (name === "fecha_tentativa") {
+      if (value) {
+        const year = new Date(value + "T12:00:00").getFullYear()
+        setForm((prev) => ({ ...prev, fecha_tentativa: value, anio_evento: year }))
+        // Validar contra el calendario: buscar Reservada/Confirmada de otro lead
+        const conflict = calendarDates.find((d) => {
+          const fechaCal = d.fecha ? d.fecha.toString().substring(0, 10) : ""
+          if (fechaCal !== value) return false
+          if (d.estado_fecha !== "Reservada" && d.estado_fecha !== "Confirmada") return false
+          // Si el lead actual ya tiene esa entrada, no es conflicto
+          if (initial?.id && d.lead_id === initial.id) return false
+          return true
+        })
+        if (conflict) {
+          setFechaOcupadaWarning(`Esta fecha ya está ${conflict.estado_fecha.toLowerCase()} por otro evento. El salon no esta disponible.`)
+        } else {
+          setFechaOcupadaWarning("")
+        }
+      } else {
+        setForm((prev) => ({ ...prev, fecha_tentativa: "" }))
+        setFechaOcupadaWarning("")
+      }
       return
     }
     setForm((prev) => ({ ...prev, [name]: name === "anio_evento" ? Number(value) : value }))
@@ -123,7 +147,7 @@ function LeadForm({ onSubmit, onCancel, initial }) {
         fecha_firma_contrato: form.fecha_firma_contrato || null,
         anio_evento:         Number(form.anio_evento),
         valor_estimado:      typeof form.valor_estimado === 'number' ? form.valor_estimado : Number(String(form.valor_estimado).replace(/\D/g, '')) || 0,
-        invitados_estimados: form.invitados_estimados === '' ? null : Number(form.invitados_estimados),
+        invitados_estimados: form.invitados_estimados === '' ? null : parseInt(String(form.invitados_estimados).replace(/\./g, ""), 10) || null,
         notas:               form.notas,
       })
     } finally { setSubmitting(false) }
@@ -178,7 +202,12 @@ function LeadForm({ onSubmit, onCancel, initial }) {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <label className={labelCls}>Fecha del evento</label>
-            <input name="fecha_tentativa" type="date" value={form.fecha_tentativa} onChange={handleChange} className={inputCls} />
+            <input name="fecha_tentativa" type="date" value={form.fecha_tentativa} onChange={handleChange} className={cn(inputCls, fechaOcupadaWarning && "border-red-500 focus:ring-red-500")} />
+            {fechaOcupadaWarning && (
+              <p className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700 font-medium">
+                ⚠ {fechaOcupadaWarning}
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-1.5">
             <label className={labelCls}>Año evento</label>
@@ -202,12 +231,15 @@ function LeadForm({ onSubmit, onCancel, initial }) {
           <div className="flex flex-col gap-1.5">
             <label className={labelCls}>Cantidad de invitados</label>
             <input
-              name="invitados_estimados"
-              type="number"
+              type="text"
               inputMode="numeric"
-              min="0"
-              value={form.invitados_estimados}
-              onChange={(e) => setForm((prev) => ({ ...prev, invitados_estimados: e.target.value === "" ? "" : Number(e.target.value) }))}
+              value={invitadosDisplay}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\./g, "").replace(/[^\d]/g, "")
+                const num = digits !== "" ? parseInt(digits, 10) : ""
+                setInvitadosDisplay(digits !== "" ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : "")
+                setForm((prev) => ({ ...prev, invitados_estimados: num }))
+              }}
               className={inputCls}
               placeholder="Ej: 150"
             />
@@ -621,6 +653,7 @@ export default function LeadsView() {
   const [detailLead, setDetailLead] = useState(null)
   const [viewMode, setViewMode] = useState("table")
   const [expandedLeadIds, setExpandedLeadIds] = useState(new Set())
+  const [calendarDates, setCalendarDates] = useState([])
 
   function toggleExpand(id) {
     setExpandedLeadIds(prev => {
@@ -633,8 +666,9 @@ export default function LeadsView() {
 
   async function loadLeads() {
     try {
-      const data = await fetchLeads()
+      const [data, calDates] = await Promise.all([fetchLeads(), fetchCalendarDates()])
       setLeads(data)
+      setCalendarDates(calDates)
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
   }
@@ -772,6 +806,7 @@ export default function LeadsView() {
               initial={editLead || undefined}
               onSubmit={editLead ? handleUpdate : handleCreate}
               onCancel={() => { setShowForm(false); setEditLead(null) }}
+              calendarDates={calendarDates}
             />
           </div>
         </div>
