@@ -304,21 +304,6 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setError("")
-    // Pre-validación: Reservada/Confirmada no puede coexistir con otro lead en el mismo día
-    if (!editingEntry && (estado === "Reservada" || estado === "Confirmada")) {
-      const conflict = existingEntries.find(
-        (entry) =>
-          (entry.estado_fecha === "Reservada" || entry.estado_fecha === "Confirmada") &&
-          (!leadId || entry.lead_id !== Number(leadId))
-      )
-      if (conflict) {
-        const msg = `Esta fecha ya está ${conflict.estado_fecha.toLowerCase()} para otro evento. No se puede reservar ni confirmar.`
-        setError(msg)
-        toast.error(msg)
-        return
-      }
-    }
     setSubmitting(true)
     try {
       await apiSetCalendarDate({
@@ -333,7 +318,7 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
       onSave()
     } catch (err) {
       setError(err.message)
-      toast.error(err.message)
+      toast.error("Error al guardar fecha")
     } finally {
       setSubmitting(false)
     }
@@ -456,19 +441,17 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
         {/* Formulario nueva entrada / editar */}
         {formOpen && (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {existingEntries.length > 0 && !editingEntry && (
+            {existingEntries.length > 0 && (
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Nueva entrada
+                {editingEntry ? 'Editando entrada' : 'Nueva entrada'}
               </p>
             )}
-            {!editingEntry && (
-              <div className="flex flex-col gap-1.5">
-                <label className={labelCls}>Estado de la Fecha</label>
-                <select value={estado} onChange={(e) => setEstado(e.target.value)} className={inputCls}>
-                  {CALENDAR_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            )}
+            <div className="flex flex-col gap-1.5">
+              <label className={labelCls}>Estado de la Fecha</label>
+              <select value={estado} onChange={(e) => setEstado(e.target.value)} className={inputCls}>
+                {CALENDAR_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
             <div className="flex flex-col gap-1.5">
               <label className={labelCls}>Lead Asociado (opcional)</label>
               <select value={leadId} onChange={(e) => setLeadId(e.target.value)} className={inputCls}>

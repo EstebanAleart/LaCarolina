@@ -175,40 +175,6 @@ Los contratos en estado **Creada**, **Enviada** o **Aprobada** tienen un boton *
 
 Los contratos en estado **Firmada** son inmutables: no tienen boton Editar. Solo muestran el boton **Imprimir**.
 
-### Imprimir / Ver contrato imprimible
-
-El boton **Imprimir** (disponible en todos los estados) abre el **contrato imprimible**, que replica el formato legal fisico del contrato de Tonucos Catering / Carolina Eventos.
-
-**Datos precargados automaticamente desde el contrato:**
-- Nombre del cliente (del lead asociado)
-- Fecha del evento (fecha tentativa del lead)
-- Tipo de evento
-- Valor total del evento
-- Monto de seña
-- Valores de tarjeta por categoria (adulto, adolescente, niño)
-- Minimo de tarjetas
-- Adicionales contratados (con opcion elegida y precio)
-
-**Modo edicion:**
-- Al abrir, el contrato esta en **modo edicion** (campos editables resaltados con borde inferior).
-- Se pueden completar campos adicionales antes de imprimir: DNI del cliente, domicilio, fecha del contrato, detalles del menu (recepcion, plato principal, postre, trasnoche, desayuno, bebidas), datos de barra, valor vigente hasta fecha, seleccion de menu (Menu 1 / Menu 2), ajuste CAC (Mensual / Bimestral / Trimestral), notas y adicionales.
-- Hacer click en **"✓ Listo"** para pasar a modo solo lectura (vista final antes de imprimir).
-- Hacer click en **"Editar"** para volver al modo edicion.
-
-**Imprimir / Exportar PDF:**
-- Click en **"Imprimir / PDF"** para abrir el dialogo de impresion del navegador.
-- Se recomienda seleccionar "Guardar como PDF" para generar el archivo.
-- La barra de herramientas se oculta automaticamente al imprimir.
-- El documento se formatea en tamaño A4 con los margenes correctos.
-
-**Estructura del contrato imprimible:**
-- Encabezado con datos de contacto de Carolina Eventos
-- Clausulas 1-6 con los terminos legales
-- Clausula 7 - Anexo 1: seleccion de menu, detalles de cada curso, valores de tarjeta, ajuste CAC
-- Minimo de tarjetas (80 adultos por defecto)
-- Seccion de firmas: LA CLIENTA y CATERING-SALON
-- Espacio para notas finales
-
 ### Ver detalle del contrato
 
 El boton **Ver** (ojo) abre un modal con todos los campos: financiero, produccion, servicios base, adicionales con sus opciones (resaltando la elegida) y notas.
@@ -235,14 +201,8 @@ Un mismo dia puede tener varias entradas (por ejemplo, tres visitas distintas). 
 
 - Puede haber multiples entradas (Visita, Bloqueada, etc.) en el mismo dia
 - No pueden existir dos leads DISTINTOS con estado Reservada o Confirmada en el mismo dia (un solo evento por fecha)
-- Si intentas guardar una fecha como Reservada o Confirmada y ya existe otra reserva/confirmacion en ese dia, el sistema **bloquea la operacion** y muestra un error
 - Al cargar fecha de visita en el lead, se crea automaticamente un registro de Visita en el calendario para ese lead
 - Al confirmar un evento, se crea automaticamente el evento en el modulo Eventos
-
-### Validacion de fechas ocupadas
-
-- En el **Calendario**: al intentar reservar o confirmar una fecha ya ocupada, el modal muestra un error en rojo y no permite guardar
-- En **Leads**: al seleccionar una fecha de evento que ya esta Reservada o Confirmada, el campo se marca en rojo con una advertencia. Se puede igualmente guardar el lead con esa fecha tentativa, pero el salon ya no esta disponible
 
 ### Gestionar entradas de un dia
 
@@ -354,8 +314,8 @@ Todos los cambios de estado automaticos quedan registrados en el historial del l
 | Vista | Filtros |
 |---|---|
 | Leads | Buscar nombre/email/telefono, filtrar por año, estado, canal |
-| Contratos | Buscar por nombre del lead, filtrar por dia de evento (fecha tentativa del lead), filtrar por estado (Creada, Enviada, Aprobada, Rechazada, Firmada) |
-| Eventos | Buscar por nombre del lead, filtrar por dia de evento (fecha exacta), filtrar por estado operativo |
+| Contratos | Filtrar por estado (Creada, Enviada, Aprobada, Rechazada, Firmada) |
+| Eventos | Filtrar por estado operativo |
 | Tareas | Filtrar por estado y usuario asignado |
 
 ---

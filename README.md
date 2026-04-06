@@ -36,37 +36,6 @@ Pensado para salones de eventos que necesitan trazabilidad completa: desde el pr
 
 ---
 
-## Inicio Rápido
-
-### Desarrollo con Supabase (producción)
-```bash
-pnpm install
-pnpm run dev
-```
-Se conecta a BD remota, útil para testing con datos reales.
-
-### Desarrollo Local
-```bash
-pnpm install
-node run-schema.js        # Crear BD local
-pnpm run dev:local        # Ejecutar con BD local
-```
-BD PostgreSQL completamente aislada, ideal para desarrollo sin afectar producción.
-
-**Para configuración detallada, ver [DEVELOPMENT.md](./DEVELOPMENT.md)**
-
----
-
-## 📚 Documentación
-
-| Documento | Propósito |
-|-----------|-----------|
-| [GUIA_USUARIO.md](./GUIA_USUARIO.md) | Manual de usuario final (CRM, leads, propuestas, etc.) |
-| [DEVELOPMENT.md](./DEVELOPMENT.md) | Guía de desarrollo local (setup, scripts, BD) |
-| [README.md](./README.md) | Este archivo - info técnica del proyecto |
-
----
-
 ## ⚠️ Advertencia Importante: Next.js 16, pnpm y node_modules
 
 Este proyecto utiliza **pnpm** con la opción `node-linker=hoisted` (ver archivo `.npmrc`). Esto es necesario para que Next.js y Turbopack puedan resolver correctamente los módulos nativos y dependencias en entornos como Vercel.

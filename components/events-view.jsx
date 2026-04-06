@@ -13,7 +13,6 @@ import {
   Plus,
   CheckCircle,
   XCircle,
-  Search,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -65,25 +64,10 @@ function fmtMonto(n) {
   return `$${Number(n).toLocaleString("es-AR")}`
 }
 
-// Formatea número para mostrar en input (puntos de miles)
-function toDisplayNum(v) {
-  if (v === "" || v === null || v === undefined) return ""
-  const n = typeof v === "number" ? v : parseInt(String(v).replace(/\./g, ""), 10)
-  if (isNaN(n)) return ""
-  return n.toLocaleString("es-AR", { maximumFractionDigits: 0 })
-}
-// Convierte string con puntos a número entero
-function parseNum(str) {
-  const n = parseInt(String(str).replace(/\./g, "").replace(/[^\d]/g, ""), 10)
-  return isNaN(n) ? null : n
-}
-
 export default function EventsView() {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [filterEstado, setFilterEstado] = useState("")
-  const [searchNombre, setSearchNombre] = useState("")
-  const [filterFecha, setFilterFecha] = useState("")
   const [expandedId, setExpandedId] = useState(null)
   const [eventPaymentsMap, setEventPaymentsMap] = useState({}) // { eventId: Payment[] }
   const [showPaymentForm, setShowPaymentForm] = useState(null) // eventId or null
@@ -107,19 +91,9 @@ export default function EventsView() {
   useEffect(() => { loadData() }, [])
 
   const filtered = useMemo(() => {
-    return events.filter((e) => {
-      if (filterEstado && e.estado_operativo !== filterEstado) return false
-      if (searchNombre) {
-        const nombre = e.lead?.nombre?.toLowerCase() || ""
-        if (!nombre.includes(searchNombre.toLowerCase())) return false
-      }
-      if (filterFecha) {
-        const fechaEvento = e.fecha_confirmada ? e.fecha_confirmada.toString().substring(0, 10) : null
-        if (fechaEvento !== filterFecha) return false
-      }
-      return true
-    })
-  }, [events, filterEstado, searchNombre, filterFecha])
+    if (!filterEstado) return events
+    return events.filter((e) => e.estado_operativo === filterEstado)
+  }, [events, filterEstado])
 
   async function handleUpdateEstado(id, nuevoEstado) {
     try {
@@ -156,13 +130,12 @@ export default function EventsView() {
   }
 
   async function handleCreatePayment(evt) {
-    const montoRaw = parseInt(String(payForm.monto).replace(/\./g, "").replace(/[^\d]/g, ""), 10)
-    if (!montoRaw || montoRaw <= 0) { toast.error("Monto inválido"); return }
+    if (!payForm.monto || Number(payForm.monto) <= 0) { toast.error("Monto inválido"); return }
     try {
       await apiCreatePayment({
         event_id: evt.id,
         lead_id: evt.lead_id || evt.lead?.id || null,
-        monto: montoRaw,
+        monto: Number(payForm.monto),
         tipo: payForm.tipo,
         metodo_pago: payForm.metodo_pago,
         fecha_pago: payForm.fecha_pago,
@@ -215,25 +188,8 @@ export default function EventsView() {
         </div>
       </div>
 
-      {/* Filtros */}
+      {/* Filtro */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-          <input
-            type="text"
-            value={searchNombre}
-            onChange={(e) => setSearchNombre(e.target.value)}
-            placeholder="Buscar por nombre..."
-            className="rounded-md border border-input bg-card pl-8 pr-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
-        <input
-          type="date"
-          value={filterFecha}
-          onChange={(e) => setFilterFecha(e.target.value)}
-          title="Filtrar por día de evento"
-          className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        />
         <select
           value={filterEstado}
           onChange={(e) => setFilterEstado(e.target.value)}
@@ -242,14 +198,6 @@ export default function EventsView() {
           <option value="">Todos los estados</option>
           {ESTADO_OPERATIVO_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        {(searchNombre || filterFecha || filterEstado) && (
-          <button
-            onClick={() => { setSearchNombre(""); setFilterFecha(""); setFilterEstado("") }}
-            className="text-xs text-muted-foreground hover:text-foreground underline"
-          >
-            Limpiar filtros
-          </button>
-        )}
       </div>
 
       {/* Empty */}
@@ -361,11 +309,10 @@ export default function EventsView() {
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs font-medium text-foreground">Invitados Estimados</label>
                       <input
-                        type="text"
-                        inputMode="numeric"
-                        defaultValue={toDisplayNum(evt.invitados_estimados || 0)}
+                        type="number"
+                        defaultValue={evt.invitados_estimados || 0}
                         onBlur={(e) => {
-                          const val = parseNum(e.target.value)
+                          const val = Number(e.target.value)
                           if (val !== evt.invitados_estimados) handleUpdateField(evt.id, "invitados_estimados", val)
                         }}
                         className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
@@ -382,11 +329,10 @@ export default function EventsView() {
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-foreground">Valor total evento ($)</label>
                         <input
-                          type="text"
-                          inputMode="numeric"
-                          defaultValue={toDisplayNum(evt.valor_total_evento)}
+                          type="number"
+                          defaultValue={evt.valor_total_evento || ""}
                           onBlur={(e) => {
-                            const val = e.target.value ? parseNum(e.target.value) : null
+                            const val = e.target.value ? Number(e.target.value) : null
                             if (val !== evt.valor_total_evento) handleUpdateField(evt.id, "valor_total_evento", val)
                           }}
                           placeholder="0"
@@ -493,11 +439,10 @@ export default function EventsView() {
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-foreground">Mínimo de tarjetas</label>
                         <input
-                          type="text"
-                          inputMode="numeric"
-                          defaultValue={toDisplayNum(evt.minimo_tarjetas)}
+                          type="number"
+                          defaultValue={evt.minimo_tarjetas || ""}
                           onBlur={(e) => {
-                            const val = e.target.value ? parseNum(e.target.value) : null
+                            const val = e.target.value ? Number(e.target.value) : null
                             if (val !== evt.minimo_tarjetas) handleUpdateField(evt.id, "minimo_tarjetas", val)
                           }}
                           placeholder="0"
@@ -507,11 +452,10 @@ export default function EventsView() {
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-foreground">Valor tarjeta adulto ($)</label>
                         <input
-                          type="text"
-                          inputMode="numeric"
-                          defaultValue={toDisplayNum(evt.valor_tarjeta_adulto)}
+                          type="number"
+                          defaultValue={evt.valor_tarjeta_adulto || ""}
                           onBlur={(e) => {
-                            const val = e.target.value ? parseNum(e.target.value) : null
+                            const val = e.target.value ? Number(e.target.value) : null
                             if (val !== evt.valor_tarjeta_adulto) handleUpdateField(evt.id, "valor_tarjeta_adulto", val)
                           }}
                           placeholder="0"
@@ -521,11 +465,10 @@ export default function EventsView() {
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-foreground">Valor tarjeta adolescente ($)</label>
                         <input
-                          type="text"
-                          inputMode="numeric"
-                          defaultValue={toDisplayNum(evt.valor_tarjeta_adolescente)}
+                          type="number"
+                          defaultValue={evt.valor_tarjeta_adolescente || ""}
                           onBlur={(e) => {
-                            const val = e.target.value ? parseNum(e.target.value) : null
+                            const val = e.target.value ? Number(e.target.value) : null
                             if (val !== evt.valor_tarjeta_adolescente) handleUpdateField(evt.id, "valor_tarjeta_adolescente", val)
                           }}
                           placeholder="0"
@@ -535,11 +478,10 @@ export default function EventsView() {
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-foreground">Valor tarjeta niño ($)</label>
                         <input
-                          type="text"
-                          inputMode="numeric"
-                          defaultValue={toDisplayNum(evt.valor_tarjeta_nino)}
+                          type="number"
+                          defaultValue={evt.valor_tarjeta_nino || ""}
                           onBlur={(e) => {
-                            const val = e.target.value ? parseNum(e.target.value) : null
+                            const val = e.target.value ? Number(e.target.value) : null
                             if (val !== evt.valor_tarjeta_nino) handleUpdateField(evt.id, "valor_tarjeta_nino", val)
                           }}
                           placeholder="0"
@@ -591,14 +533,10 @@ export default function EventsView() {
                               <div>
                                 <label className="text-[10px] font-medium text-muted-foreground">Monto *</label>
                                 <input
-                                  type="text"
-                                  inputMode="numeric"
+                                  type="number"
+                                  min="1"
                                   value={payForm.monto}
-                                  onChange={(e) => {
-                                    const digits = e.target.value.replace(/\./g, "").replace(/[^\d]/g, "")
-                                    const num = digits !== "" ? parseInt(digits, 10) : ""
-                                    setPayForm((f) => ({ ...f, monto: digits !== "" ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : "" }))
-                                  }}
+                                  onChange={(e) => setPayForm((f) => ({ ...f, monto: e.target.value }))}
                                   placeholder="0"
                                   className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground"
                                 />
