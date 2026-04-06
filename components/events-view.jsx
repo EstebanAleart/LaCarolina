@@ -65,6 +65,19 @@ function fmtMonto(n) {
   return `$${Number(n).toLocaleString("es-AR")}`
 }
 
+// Formatea número para mostrar en input (puntos de miles)
+function toDisplayNum(v) {
+  if (v === "" || v === null || v === undefined) return ""
+  const n = typeof v === "number" ? v : parseInt(String(v).replace(/\./g, ""), 10)
+  if (isNaN(n)) return ""
+  return n.toLocaleString("es-AR", { maximumFractionDigits: 0 })
+}
+// Convierte string con puntos a número entero
+function parseNum(str) {
+  const n = parseInt(String(str).replace(/\./g, "").replace(/[^\d]/g, ""), 10)
+  return isNaN(n) ? null : n
+}
+
 export default function EventsView() {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -143,12 +156,13 @@ export default function EventsView() {
   }
 
   async function handleCreatePayment(evt) {
-    if (!payForm.monto || Number(payForm.monto) <= 0) { toast.error("Monto inválido"); return }
+    const montoRaw = parseInt(String(payForm.monto).replace(/\./g, "").replace(/[^\d]/g, ""), 10)
+    if (!montoRaw || montoRaw <= 0) { toast.error("Monto inválido"); return }
     try {
       await apiCreatePayment({
         event_id: evt.id,
         lead_id: evt.lead_id || evt.lead?.id || null,
-        monto: Number(payForm.monto),
+        monto: montoRaw,
         tipo: payForm.tipo,
         metodo_pago: payForm.metodo_pago,
         fecha_pago: payForm.fecha_pago,
@@ -347,10 +361,11 @@ export default function EventsView() {
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs font-medium text-foreground">Invitados Estimados</label>
                       <input
-                        type="number"
-                        defaultValue={evt.invitados_estimados || 0}
+                        type="text"
+                        inputMode="numeric"
+                        defaultValue={toDisplayNum(evt.invitados_estimados || 0)}
                         onBlur={(e) => {
-                          const val = Number(e.target.value)
+                          const val = parseNum(e.target.value)
                           if (val !== evt.invitados_estimados) handleUpdateField(evt.id, "invitados_estimados", val)
                         }}
                         className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
@@ -367,10 +382,11 @@ export default function EventsView() {
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-foreground">Valor total evento ($)</label>
                         <input
-                          type="number"
-                          defaultValue={evt.valor_total_evento || ""}
+                          type="text"
+                          inputMode="numeric"
+                          defaultValue={toDisplayNum(evt.valor_total_evento)}
                           onBlur={(e) => {
-                            const val = e.target.value ? Number(e.target.value) : null
+                            const val = e.target.value ? parseNum(e.target.value) : null
                             if (val !== evt.valor_total_evento) handleUpdateField(evt.id, "valor_total_evento", val)
                           }}
                           placeholder="0"
@@ -477,10 +493,11 @@ export default function EventsView() {
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-foreground">Mínimo de tarjetas</label>
                         <input
-                          type="number"
-                          defaultValue={evt.minimo_tarjetas || ""}
+                          type="text"
+                          inputMode="numeric"
+                          defaultValue={toDisplayNum(evt.minimo_tarjetas)}
                           onBlur={(e) => {
-                            const val = e.target.value ? Number(e.target.value) : null
+                            const val = e.target.value ? parseNum(e.target.value) : null
                             if (val !== evt.minimo_tarjetas) handleUpdateField(evt.id, "minimo_tarjetas", val)
                           }}
                           placeholder="0"
@@ -490,10 +507,11 @@ export default function EventsView() {
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-foreground">Valor tarjeta adulto ($)</label>
                         <input
-                          type="number"
-                          defaultValue={evt.valor_tarjeta_adulto || ""}
+                          type="text"
+                          inputMode="numeric"
+                          defaultValue={toDisplayNum(evt.valor_tarjeta_adulto)}
                           onBlur={(e) => {
-                            const val = e.target.value ? Number(e.target.value) : null
+                            const val = e.target.value ? parseNum(e.target.value) : null
                             if (val !== evt.valor_tarjeta_adulto) handleUpdateField(evt.id, "valor_tarjeta_adulto", val)
                           }}
                           placeholder="0"
@@ -503,10 +521,11 @@ export default function EventsView() {
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-foreground">Valor tarjeta adolescente ($)</label>
                         <input
-                          type="number"
-                          defaultValue={evt.valor_tarjeta_adolescente || ""}
+                          type="text"
+                          inputMode="numeric"
+                          defaultValue={toDisplayNum(evt.valor_tarjeta_adolescente)}
                           onBlur={(e) => {
-                            const val = e.target.value ? Number(e.target.value) : null
+                            const val = e.target.value ? parseNum(e.target.value) : null
                             if (val !== evt.valor_tarjeta_adolescente) handleUpdateField(evt.id, "valor_tarjeta_adolescente", val)
                           }}
                           placeholder="0"
@@ -516,10 +535,11 @@ export default function EventsView() {
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-foreground">Valor tarjeta niño ($)</label>
                         <input
-                          type="number"
-                          defaultValue={evt.valor_tarjeta_nino || ""}
+                          type="text"
+                          inputMode="numeric"
+                          defaultValue={toDisplayNum(evt.valor_tarjeta_nino)}
                           onBlur={(e) => {
-                            const val = e.target.value ? Number(e.target.value) : null
+                            const val = e.target.value ? parseNum(e.target.value) : null
                             if (val !== evt.valor_tarjeta_nino) handleUpdateField(evt.id, "valor_tarjeta_nino", val)
                           }}
                           placeholder="0"
@@ -571,10 +591,14 @@ export default function EventsView() {
                               <div>
                                 <label className="text-[10px] font-medium text-muted-foreground">Monto *</label>
                                 <input
-                                  type="number"
-                                  min="1"
+                                  type="text"
+                                  inputMode="numeric"
                                   value={payForm.monto}
-                                  onChange={(e) => setPayForm((f) => ({ ...f, monto: e.target.value }))}
+                                  onChange={(e) => {
+                                    const digits = e.target.value.replace(/\./g, "").replace(/[^\d]/g, "")
+                                    const num = digits !== "" ? parseInt(digits, 10) : ""
+                                    setPayForm((f) => ({ ...f, monto: digits !== "" ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : "" }))
+                                  }}
                                   placeholder="0"
                                   className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground"
                                 />

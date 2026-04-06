@@ -88,6 +88,9 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
   const [valorDisplay, setValorDisplay] = useState(() =>
     initial?.valor_estimado ? Number(initial.valor_estimado).toLocaleString("es-AR", { maximumFractionDigits: 0 }) : ""
   )
+  const [invitadosDisplay, setInvitadosDisplay] = useState(() =>
+    initial?.invitados_estimados ? Number(initial.invitados_estimados).toLocaleString("es-AR", { maximumFractionDigits: 0 }) : ""
+  )
   const [submitting, setSubmitting] = useState(false)
   const [fechaOcupadaWarning, setFechaOcupadaWarning] = useState("")
 
@@ -144,7 +147,7 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
         fecha_firma_contrato: form.fecha_firma_contrato || null,
         anio_evento:         Number(form.anio_evento),
         valor_estimado:      typeof form.valor_estimado === 'number' ? form.valor_estimado : Number(String(form.valor_estimado).replace(/\D/g, '')) || 0,
-        invitados_estimados: form.invitados_estimados === '' ? null : Number(form.invitados_estimados),
+        invitados_estimados: form.invitados_estimados === '' ? null : parseInt(String(form.invitados_estimados).replace(/\./g, ""), 10) || null,
         notas:               form.notas,
       })
     } finally { setSubmitting(false) }
@@ -228,12 +231,15 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
           <div className="flex flex-col gap-1.5">
             <label className={labelCls}>Cantidad de invitados</label>
             <input
-              name="invitados_estimados"
-              type="number"
+              type="text"
               inputMode="numeric"
-              min="0"
-              value={form.invitados_estimados}
-              onChange={(e) => setForm((prev) => ({ ...prev, invitados_estimados: e.target.value === "" ? "" : Number(e.target.value) }))}
+              value={invitadosDisplay}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\./g, "").replace(/[^\d]/g, "")
+                const num = digits !== "" ? parseInt(digits, 10) : ""
+                setInvitadosDisplay(digits !== "" ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : "")
+                setForm((prev) => ({ ...prev, invitados_estimados: num }))
+              }}
               className={inputCls}
               placeholder="Ej: 150"
             />

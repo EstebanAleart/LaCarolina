@@ -36,6 +36,18 @@ function ensureArray(value) {
   return []
 }
 
+// Formatea número con puntos de miles (es-AR) para mostrar en inputs
+function toDisplayNum(v) {
+  if (v === "" || v === null || v === undefined) return ""
+  const n = typeof v === "number" ? v : parseInt(String(v).replace(/\./g, ""), 10)
+  if (isNaN(n)) return ""
+  return n.toLocaleString("es-AR", { maximumFractionDigits: 0 })
+}
+// Extrae dígitos crudos de un string formateado (quita puntos de miles)
+function fromDisplayNum(str) {
+  return String(str).replace(/\./g, "").replace(/[^\d]/g, "")
+}
+
 // ─── Vista principal ───────────────────────────────────────────────────────────
 
 export default function ProposalsView() {
@@ -470,20 +482,43 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
   })
 
   const [adicionales, setAdicionales] = useState(
-    ensureArray(initial?.adicionales)
+    ensureArray(initial?.adicionales).map(a => ({
+      ...a,
+      opciones: ensureArray(a.opciones).map(o => ({ ...o, precioDisplay: toDisplayNum(o.precio) }))
+    }))
   )
   const [submitting, setSubmitting] = useState(false)
+
+  // Estado de display (con puntos) separado del estado numérico crudo del form
+  const [displays, setDisplays] = useState({
+    precio_senia:              toDisplayNum(initial?.precio_senia),
+    valor_total_evento:        toDisplayNum(initial?.valor_total_evento),
+    invitados_estimados:       toDisplayNum(initial?.invitados_estimados ?? defaultLead?.invitados_estimados),
+    minimo_tarjetas:           toDisplayNum(initial?.minimo_tarjetas),
+    valor_tarjeta_adulto:      toDisplayNum(initial?.valor_tarjeta_adulto),
+    valor_tarjeta_adolescente: toDisplayNum(initial?.valor_tarjeta_adolescente),
+    valor_tarjeta_nino:        toDisplayNum(initial?.valor_tarjeta_nino),
+  })
+
+  function handleNumericChange(name, rawStr) {
+    const digits = fromDisplayNum(rawStr)
+    const num = digits !== "" ? parseInt(digits, 10) : ""
+    setDisplays(d => ({ ...d, [name]: digits !== "" ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : "" }))
+    setForm(f => ({ ...f, [name]: num }))
+  }
 
   function handleChange(e) {
     const { name, value } = e.target
     if (name === "lead_id" && !isEdit) {
       const lead = leads.find(l => String(l.id) === String(value))
+      const newInvitados = lead?.invitados_estimados ?? ""
       setForm(f => ({
         ...f,
         lead_id: value,
         tipo_evento: lead?.tipo_evento || f.tipo_evento,
-        invitados_estimados: lead?.invitados_estimados ?? f.invitados_estimados,
+        invitados_estimados: newInvitados,
       }))
+      setDisplays(d => ({ ...d, invitados_estimados: toDisplayNum(newInvitados) }))
       return
     }
     setForm(f => ({ ...f, [name]: value }))
@@ -500,7 +535,7 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
 
   // ── helpers adicionales ──
   function addAdicional() {
-    setAdicionales(prev => [...prev, { nombre: "", opciones: [{ descripcion: "", precio: "" }], opcion_elegida: null }])
+    setAdicionales(prev => [...prev, { nombre: "", opciones: [{ descripcion: "", precio: "", precioDisplay: "" }], opcion_elegida: null }])
   }
   function removeAdicional(i) {
     setAdicionales(prev => prev.filter((_, idx) => idx !== i))
@@ -510,7 +545,16 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
   }
   function addOpcion(i) {
     setAdicionales(prev => prev.map((a, idx) => idx === i
-      ? { ...a, opciones: [...a.opciones, { descripcion: "", precio: "" }] }
+      ? { ...a, opciones: [...a.opciones, { descripcion: "", precio: "", precioDisplay: "" }] }
+      : a
+    ))
+  }
+  function updateOpcionPrecio(ai, oi, rawStr) {
+    const digits = fromDisplayNum(rawStr)
+    const num = digits !== "" ? parseInt(digits, 10) : ""
+    const display = digits !== "" ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : ""
+    setAdicionales(prev => prev.map((a, idx) => idx === ai
+      ? { ...a, opciones: a.opciones.map((o, idx2) => idx2 === oi ? { ...o, precio: num, precioDisplay: display } : o) }
       : a
     ))
   }
@@ -538,7 +582,11 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
     if (!form.lead_id) { toast.warning("Seleccioná un lead"); return }
     setSubmitting(true)
     try {
-      const toNum = v => (v !== "" && v !== null && v !== undefined) ? Number(v) : null
+      const toNum = v => {
+        if (v === "" || v === null || v === undefined) return null
+        const n = Number(String(v).replace(/\./g, ""))
+        return isNaN(n) ? null : n
+      }
       const payload = {
         ...form,
         precio_senia:            toNum(form.precio_senia),
@@ -550,7 +598,10 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
         valor_tarjeta_nino:      toNum(form.valor_tarjeta_nino),
         adicionales: adicionales.map(a => ({
           ...a,
-          opciones: a.opciones.map(o => ({ ...o, precio: o.precio !== "" ? Number(o.precio) : 0 })),
+          opciones: a.opciones.map(o => {
+            const { precioDisplay, ...rest } = o
+            return { ...rest, precio: o.precio !== "" ? Number(String(o.precio).replace(/\./g, "")) : 0 }
+          }),
         })),
       }
       await onSubmit(payload)
@@ -608,7 +659,7 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Cantidad de Invitados Estimados</label>
-                <input type="number" name="invitados_estimados" value={form.invitados_estimados} onChange={handleChange} className={inputCls} placeholder="0" min="0" />
+                <input type="text" inputMode="numeric" value={displays.invitados_estimados} onChange={e => handleNumericChange("invitados_estimados", e.target.value)} className={inputCls} placeholder="0" />
               </div>
             </div>
           </section>
@@ -619,11 +670,11 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Precio de Seña ($)</label>
-                <input type="number" name="precio_senia" value={form.precio_senia} onChange={handleChange} className={inputCls} placeholder="0" min="0" />
+                <input type="text" inputMode="numeric" value={displays.precio_senia} onChange={e => handleNumericChange("precio_senia", e.target.value)} className={inputCls} placeholder="0" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Valor Total del Evento ($)</label>
-                <input type="number" name="valor_total_evento" value={form.valor_total_evento} onChange={handleChange} className={inputCls} placeholder="0" min="0" />
+                <input type="text" inputMode="numeric" value={displays.valor_total_evento} onChange={e => handleNumericChange("valor_total_evento", e.target.value)} className={inputCls} placeholder="0" />
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label className={labelCls}>Modalidad de Actualización de Precios</label>
@@ -720,11 +771,11 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
                           className="rounded-md border border-input bg-card px-2.5 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring flex-1"
                         />
                         <input
-                          type="number"
-                          value={op.precio}
-                          onChange={e => updateOpcion(ai, oi, "precio", e.target.value)}
+                          type="text"
+                          inputMode="numeric"
+                          value={op.precioDisplay ?? ""}
+                          onChange={e => updateOpcionPrecio(ai, oi, e.target.value)}
                           placeholder="$"
-                          min="0"
                           className="rounded-md border border-input bg-card px-2.5 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring w-28"
                         />
                         {a.opciones.length > 1 && (
@@ -761,19 +812,19 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Mínimo de Tarjetas</label>
-                <input type="number" name="minimo_tarjetas" value={form.minimo_tarjetas} onChange={handleChange} className={inputCls} placeholder="0" min="0" />
+                <input type="text" inputMode="numeric" value={displays.minimo_tarjetas} onChange={e => handleNumericChange("minimo_tarjetas", e.target.value)} className={inputCls} placeholder="0" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Valor Tarjeta Adulto ($)</label>
-                <input type="number" name="valor_tarjeta_adulto" value={form.valor_tarjeta_adulto} onChange={handleChange} className={inputCls} placeholder="0" min="0" />
+                <input type="text" inputMode="numeric" value={displays.valor_tarjeta_adulto} onChange={e => handleNumericChange("valor_tarjeta_adulto", e.target.value)} className={inputCls} placeholder="0" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Valor Tarjeta Adolescente ($)</label>
-                <input type="number" name="valor_tarjeta_adolescente" value={form.valor_tarjeta_adolescente} onChange={handleChange} className={inputCls} placeholder="0" min="0" />
+                <input type="text" inputMode="numeric" value={displays.valor_tarjeta_adolescente} onChange={e => handleNumericChange("valor_tarjeta_adolescente", e.target.value)} className={inputCls} placeholder="0" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Valor Tarjeta Niño ($)</label>
-                <input type="number" name="valor_tarjeta_nino" value={form.valor_tarjeta_nino} onChange={handleChange} className={inputCls} placeholder="0" min="0" />
+                <input type="text" inputMode="numeric" value={displays.valor_tarjeta_nino} onChange={e => handleNumericChange("valor_tarjeta_nino", e.target.value)} className={inputCls} placeholder="0" />
               </div>
             </div>
           </section>

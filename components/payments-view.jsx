@@ -108,7 +108,8 @@ export default function PaymentsView() {
   async function handleCreate(e) {
     e.preventDefault()
     if (!form.event_id) { toast.error("Seleccioná un evento"); return }
-    if (!form.monto || Number(form.monto) <= 0) { toast.error("El monto debe ser mayor a 0"); return }
+    const montoRaw = parseInt(String(form.monto).replace(/\./g, "").replace(/[^\d]/g, ""), 10)
+    if (!montoRaw || montoRaw <= 0) { toast.error("El monto debe ser mayor a 0"); return }
 
     // Obtener lead_id del evento seleccionado
     const evt = events.find((ev) => ev.id === form.event_id)
@@ -118,7 +119,7 @@ export default function PaymentsView() {
       await apiCreatePayment({
         event_id: form.event_id,
         lead_id,
-        monto: Number(form.monto),
+        monto: montoRaw,
         tipo: form.tipo,
         metodo_pago: form.metodo_pago,
         fecha_pago: form.fecha_pago,
@@ -375,11 +376,14 @@ export default function PaymentsView() {
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Monto *</label>
                   <input
-                    type="number"
-                    min="1"
-                    step="any"
+                    type="text"
+                    inputMode="numeric"
                     value={form.monto}
-                    onChange={(e) => setForm((f) => ({ ...f, monto: e.target.value }))}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\./g, "").replace(/[^\d]/g, "")
+                      const num = digits !== "" ? parseInt(digits, 10) : ""
+                      setForm((f) => ({ ...f, monto: digits !== "" ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : "" }))
+                    }}
                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
                     placeholder="0"
                     required
