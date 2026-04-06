@@ -1,29 +1,54 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import {
-  Plus,
-  X,
-  Send,
-  Check,
-  XCircle,
-  FileText,
-} from "lucide-react"
+import { Plus, X, Send, Check, XCircle, FileText, Eye, Pencil, Trash2, Printer, PenLine, Search } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
   fetchAllProposals,
   fetchLeads,
   apiCreateProposal,
   apiUpdateProposal,
+  TIPOS_EVENTO,
+  SERVICIOS_BASE,
+  SERVICIOS_ADICIONALES,
 } from "@/lib/api"
 import { PrintableContract } from "./printable-contract"
 
 const STATUS_STYLES = {
-  Borrador: "bg-secondary text-secondary-foreground",
-  Enviada: "bg-blue-100 text-blue-800",
-  Aceptada: "bg-green-100 text-green-800",
-  Rechazada: "bg-red-100 text-red-800",
+  Creada:   "bg-secondary text-secondary-foreground",
+  Enviada:  "bg-blue-100 text-blue-800",
+  Aprobada: "bg-amber-100 text-amber-800",
+  Rechazada:"bg-red-100 text-red-800",
+  Firmada:  "bg-green-100 text-green-800",
 }
+
+const labelCls = "text-xs font-medium text-foreground"
+const inputCls = "rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring w-full"
+
+// ─── Utility: Safe JSON field converter ────────────────────────────────────────
+function ensureArray(value) {
+  if (!value) return []
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string') {
+    try { return JSON.parse(value) } catch { return [] }
+  }
+  return []
+}
+
+// Formatea número con puntos de miles (es-AR) para mostrar en inputs
+function toDisplayNum(v) {
+  if (v === "" || v === null || v === undefined) return ""
+  const n = typeof v === "number" ? v : parseInt(String(v).replace(/\./g, ""), 10)
+  if (isNaN(n)) return ""
+  return n.toLocaleString("es-AR", { maximumFractionDigits: 0 })
+}
+// Extrae dígitos crudos de un string formateado (quita puntos de miles)
+function fromDisplayNum(str) {
+  return String(str).replace(/\./g, "").replace(/[^\d]/g, "")
+}
+
+// ─── Vista principal ───────────────────────────────────────────────────────────
 
 export default function ProposalsView() {
   const [proposals, setProposals] = useState([])
@@ -32,13 +57,28 @@ export default function ProposalsView() {
   const [showForm, setShowForm] = useState(false)
   const [editingProposal, setEditingProposal] = useState(null)
   const [filterStatus, setFilterStatus] = useState("")
+  const [searchNombre, setSearchNombre] = useState("")
+  const [filterFecha, setFilterFecha] = useState("")
+  const [viewingProposal, setViewingProposal] = useState(null)
+  const [printingProposal, setPrintingProposal] = useState(null)
+  const [submittingId, setSubmittingId] = useState(null)
+  const [confirmingFirmId, setConfirmingFirmId] = useState(null)
 
-  const filteredProposals = useMemo(() => {
+   const filteredProposals = useMemo(() => {
     let result = proposals
-    if (filterStatus) result = result.filter((p) => p.estado === filterStatus)
+    if (filterStatus) result = result.filter(p => p.estado === filterStatus)
+    if (searchNombre) {
+      const q = searchNombre.toLowerCase()
+      result = result.filter(p => (p.lead?.nombre || "").toLowerCase().includes(q))
+    }
+    if (filterFecha) {
+      result = result.filter(p => {
+        const fecha = p.lead?.fecha_tentativa ? p.lead.fecha_tentativa.toString().substring(0, 10) : null
+        return fecha === filterFecha
+      })
+    }
     return result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   }, [proposals, filterStatus, searchNombre, filterFecha])
-
 
   async function loadData() {
     try {
@@ -51,6 +91,7 @@ export default function ProposalsView() {
 
   useEffect(() => { loadData() }, [])
 
+ 
 
   async function handleCreate(data) {
     try {
@@ -71,10 +112,34 @@ export default function ProposalsView() {
   }
 
   async function handleStatusUpdate(id, newStatus) {
+    // Si es FIRMA, pedir confirmación primero
+    if (newStatus === "Firmada") {
+      setConfirmingFirmId(id)
+      return
+    }
+    
+    if (submittingId) return
+    setSubmittingId(id)
     try {
       await apiUpdateProposal(id, { estado: newStatus })
       await loadData()
-    } catch (err) { console.error(err) }
+      toast.success(`Contrato marcado como ${newStatus}`)
+    } catch (err) { console.error(err); toast.error("Error al actualizar estado") }
+    finally { setSubmittingId(null) }
+  }
+  
+  async function confirmFirm() {
+    if (!confirmingFirmId || submittingId) return
+    setSubmittingId(confirmingFirmId)
+    try {
+      await apiUpdateProposal(confirmingFirmId, { estado: "Firmada" })
+      await loadData()
+      toast.success("✅ Contrato firmado. Ya no será editable.")
+    } catch (err) { console.error(err); toast.error("Error al firmar contrato") }
+    finally { 
+      setSubmittingId(null)
+      setConfirmingFirmId(null)
+    }
   }
 
   if (loading) {
@@ -100,8 +165,25 @@ export default function ProposalsView() {
         </button>
       </div>
 
-      {/* Filter */}
-      <div className="flex items-center gap-2">
+      {/* Filtros */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={searchNombre}
+            onChange={(e) => setSearchNombre(e.target.value)}
+            placeholder="Buscar por nombre..."
+            className="rounded-md border border-input bg-card pl-8 pr-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <input
+          type="date"
+          value={filterFecha}
+          onChange={(e) => setFilterFecha(e.target.value)}
+          title="Filtrar por día de evento"
+          className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        />
         <select
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value)}
@@ -112,6 +194,15 @@ export default function ProposalsView() {
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
+        {(searchNombre || filterFecha || filterStatus) && (
+          <button
+            onClick={() => { setSearchNombre(""); setFilterFecha(""); setFilterStatus("") }}
+            className="text-xs text-muted-foreground hover:text-foreground underline"
+          >
+            Limpiar filtros
+          </button>
+        )}
+        <span className="text-xs text-muted-foreground">{filteredProposals.length} contratos</span>
       </div>
 
       {/* Grid de tarjetas */}
@@ -122,73 +213,465 @@ export default function ProposalsView() {
             <p className="text-sm">No hay contratos</p>
           </div>
         )}
-        {filteredProposals.map((p) => (
-          <div key={p.id} className="flex flex-col rounded-lg border border-border bg-card overflow-hidden">
-            <div className="flex items-center justify-between border-b border-border px-4 py-3 bg-secondary/30">
-              <div>
-                <p className="text-sm font-bold text-card-foreground">{p.lead?.nombre || "Desconocido"}</p>
-                <p className="text-xs text-muted-foreground">Version {p.version}</p>
-              </div>
-              <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_STYLES[p.estado])}>
-                {p.estado}
-              </span>
-            </div>
-            <div className="flex-1 px-4 py-3">
-              <p className="text-xs text-muted-foreground line-clamp-3">{p.contenido || "Sin contenido"}</p>
-              <p className="mt-3 text-lg font-bold text-card-foreground">${(p.precio_total || 0).toLocaleString()}</p>
-              {p.fecha_envio && (
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Enviada: {new Date(p.fecha_envio).toLocaleDateString("es-AR")}
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-1 border-t border-border px-4 py-2">
-              {p.estado === "Borrador" && (
-                <button
-                  onClick={() => handleStatusUpdate(p.id, "Enviada")}
-                  className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-                >
-                  <Send className="h-3 w-3" /> Enviar
-                </button>
-              )}
-              {p.estado === "Enviada" && (
-                <>
-                  <button
-                    onClick={() => handleStatusUpdate(p.id, "Aceptada")}
-                    className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground hover:opacity-90 transition-opacity"
-                  >
-                    <Check className="h-3 w-3" /> Aceptar
-                  </button>
-                  <button
-                    onClick={() => handleStatusUpdate(p.id, "Rechazada")}
-                    className="flex items-center gap-1 rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground hover:opacity-90 transition-opacity"
-                  >
-                    <XCircle className="h-3 w-3" /> Rechazar
-                  </button>
-                </>
-              )}
-              <span className="ml-auto text-[10px] text-muted-foreground">
-                {new Date(p.created_at).toLocaleDateString("es-AR")}
-              </span>
-            </div>
-          </div>
+        {filteredProposals.map(p => (
+          <ContractCard
+            key={p.id}
+            proposal={p}
+            submittingId={submittingId}
+            onView={() => setViewingProposal(p)}
+            onEdit={() => setEditingProposal(p)}
+            onStatusUpdate={handleStatusUpdate}
+            onPrint={() => setPrintingProposal(p)}
+          />
         ))}
+      </div>
+
+      {showForm && (
+        <ContractForm leads={leads} onSubmit={handleCreate} onClose={() => setShowForm(false)} />
+      )}
+      {editingProposal && (
+        <ContractForm leads={leads} initial={editingProposal} onSubmit={handleUpdate} onClose={() => setEditingProposal(null)} />
+      )}
+      {viewingProposal && (
+        <ContractDetail proposal={viewingProposal} onClose={() => setViewingProposal(null)} onPrint={() => setPrintingProposal(viewingProposal)} />
+      )}
+      {printingProposal && (
+        <PrintableContract proposal={printingProposal} lead={printingProposal.lead} onClose={() => setPrintingProposal(null)} />
+      )}
+      {confirmingFirmId && (
+        <ConfirmFirmDialog
+          proposalId={confirmingFirmId}
+          onConfirm={confirmFirm}
+          onCancel={() => setConfirmingFirmId(null)}
+          isSubmitting={submittingId === confirmingFirmId}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Tarjeta de contrato ────────────────────────────────────────────────────────
+
+function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdate, onPrint }) {
+  const adicionales = ensureArray(p.adicionales)
+  const totalAdic = adicionales.length
+  const elegidos  = adicionales.filter(a => a.opcion_elegida !== null && a.opcion_elegida !== undefined).length
+  const serviciosBase = ensureArray(p.servicios_base)
+
+  return (
+    <div className="flex flex-col rounded-lg border border-border bg-card overflow-hidden">
+      {/* Header */}
+      <div className="flex items-start justify-between border-b border-border px-4 py-3 bg-secondary/30">
+        <div className="flex-1 min-w-0 mr-2">
+          <p className="text-sm font-bold text-card-foreground truncate">{p.lead?.nombre || "Desconocido"}</p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            {p.tipo_evento && <span className="text-xs text-muted-foreground">{p.tipo_evento}</span>}
+            {p.invitados_estimados ? <span className="text-xs text-muted-foreground">· {p.invitados_estimados} inv.</span> : null}
+          </div>
+        </div>
+        <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0", STATUS_STYLES[p.estado])}>
+          {p.estado}
+        </span>
+      </div>
+
+      {/* Cuerpo */}
+      <div className="flex-1 px-4 py-3 flex flex-col gap-2">
+        <div className="flex items-start gap-4">
+          {p.precio_senia > 0 && (
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Seña</p>
+              <p className="text-sm font-bold">${Number(p.precio_senia).toLocaleString("es-AR", { maximumFractionDigits: 0 })}</p>
+            </div>
+          )}
+          {p.valor_total_evento > 0 && (
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Evento</p>
+              <p className="text-sm font-bold">${Number(p.valor_total_evento).toLocaleString("es-AR", { maximumFractionDigits: 0 })}</p>
+            </div>
+          )}
+        </div>
+        {serviciosBase.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {serviciosBase.map(s => (
+              <span key={s} className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-secondary-foreground">{s}</span>
+            ))}
+          </div>
+        )}
+        {totalAdic > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {totalAdic} adicional{totalAdic > 1 ? "es" : ""}
+            {elegidos > 0 ? ` · ${elegidos} elegido${elegidos > 1 ? "s" : ""}` : " · sin elegir"}
+          </p>
+        )}
+        {p.fecha_envio && (
+          <p className="text-[10px] text-muted-foreground">
+            Enviada: {new Date(p.fecha_envio).toLocaleDateString("es-AR")}
+          </p>
+        )}
+      </div>
+
+      {/* Acciones */}
+      <div className="flex items-center gap-1 border-t border-border px-4 py-2 flex-wrap">
+        {p.estado === "Creada" && (
+          <button
+            onClick={() => onStatusUpdate(p.id, "Enviada")}
+            disabled={!!submittingId}
+            className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Send className="h-3 w-3" /> {submittingId === p.id ? "..." : "Enviar"}
+          </button>
+        )}
+        {p.estado === "Enviada" && (
+          <>
+            <button
+              onClick={() => onStatusUpdate(p.id, "Aprobada")}
+              disabled={!!submittingId}
+              className="flex items-center gap-1 rounded-md bg-amber-500 px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Check className="h-3 w-3" /> {submittingId === p.id ? "..." : "Aprobar"}
+            </button>
+            <button
+              onClick={() => onStatusUpdate(p.id, "Rechazada")}
+              disabled={!!submittingId}
+              className="flex items-center gap-1 rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <XCircle className="h-3 w-3" /> {submittingId === p.id ? "..." : "Rechazar"}
+            </button>
+          </>
+        )}
+        {p.estado === "Aprobada" && (
+          <button
+            onClick={() => onStatusUpdate(p.id, "Firmada")}
+            disabled={!!submittingId}
+            className="flex items-center gap-1 rounded-md bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <PenLine className="h-3 w-3" /> {submittingId === p.id ? "..." : "Firmar"}
+          </button>
+        )}
+        {p.estado !== "Firmada" && (
+          <button
+            onClick={onEdit}
+            className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary"
+          >
+            <Pencil className="h-3 w-3" /> Editar
+          </button>
+        )}
+        <button
+          onClick={onPrint}
+          className="flex items-center gap-1 rounded-md bg-blue-100 text-blue-800 px-2.5 py-1 text-xs font-medium hover:bg-blue-200 transition-colors"
+          title="Imprimir contrato"
+        >
+          <Printer className="h-3 w-3" /> Imprimir
+        </button>
+        <button
+          onClick={onView}
+          className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary ml-auto"
+        >
+          <Eye className="h-3 w-3" /> Ver
+        </button>
+        <span className="text-[10px] text-muted-foreground ml-1">v{p.version}</span>
       </div>
     </div>
   )
 }
 
-function ProposalForm({ leads, onSubmit, onClose }) {
+// ─── Modal detalle ──────────────────────────────────────────────────────────────
+
+function ContractDetail({ proposal: p, onClose, onPrint }) {
+  const adicionales   = ensureArray(p.adicionales)
+  const serviciosBase = ensureArray(p.servicios_base)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-foreground/20" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-2xl rounded-lg border border-border bg-card shadow-lg mx-4 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <div>
+            <h3 className="text-lg font-bold text-card-foreground">
+              {p.lead?.nombre} — v{p.version}
+            </h3>
+            <div className="flex items-center gap-2 mt-0.5">
+              {p.tipo_evento && <span className="text-xs text-muted-foreground">{p.tipo_evento}</span>}
+              <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_STYLES[p.estado])}>{p.estado}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onPrint}
+              className="flex items-center gap-1.5 rounded-md bg-blue-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-600 transition-colors"
+              title="Abrir editor de contrato y imprimir"
+            >
+              <Printer className="h-3.5 w-3.5" /> Imprimir
+            </button>
+            <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-secondary">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-5">
+          {/* Cliente */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Cliente</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {p.lead?.nombre && (
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Nombre</p>
+                  <p className="text-sm font-bold">{p.lead.nombre}</p>
+                </div>
+              )}
+              {p.dni && (
+                <div>
+                  <p className="text-[10px] text-muted-foreground">DNI</p>
+                  <p className="text-sm font-bold">{p.dni}</p>
+                </div>
+              )}
+              {p.direccion && (
+                <div className="sm:col-span-2">
+                  <p className="text-[10px] text-muted-foreground">Dirección</p>
+                  <p className="text-sm">{p.direccion}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Financiero */}
+          {(p.precio_senia || p.valor_total_evento) && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Financiero</p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {p.precio_senia > 0 && <div><p className="text-[10px] text-muted-foreground">Precio Seña</p><p className="text-sm font-bold">${Number(p.precio_senia).toLocaleString("es-AR", { maximumFractionDigits: 0 })}</p></div>}
+                {p.valor_total_evento > 0 && <div><p className="text-[10px] text-muted-foreground">Valor Total Evento</p><p className="text-sm font-bold">${Number(p.valor_total_evento).toLocaleString("es-AR", { maximumFractionDigits: 0 })}</p></div>}
+                <div><p className="text-[10px] text-muted-foreground">Modalidad</p><p className="text-sm">Mixto</p></div>
+              </div>
+            </div>
+          )}
+
+          {/* Producción */}
+          {(p.invitados_estimados || p.menu_seleccionado || p.minimo_tarjetas || p.valor_tarjeta_adulto) && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Producción</p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {p.invitados_estimados && <div><p className="text-[10px] text-muted-foreground">Invitados</p><p className="text-sm">{p.invitados_estimados}</p></div>}
+                {p.menu_seleccionado && <div><p className="text-[10px] text-muted-foreground">Menú</p><p className="text-sm">{p.menu_seleccionado}</p></div>}
+                {p.minimo_tarjetas && <div><p className="text-[10px] text-muted-foreground">Mínimo tarjetas</p><p className="text-sm">{p.minimo_tarjetas}</p></div>}
+                {p.valor_tarjeta_adulto > 0 && <div><p className="text-[10px] text-muted-foreground">Tarjeta adulto</p><p className="text-sm">${Number(p.valor_tarjeta_adulto).toLocaleString("es-AR", { maximumFractionDigits: 0 })}</p></div>}
+                {p.valor_tarjeta_adolescente > 0 && <div><p className="text-[10px] text-muted-foreground">Tarjeta adolescente</p><p className="text-sm">${Number(p.valor_tarjeta_adolescente).toLocaleString("es-AR", { maximumFractionDigits: 0 })}</p></div>}
+                {p.valor_tarjeta_nino > 0 && <div><p className="text-[10px] text-muted-foreground">Tarjeta niño</p><p className="text-sm">${Number(p.valor_tarjeta_nino).toLocaleString("es-AR", { maximumFractionDigits: 0 })}</p></div>}
+              </div>
+            </div>
+          )}
+
+          {/* Servicios base */}
+          {serviciosBase.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Servicios Base</p>
+              <div className="flex flex-wrap gap-2">
+                {serviciosBase.map(s => <span key={s} className="rounded-full bg-secondary px-3 py-0.5 text-sm">{s}</span>)}
+              </div>
+            </div>
+          )}
+
+          {/* Adicionales */}
+          {adicionales.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Adicionales</p>
+              <div className="flex flex-col gap-3">
+                {adicionales.map((a, i) => (
+                  <div key={i} className="rounded-md border border-border p-3">
+                    <p className="text-sm font-medium mb-2">{a.nombre}</p>
+                    <div className="flex flex-col gap-1.5">
+                      {(a.opciones || []).map((op, oi) => (
+                        <div
+                          key={oi}
+                          className={cn(
+                            "flex items-center justify-between rounded-md px-3 py-1.5 text-sm",
+                            a.opcion_elegida === oi
+                              ? "bg-green-50 border border-green-200 text-green-800"
+                              : "bg-secondary/40 text-card-foreground"
+                          )}
+                        >
+                          <span>{op.descripcion}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">${Number(op.precio || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
+                            {a.opcion_elegida === oi && <Check className="h-3.5 w-3.5 text-green-600" />}
+                          </div>
+                        </div>
+                      ))}
+                      {(a.opcion_elegida === null || a.opcion_elegida === undefined) && (
+                        <p className="text-[10px] text-muted-foreground italic mt-1">Sin opción elegida aún</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Notas */}
+          {p.contenido_html && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Notas / Condiciones</p>
+              <pre className="whitespace-pre-wrap text-sm text-card-foreground font-sans leading-relaxed">{p.contenido_html}</pre>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Formulario crear / editar ──────────────────────────────────────────────────
+
+function ContractForm({ leads, initial, onSubmit, onClose }) {
+  const isEdit = !!initial
+
+  const defaultLeadId = initial?.lead_id || leads[0]?.id || ""
+  const defaultLead = leads.find(l => l.id === defaultLeadId)
+
   const [form, setForm] = useState({
-    lead_id: leads[0]?.id || "",
-    contenido: "",
-    precio_total: 0,
+    lead_id:                        defaultLeadId,
+    contenido_html:                 initial?.contenido_html || "",
+    dni:                            initial?.dni || "",
+    direccion:                      initial?.direccion || "",
+    precio_senia:                   initial?.precio_senia ?? "",
+    tipo_evento:                    initial?.tipo_evento || defaultLead?.tipo_evento || "",
+    invitados_estimados:            initial?.invitados_estimados ?? defaultLead?.invitados_estimados ?? "",
+    valor_total_evento:             initial?.valor_total_evento ?? "",
+    modalidad_actualizacion_precios: "Mixto",
+    servicios_base:                 ensureArray(initial?.servicios_base),
+    menu_seleccionado:              initial?.menu_seleccionado || "",
+    minimo_tarjetas:                initial?.minimo_tarjetas ?? "",
+    valor_tarjeta_adulto:           initial?.valor_tarjeta_adulto ?? "",
+    valor_tarjeta_adolescente:      initial?.valor_tarjeta_adolescente ?? "",
+    valor_tarjeta_nino:             initial?.valor_tarjeta_nino ?? "",
   })
 
-  function handleSubmit(e) {
+  const [adicionales, setAdicionales] = useState(
+    ensureArray(initial?.adicionales).map(a => ({
+      ...a,
+      opciones: ensureArray(a.opciones).map(o => ({ ...o, precioDisplay: toDisplayNum(o.precio) }))
+    }))
+  )
+  const [submitting, setSubmitting] = useState(false)
+
+  // Estado de display (con puntos) separado del estado numérico crudo del form
+  const [displays, setDisplays] = useState({
+    precio_senia:              toDisplayNum(initial?.precio_senia),
+    valor_total_evento:        toDisplayNum(initial?.valor_total_evento),
+    invitados_estimados:       toDisplayNum(initial?.invitados_estimados ?? defaultLead?.invitados_estimados),
+    minimo_tarjetas:           toDisplayNum(initial?.minimo_tarjetas),
+    valor_tarjeta_adulto:      toDisplayNum(initial?.valor_tarjeta_adulto),
+    valor_tarjeta_adolescente: toDisplayNum(initial?.valor_tarjeta_adolescente),
+    valor_tarjeta_nino:        toDisplayNum(initial?.valor_tarjeta_nino),
+  })
+
+  function handleNumericChange(name, rawStr) {
+    const digits = fromDisplayNum(rawStr)
+    const num = digits !== "" ? parseInt(digits, 10) : ""
+    setDisplays(d => ({ ...d, [name]: digits !== "" ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : "" }))
+    setForm(f => ({ ...f, [name]: num }))
+  }
+
+  function handleChange(e) {
+    const { name, value } = e.target
+    if (name === "lead_id" && !isEdit) {
+      const lead = leads.find(l => String(l.id) === String(value))
+      const newInvitados = lead?.invitados_estimados ?? ""
+      setForm(f => ({
+        ...f,
+        lead_id: value,
+        tipo_evento: lead?.tipo_evento || f.tipo_evento,
+        invitados_estimados: newInvitados,
+      }))
+      setDisplays(d => ({ ...d, invitados_estimados: toDisplayNum(newInvitados) }))
+      return
+    }
+    setForm(f => ({ ...f, [name]: value }))
+  }
+
+  function toggleServicioBase(s) {
+    setForm(f => ({
+      ...f,
+      servicios_base: f.servicios_base.includes(s)
+        ? f.servicios_base.filter(x => x !== s)
+        : [...f.servicios_base, s],
+    }))
+  }
+
+  // ── helpers adicionales ──
+  function addAdicional() {
+    setAdicionales(prev => [...prev, { nombre: "", opciones: [{ descripcion: "", precio: "", precioDisplay: "" }], opcion_elegida: null }])
+  }
+  function removeAdicional(i) {
+    setAdicionales(prev => prev.filter((_, idx) => idx !== i))
+  }
+  function updateNombre(i, nombre) {
+    setAdicionales(prev => prev.map((a, idx) => idx === i ? { ...a, nombre } : a))
+  }
+  function addOpcion(i) {
+    setAdicionales(prev => prev.map((a, idx) => idx === i
+      ? { ...a, opciones: [...a.opciones, { descripcion: "", precio: "", precioDisplay: "" }] }
+      : a
+    ))
+  }
+  function updateOpcionPrecio(ai, oi, rawStr) {
+    const digits = fromDisplayNum(rawStr)
+    const num = digits !== "" ? parseInt(digits, 10) : ""
+    const display = digits !== "" ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : ""
+    setAdicionales(prev => prev.map((a, idx) => idx === ai
+      ? { ...a, opciones: a.opciones.map((o, idx2) => idx2 === oi ? { ...o, precio: num, precioDisplay: display } : o) }
+      : a
+    ))
+  }
+  function removeOpcion(ai, oi) {
+    setAdicionales(prev => prev.map((a, idx) => idx === ai
+      ? { ...a, opciones: a.opciones.filter((_, idx2) => idx2 !== oi) }
+      : a
+    ))
+  }
+  function updateOpcion(ai, oi, field, value) {
+    setAdicionales(prev => prev.map((a, idx) => idx === ai
+      ? { ...a, opciones: a.opciones.map((o, idx2) => idx2 === oi ? { ...o, [field]: value } : o) }
+      : a
+    ))
+  }
+  function toggleElegida(ai, oi) {
+    setAdicionales(prev => prev.map((a, idx) => idx === ai
+      ? { ...a, opcion_elegida: a.opcion_elegida === oi ? null : oi }
+      : a
+    ))
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault()
-    if (!form.lead_id) return
-    onSubmit(form)
+    if (!form.lead_id) { toast.warning("Seleccioná un lead"); return }
+    setSubmitting(true)
+    try {
+      const toNum = v => {
+        if (v === "" || v === null || v === undefined) return null
+        const n = Number(String(v).replace(/\./g, ""))
+        return isNaN(n) ? null : n
+      }
+      const payload = {
+        ...form,
+        precio_senia:            toNum(form.precio_senia),
+        valor_total_evento:      toNum(form.valor_total_evento),
+        invitados_estimados:     toNum(form.invitados_estimados),
+        minimo_tarjetas:         toNum(form.minimo_tarjetas),
+        valor_tarjeta_adulto:    toNum(form.valor_tarjeta_adulto),
+        valor_tarjeta_adolescente: toNum(form.valor_tarjeta_adolescente),
+        valor_tarjeta_nino:      toNum(form.valor_tarjeta_nino),
+        adicionales: adicionales.map(a => ({
+          ...a,
+          opciones: a.opciones.map(o => {
+            const { precioDisplay, ...rest } = o
+            return { ...rest, precio: o.precio !== "" ? Number(String(o.precio).replace(/\./g, "")) : 0 }
+          }),
+        })),
+      }
+      await onSubmit(payload)
+    } finally { setSubmitting(false) }
   }
 
   return (
@@ -203,41 +686,253 @@ function ProposalForm({ leads, onSubmit, onClose }) {
             <X className="h-4 w-4" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-foreground">Lead *</label>
-            <select
-              value={form.lead_id}
-              onChange={(e) => setForm((f) => ({ ...f, lead_id: e.target.value }))}
-              className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              required
-            >
-              <option value="">Seleccionar lead...</option>
-              {leads.map((l) => <option key={l.id} value={l.id}>{l.nombre} - {l.tipo_evento}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-foreground">Contenido</label>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-6">
+
+          {/* ── Cliente ── */}
+          <section>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Cliente</p>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Lead *</label>
+                <select
+                  name="lead_id"
+                  value={form.lead_id}
+                  onChange={handleChange}
+                  disabled={isEdit}
+                  className={cn(inputCls, isEdit && "opacity-60 cursor-not-allowed")}
+                  required
+                >
+                  <option value="">Seleccionar lead...</option>
+                  {leads.map(l => (
+                    <option key={l.id} value={l.id}>
+                      {l.nombre}{l.tipo_evento ? ` — ${l.tipo_evento}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelCls}>DNI</label>
+                  <input type="text" name="dni" value={form.dni} onChange={handleChange} className={inputCls} placeholder="Ej: 12345678" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelCls}>Dirección</label>
+                  <input type="text" name="direccion" value={form.direccion} onChange={handleChange} className={inputCls} placeholder="Calle, número y localidad" />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ── Evento ── */}
+          <section>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Evento</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Tipo de Evento</label>
+                <select name="tipo_evento" value={form.tipo_evento} onChange={handleChange} className={inputCls}>
+                  <option value="">Seleccionar...</option>
+                  {TIPOS_EVENTO.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Cantidad de Invitados Estimados</label>
+                <input type="text" inputMode="numeric" value={displays.invitados_estimados} onChange={e => handleNumericChange("invitados_estimados", e.target.value)} className={inputCls} placeholder="0" />
+              </div>
+            </div>
+          </section>
+
+          {/* ── Financiero ── */}
+          <section>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Financiero</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Precio de Seña ($)</label>
+                <input type="text" inputMode="numeric" value={displays.precio_senia} onChange={e => handleNumericChange("precio_senia", e.target.value)} className={inputCls} placeholder="0" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Valor Total del Evento ($)</label>
+                <input type="text" inputMode="numeric" value={displays.valor_total_evento} onChange={e => handleNumericChange("valor_total_evento", e.target.value)} className={inputCls} placeholder="0" />
+              </div>
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className={labelCls}>Modalidad de Actualización de Precios</label>
+                <div className={cn(inputCls, "opacity-60 cursor-not-allowed bg-secondary text-muted-foreground")}>Mixto</div>
+              </div>
+            </div>
+          </section>
+
+          {/* ── Servicios base ── */}
+          <section>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Servicios Base</p>
+            <div className="flex flex-wrap gap-3">
+              {SERVICIOS_BASE.map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => toggleServicioBase(s)}
+                  className={cn(
+                    "rounded-full px-4 py-1.5 text-sm font-medium border transition-colors",
+                    form.servicios_base.includes(s)
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:bg-secondary"
+                  )}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* ── Adicionales ── */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Adicionales</p>
+              <button
+                type="button"
+                onClick={addAdicional}
+                className="flex items-center gap-1 rounded-md bg-secondary px-2.5 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80"
+              >
+                <Plus className="h-3 w-3" /> Agregar Adicional
+              </button>
+            </div>
+            {adicionales.length === 0 && (
+              <p className="text-xs text-muted-foreground italic">Sin adicionales. Usá el botón para agregar uno.</p>
+            )}
+            <div className="flex flex-col gap-4">
+              {adicionales.map((a, ai) => (
+                <div key={ai} className="rounded-md border border-border p-3 flex flex-col gap-3">
+                  {/* Nombre del adicional */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={a.nombre}
+                      onChange={e => updateNombre(ai, e.target.value)}
+                      placeholder="Nombre del adicional (ej: DJ extra, Fotografía...)"
+                      className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeAdicional(ai)}
+                      className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Opciones */}
+                  <div className="flex flex-col gap-2 pl-3 border-l-2 border-border">
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase">
+                      Opciones de precio — hacé clic en el círculo para marcar la elegida por el cliente
+                    </p>
+                    {a.opciones.map((op, oi) => (
+                      <div key={oi} className="flex items-center gap-2">
+                        {/* Botón elegida */}
+                        <button
+                          type="button"
+                          onClick={() => toggleElegida(ai, oi)}
+                          className={cn(
+                            "h-4 w-4 shrink-0 rounded-full border-2 transition-colors",
+                            a.opcion_elegida === oi
+                              ? "border-green-500 bg-green-500"
+                              : "border-border bg-card hover:border-green-400"
+                          )}
+                          title="Marcar como opción elegida"
+                        />
+                        <input
+                          type="text"
+                          value={op.descripcion}
+                          onChange={e => updateOpcion(ai, oi, "descripcion", e.target.value)}
+                          placeholder="Descripción de la opción"
+                          className="rounded-md border border-input bg-card px-2.5 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring flex-1"
+                        />
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={op.precioDisplay ?? ""}
+                          onChange={e => updateOpcionPrecio(ai, oi, e.target.value)}
+                          placeholder="$"
+                          className="rounded-md border border-input bg-card px-2.5 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring w-28"
+                        />
+                        {a.opciones.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeOpcion(ai, oi)}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => addOpcion(ai)}
+                      className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <Plus className="h-3 w-3" /> Agregar otra opción
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ── Producción ── */}
+          <section>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Producción</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Menú Seleccionado</label>
+                <input type="text" name="menu_seleccionado" value={form.menu_seleccionado} onChange={handleChange} className={inputCls} placeholder="Menú 1, Menú 2, Personalizado..." />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Mínimo de Tarjetas</label>
+                <input type="text" inputMode="numeric" value={displays.minimo_tarjetas} onChange={e => handleNumericChange("minimo_tarjetas", e.target.value)} className={inputCls} placeholder="0" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Valor Tarjeta Adulto ($)</label>
+                <input type="text" inputMode="numeric" value={displays.valor_tarjeta_adulto} onChange={e => handleNumericChange("valor_tarjeta_adulto", e.target.value)} className={inputCls} placeholder="0" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Valor Tarjeta Adolescente ($)</label>
+                <input type="text" inputMode="numeric" value={displays.valor_tarjeta_adolescente} onChange={e => handleNumericChange("valor_tarjeta_adolescente", e.target.value)} className={inputCls} placeholder="0" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Valor Tarjeta Niño ($)</label>
+                <input type="text" inputMode="numeric" value={displays.valor_tarjeta_nino} onChange={e => handleNumericChange("valor_tarjeta_nino", e.target.value)} className={inputCls} placeholder="0" />
+              </div>
+            </div>
+          </section>
+
+          {/* ── Notas ── */}
+          <section>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Notas / Condiciones</p>
             <textarea
-              value={form.contenido}
-              onChange={(e) => setForm((f) => ({ ...f, contenido: e.target.value }))}
-              rows={5}
-              className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-              placeholder="Detalle de la propuesta: servicios, condiciones, etc..."
+              name="contenido_html"
+              value={form.contenido_html}
+              onChange={handleChange}
+              rows={4}
+              className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring w-full resize-none"
+              placeholder="Condiciones especiales, notas para el cliente..."
             />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-foreground">Precio Total ($)</label>
-            <input
-              type="number"
-              value={form.precio_total}
-              onChange={(e) => setForm((f) => ({ ...f, precio_total: Number(e.target.value) }))}
-              className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-          <div className="flex items-center justify-end gap-2">
-            <button type="button" onClick={onClose} className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors">Cancelar</button>
-            <button type="submit" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity">Crear Propuesta</button>
+          </section>
+
+          {/* Botones */}
+          <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? "Guardando..." : isEdit ? "Guardar Cambios" : "Crear Contrato"}
+            </button>
           </div>
         </form>
       </div>
