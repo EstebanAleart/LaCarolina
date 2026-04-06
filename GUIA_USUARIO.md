@@ -201,8 +201,14 @@ Un mismo dia puede tener varias entradas (por ejemplo, tres visitas distintas). 
 
 - Puede haber multiples entradas (Visita, Bloqueada, etc.) en el mismo dia
 - No pueden existir dos leads DISTINTOS con estado Reservada o Confirmada en el mismo dia (un solo evento por fecha)
+- Si intentas guardar una fecha como Reservada o Confirmada y ya existe otra reserva/confirmacion en ese dia, el sistema **bloquea la operacion** y muestra un error
 - Al cargar fecha de visita en el lead, se crea automaticamente un registro de Visita en el calendario para ese lead
 - Al confirmar un evento, se crea automaticamente el evento en el modulo Eventos
+
+### Validacion de fechas ocupadas
+
+- En el **Calendario**: al intentar reservar o confirmar una fecha ya ocupada, el modal muestra un error en rojo y no permite guardar
+- En **Leads**: al seleccionar una fecha de evento que ya esta Reservada o Confirmada, el campo se marca en rojo con una advertencia. Se puede igualmente guardar el lead con esa fecha tentativa, pero el salon ya no esta disponible
 
 ### Gestionar entradas de un dia
 
