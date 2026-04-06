@@ -304,6 +304,21 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
 
   async function handleSubmit(e) {
     e.preventDefault()
+    setError("")
+    // Pre-validación: Reservada/Confirmada no puede coexistir con otro lead en el mismo día
+    if (!editingEntry && (estado === "Reservada" || estado === "Confirmada")) {
+      const conflict = existingEntries.find(
+        (entry) =>
+          (entry.estado_fecha === "Reservada" || entry.estado_fecha === "Confirmada") &&
+          (!leadId || entry.lead_id !== Number(leadId))
+      )
+      if (conflict) {
+        const msg = `Esta fecha ya está ${conflict.estado_fecha.toLowerCase()} para otro evento. No se puede reservar ni confirmar.`
+        setError(msg)
+        toast.error(msg)
+        return
+      }
+    }
     setSubmitting(true)
     try {
       await apiSetCalendarDate({
@@ -318,7 +333,7 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
       onSave()
     } catch (err) {
       setError(err.message)
-      toast.error("Error al guardar fecha")
+      toast.error(err.message)
     } finally {
       setSubmitting(false)
     }
