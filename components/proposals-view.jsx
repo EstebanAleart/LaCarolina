@@ -450,12 +450,15 @@ function ContractDetail({ proposal: p, onClose }) {
 function ContractForm({ leads, initial, onSubmit, onClose }) {
   const isEdit = !!initial
 
+  const defaultLeadId = initial?.lead_id || leads[0]?.id || ""
+  const defaultLead = leads.find(l => l.id === defaultLeadId)
+
   const [form, setForm] = useState({
-    lead_id:                        initial?.lead_id || leads[0]?.id || "",
+    lead_id:                        defaultLeadId,
     contenido_html:                 initial?.contenido_html || "",
     precio_senia:                   initial?.precio_senia ?? "",
-    tipo_evento:                    initial?.tipo_evento || "",
-    invitados_estimados:            initial?.invitados_estimados ?? "",
+    tipo_evento:                    initial?.tipo_evento || defaultLead?.tipo_evento || "",
+    invitados_estimados:            initial?.invitados_estimados ?? defaultLead?.invitados_estimados ?? "",
     valor_total_evento:             initial?.valor_total_evento ?? "",
     modalidad_actualizacion_precios:initial?.modalidad_actualizacion_precios || "",
     servicios_base:                 ensureArray(initial?.servicios_base),
@@ -473,6 +476,16 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
 
   function handleChange(e) {
     const { name, value } = e.target
+    if (name === "lead_id" && !isEdit) {
+      const lead = leads.find(l => String(l.id) === String(value))
+      setForm(f => ({
+        ...f,
+        lead_id: value,
+        tipo_evento: lead?.tipo_evento || f.tipo_evento,
+        invitados_estimados: lead?.invitados_estimados ?? f.invitados_estimados,
+      }))
+      return
+    }
     setForm(f => ({ ...f, [name]: value }))
   }
 
