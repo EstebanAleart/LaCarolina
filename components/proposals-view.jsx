@@ -64,17 +64,6 @@ export default function ProposalsView() {
   const [submittingId, setSubmittingId] = useState(null)
   const [confirmingFirmId, setConfirmingFirmId] = useState(null)
 
-  async function loadData() {
-    try {
-      const [props, lds] = await Promise.all([fetchAllProposals(), fetchLeads()])
-      setProposals(props)
-      setLeads(lds)
-    } catch (err) { console.error(err) }
-    finally { setLoading(false) }
-  }
-
-  useEffect(() => { loadData() }, [])
-
   const filteredProposals = useMemo(() => {
     let result = proposals
     if (filterStatus) result = result.filter(p => p.estado === filterStatus)
@@ -90,6 +79,19 @@ export default function ProposalsView() {
     }
     return result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   }, [proposals, filterStatus, searchNombre, filterFecha])
+
+
+  async function loadData() {
+    try {
+      const [props, lds] = await Promise.all([fetchAllProposals(), fetchLeads()])
+      setProposals(props)
+      setLeads(lds)
+    } catch (err) { console.error(err) }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { loadData() }, [])
+
 
   async function handleCreate(data) {
     try {
