@@ -33,6 +33,13 @@ export default function ProposalsView() {
   const [editingProposal, setEditingProposal] = useState(null)
   const [filterStatus, setFilterStatus] = useState("")
 
+  const filteredProposals = useMemo(() => {
+    let result = proposals
+    if (filterStatus) result = result.filter((p) => p.estado === filterStatus)
+    return result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  }, [proposals, filterStatus, searchNombre, filterFecha])
+
+
   async function loadData() {
     try {
       const [props, lds] = await Promise.all([fetchAllProposals(), fetchLeads()])
@@ -44,11 +51,6 @@ export default function ProposalsView() {
 
   useEffect(() => { loadData() }, [])
 
-  const filteredProposals = useMemo(() => {
-    let result = proposals
-    if (filterStatus) result = result.filter((p) => p.estado === filterStatus)
-    return result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-  }, [proposals, filterStatus, searchNombre, filterFecha])
 
   async function handleCreate(data) {
     try {
