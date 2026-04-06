@@ -26,6 +26,16 @@ const STATUS_STYLES = {
 const labelCls = "text-xs font-medium text-foreground"
 const inputCls = "rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring w-full"
 
+// ─── Utility: Safe JSON field converter ────────────────────────────────────────
+function ensureArray(value) {
+  if (!value) return []
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string') {
+    try { return JSON.parse(value) } catch { return [] }
+  }
+  return []
+}
+
 // ─── Vista principal ───────────────────────────────────────────────────────────
 
 export default function ProposalsView() {
@@ -195,9 +205,10 @@ export default function ProposalsView() {
 // ─── Tarjeta de contrato ────────────────────────────────────────────────────────
 
 function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdate }) {
-  const totalAdic = (p.adicionales || []).length
-  const elegidos  = (p.adicionales || []).filter(a => a.opcion_elegida !== null && a.opcion_elegida !== undefined).length
-  const serviciosBase = p.servicios_base || []
+  const adicionales = ensureArray(p.adicionales)
+  const totalAdic = adicionales.length
+  const elegidos  = adicionales.filter(a => a.opcion_elegida !== null && a.opcion_elegida !== undefined).length
+  const serviciosBase = ensureArray(p.servicios_base)
 
   return (
     <div className="flex flex-col rounded-lg border border-border bg-card overflow-hidden">
@@ -315,8 +326,8 @@ function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdat
 // ─── Modal detalle ──────────────────────────────────────────────────────────────
 
 function ContractDetail({ proposal: p, onClose }) {
-  const adicionales   = p.adicionales || []
-  const serviciosBase = p.servicios_base || []
+  const adicionales   = ensureArray(p.adicionales)
+  const serviciosBase = ensureArray(p.servicios_base)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -447,7 +458,7 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
     invitados_estimados:            initial?.invitados_estimados ?? "",
     valor_total_evento:             initial?.valor_total_evento ?? "",
     modalidad_actualizacion_precios:initial?.modalidad_actualizacion_precios || "",
-    servicios_base:                 initial?.servicios_base || [],
+    servicios_base:                 ensureArray(initial?.servicios_base),
     menu_seleccionado:              initial?.menu_seleccionado || "",
     minimo_tarjetas:                initial?.minimo_tarjetas ?? "",
     valor_tarjeta_adulto:           initial?.valor_tarjeta_adulto ?? "",
@@ -456,7 +467,7 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
   })
 
   const [adicionales, setAdicionales] = useState(
-    initial?.adicionales ? JSON.parse(JSON.stringify(initial.adicionales)) : []
+    ensureArray(initial?.adicionales)
   )
   const [submitting, setSubmitting] = useState(false)
 
