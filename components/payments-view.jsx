@@ -307,7 +307,7 @@ export default function PaymentsView() {
         <div className="rounded-lg border border-border bg-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
+              <thead >
                 <tr className="border-b border-border bg-secondary/30">
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Evento / Lead</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Tipo</th>
