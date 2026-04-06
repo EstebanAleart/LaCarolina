@@ -441,17 +441,19 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
         {/* Formulario nueva entrada / editar */}
         {formOpen && (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {existingEntries.length > 0 && (
+            {existingEntries.length > 0 && !editingEntry && (
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {editingEntry ? 'Editando entrada' : 'Nueva entrada'}
+                Nueva entrada
               </p>
             )}
-            <div className="flex flex-col gap-1.5">
-              <label className={labelCls}>Estado de la Fecha</label>
-              <select value={estado} onChange={(e) => setEstado(e.target.value)} className={inputCls}>
-                {CALENDAR_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
+            {!editingEntry && (
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Estado de la Fecha</label>
+                <select value={estado} onChange={(e) => setEstado(e.target.value)} className={inputCls}>
+                  {CALENDAR_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               <label className={labelCls}>Lead Asociado (opcional)</label>
               <select value={leadId} onChange={(e) => setLeadId(e.target.value)} className={inputCls}>
