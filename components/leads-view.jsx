@@ -28,6 +28,7 @@ import {
   fetchLeadById,
   fetchUsers,
   apiCreateInteraction,
+  fetchCalendarDates,
   LEAD_STATES,
   CANALES,
   TIPOS_EVENTO,
@@ -52,7 +53,7 @@ const STATE_COLORS = {
   "Perdido":                   "bg-red-100 text-red-800",
 }
 
-function LeadForm({ onSubmit, onCancel, initial }) {
+function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
   const [form, setForm] = useState(() => {
     if (initial) {
       return {
@@ -633,8 +634,9 @@ export default function LeadsView() {
 
   async function loadLeads() {
     try {
-      const data = await fetchLeads()
+      const [data, calDates] = await Promise.all([fetchLeads(), fetchCalendarDates()])
       setLeads(data)
+      setCalendarDates(calDates)
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
   }
@@ -772,6 +774,7 @@ export default function LeadsView() {
               initial={editLead || undefined}
               onSubmit={editLead ? handleUpdate : handleCreate}
               onCancel={() => { setShowForm(false); setEditLead(null) }}
+              calendarDates={calendarDates}
             />
           </div>
         </div>

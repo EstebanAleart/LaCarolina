@@ -14,6 +14,7 @@ import {
   SERVICIOS_ADICIONALES,
   MODALIDADES_PRECIO,
 } from "@/lib/api"
+import { PrintableContract } from "./printable-contract"
 
 const STATUS_STYLES = {
   Creada:   "bg-secondary text-secondary-foreground",
@@ -53,7 +54,7 @@ export default function ProposalsView() {
     let result = proposals
     if (filterStatus) result = result.filter(p => p.estado === filterStatus)
     return result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-  }, [proposals, filterStatus])
+  }, [proposals, filterStatus, searchNombre, filterFecha])
 
   async function handleCreate(data) {
     try {
@@ -748,6 +749,57 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Diálogo de confirmación de firma ──────────────────────────────────────────
+
+function ConfirmFirmDialog({ proposalId, onConfirm, onCancel, isSubmitting }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 backdrop-blur-sm">
+      <div className="relative w-full max-w-md rounded-lg border border-border bg-card shadow-xl mx-4">
+        {/* Header */}
+        <div className="border-b border-border px-6 py-4 bg-amber-50 dark:bg-amber-950/30">
+          <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100">⚠️ Confirmar Firma</h3>
+        </div>
+
+        {/* Contenido */}
+        <div className="px-6 py-6 space-y-4">
+          <p className="text-sm text-card-foreground">
+            Una vez <span className="font-bold">firmado</span>, el contrato <span className="font-bold text-red-600">NO PODRÁ SER EDITADO</span>.
+          </p>
+          <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-md p-4">
+            <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+              ⚠️ Esta acción es irreversible
+            </p>
+            <p className="text-xs text-red-700 dark:text-red-300 mt-2">
+              Si necesitas hacer cambios, deberás crear una nueva versión del contrato.
+            </p>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            ¿Estás seguro de que deseas firmar este contrato?
+          </p>
+        </div>
+
+        {/* Botones */}
+        <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4 bg-secondary/20">
+          <button
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isSubmitting}
+            className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isSubmitting ? "Firmando..." : "✓ Sí, Firmar Contrato"}
+          </button>
+        </div>
       </div>
     </div>
   )

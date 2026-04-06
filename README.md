@@ -14,7 +14,7 @@ Pensado para salones de eventos que necesitan trazabilidad completa: desde el pr
 | UI         | shadcn/ui + Radix UI + Tailwind 3   |
 | Forms      | React Hook Form + Zod               |
 | ORM        | Sequelize 6.37.7                    |
-| Base datos | PostgreSQL (Supabase remoto)        |
+| Base datos | PostgreSQL (Supabase remoto en prod, local en dev) |
 | Auth       | bcryptjs + registro con aprobación admin |
 | Hosting    | Vercel (serverless)                 |
 | Package    | pnpm (node-linker=hoisted)          |
