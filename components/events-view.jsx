@@ -13,6 +13,7 @@ import {
   Plus,
   CheckCircle,
   XCircle,
+  Search,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -68,6 +69,8 @@ export default function EventsView() {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [filterEstado, setFilterEstado] = useState("")
+  const [searchNombre, setSearchNombre] = useState("")
+  const [filterFecha, setFilterFecha] = useState("")
   const [expandedId, setExpandedId] = useState(null)
   const [eventPaymentsMap, setEventPaymentsMap] = useState({}) // { eventId: Payment[] }
   const [showPaymentForm, setShowPaymentForm] = useState(null) // eventId or null
@@ -91,9 +94,19 @@ export default function EventsView() {
   useEffect(() => { loadData() }, [])
 
   const filtered = useMemo(() => {
-    if (!filterEstado) return events
-    return events.filter((e) => e.estado_operativo === filterEstado)
-  }, [events, filterEstado])
+    return events.filter((e) => {
+      if (filterEstado && e.estado_operativo !== filterEstado) return false
+      if (searchNombre) {
+        const nombre = e.lead?.nombre?.toLowerCase() || ""
+        if (!nombre.includes(searchNombre.toLowerCase())) return false
+      }
+      if (filterFecha) {
+        const fechaEvento = e.fecha_confirmada ? e.fecha_confirmada.toString().substring(0, 10) : null
+        if (fechaEvento !== filterFecha) return false
+      }
+      return true
+    })
+  }, [events, filterEstado, searchNombre, filterFecha])
 
   async function handleUpdateEstado(id, nuevoEstado) {
     try {
@@ -188,8 +201,25 @@ export default function EventsView() {
         </div>
       </div>
 
-      {/* Filtro */}
+      {/* Filtros */}
       <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={searchNombre}
+            onChange={(e) => setSearchNombre(e.target.value)}
+            placeholder="Buscar por nombre..."
+            className="rounded-md border border-input bg-card pl-8 pr-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <input
+          type="date"
+          value={filterFecha}
+          onChange={(e) => setFilterFecha(e.target.value)}
+          title="Filtrar por día de evento"
+          className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        />
         <select
           value={filterEstado}
           onChange={(e) => setFilterEstado(e.target.value)}
@@ -198,6 +228,14 @@ export default function EventsView() {
           <option value="">Todos los estados</option>
           {ESTADO_OPERATIVO_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+        {(searchNombre || filterFecha || filterEstado) && (
+          <button
+            onClick={() => { setSearchNombre(""); setFilterFecha(""); setFilterEstado("") }}
+            className="text-xs text-muted-foreground hover:text-foreground underline"
+          >
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
       {/* Empty */}
