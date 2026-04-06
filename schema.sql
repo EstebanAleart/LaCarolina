@@ -32,14 +32,17 @@ CREATE TABLE IF NOT EXISTS leads (
   valor_estimado FLOAT,
   invitados_estimados INTEGER,
   notas TEXT,
+  managed_by_user_id UUID,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (managed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- Events table
 CREATE TABLE IF NOT EXISTS events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   lead_id UUID NOT NULL UNIQUE,
+  calendar_date_id UUID,
   fecha_confirmada DATE,
   tipo_evento VARCHAR(255),
   invitados_estimados INTEGER,
@@ -57,7 +60,8 @@ CREATE TABLE IF NOT EXISTS events (
   valor_tarjeta_adolescente FLOAT,
   valor_tarjeta_nino FLOAT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE
+  FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE,
+  FOREIGN KEY (calendar_date_id) REFERENCES calendar_dates(id) ON DELETE SET NULL
 );
 
 -- Proposals table
