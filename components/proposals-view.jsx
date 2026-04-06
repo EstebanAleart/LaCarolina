@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Plus, X, Send, Check, XCircle, FileText, Eye, Pencil, Trash2, Printer, PenLine } from "lucide-react"
+import { Plus, X, Send, Check, XCircle, FileText, Eye, Pencil, Trash2, Printer, PenLine, Search } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -35,6 +35,8 @@ export default function ProposalsView() {
   const [showForm, setShowForm] = useState(false)
   const [editingProposal, setEditingProposal] = useState(null)
   const [filterStatus, setFilterStatus] = useState("")
+  const [searchNombre, setSearchNombre] = useState("")
+  const [filterFecha, setFilterFecha] = useState("")
   const [viewingProposal, setViewingProposal] = useState(null)
   const [submittingId, setSubmittingId] = useState(null)
 
@@ -52,8 +54,18 @@ export default function ProposalsView() {
   const filteredProposals = useMemo(() => {
     let result = proposals
     if (filterStatus) result = result.filter(p => p.estado === filterStatus)
+    if (searchNombre) {
+      const q = searchNombre.toLowerCase()
+      result = result.filter(p => (p.lead?.nombre || "").toLowerCase().includes(q))
+    }
+    if (filterFecha) {
+      result = result.filter(p => {
+        const fecha = p.lead?.fecha_tentativa ? p.lead.fecha_tentativa.toString().substring(0, 10) : null
+        return fecha === filterFecha
+      })
+    }
     return result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-  }, [proposals, filterStatus])
+  }, [proposals, filterStatus, searchNombre, filterFecha])
 
   async function handleCreate(data) {
     try {
@@ -107,8 +119,25 @@ export default function ProposalsView() {
         </button>
       </div>
 
-      {/* Filtro */}
-      <div className="flex items-center gap-3">
+      {/* Filtros */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={searchNombre}
+            onChange={(e) => setSearchNombre(e.target.value)}
+            placeholder="Buscar por nombre..."
+            className="rounded-md border border-input bg-card pl-8 pr-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <input
+          type="date"
+          value={filterFecha}
+          onChange={(e) => setFilterFecha(e.target.value)}
+          title="Filtrar por día de evento"
+          className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        />
         <select
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value)}
@@ -119,6 +148,14 @@ export default function ProposalsView() {
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
+        {(searchNombre || filterFecha || filterStatus) && (
+          <button
+            onClick={() => { setSearchNombre(""); setFilterFecha(""); setFilterStatus("") }}
+            className="text-xs text-muted-foreground hover:text-foreground underline"
+          >
+            Limpiar filtros
+          </button>
+        )}
         <span className="text-xs text-muted-foreground">{filteredProposals.length} contratos</span>
       </div>
 

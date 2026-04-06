@@ -314,7 +314,7 @@ Todos los cambios de estado automaticos quedan registrados en el historial del l
 | Vista | Filtros |
 |---|---|
 | Leads | Buscar nombre/email/telefono, filtrar por año, estado, canal |
-| Contratos | Filtrar por estado (Creada, Enviada, Aprobada, Rechazada, Firmada) |
+| Contratos | Buscar por nombre del lead, filtrar por dia de evento (fecha tentativa del lead), filtrar por estado (Creada, Enviada, Aprobada, Rechazada, Firmada) |
 | Eventos | Buscar por nombre del lead, filtrar por dia de evento (fecha exacta), filtrar por estado operativo |
 | Tareas | Filtrar por estado y usuario asignado |
 
