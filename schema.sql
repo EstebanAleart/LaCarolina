@@ -83,6 +83,8 @@ CREATE TABLE IF NOT EXISTS proposals (
   valor_tarjeta_adulto FLOAT,
   valor_tarjeta_adolescente FLOAT,
   valor_tarjeta_nino FLOAT,
+  dni VARCHAR(255),
+  direccion TEXT,
   estado VARCHAR(255),
   fecha_envio TIMESTAMP,
   created_by_user_id UUID,

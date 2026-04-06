@@ -12,8 +12,8 @@ import {
   TIPOS_EVENTO,
   SERVICIOS_BASE,
   SERVICIOS_ADICIONALES,
-  MODALIDADES_PRECIO,
 } from "@/lib/api"
+import { PrintableContract } from "./printable-contract"
 
 const STATUS_STYLES = {
   Creada:   "bg-secondary text-secondary-foreground",
@@ -60,7 +60,9 @@ export default function ProposalsView() {
   const [searchNombre, setSearchNombre] = useState("")
   const [filterFecha, setFilterFecha] = useState("")
   const [viewingProposal, setViewingProposal] = useState(null)
+  const [printingProposal, setPrintingProposal] = useState(null)
   const [submittingId, setSubmittingId] = useState(null)
+  const [confirmingFirmId, setConfirmingFirmId] = useState(null)
 
   async function loadData() {
     try {
@@ -108,6 +110,12 @@ export default function ProposalsView() {
   }
 
   async function handleStatusUpdate(id, newStatus) {
+    // Si es FIRMA, pedir confirmación primero
+    if (newStatus === "Firmada") {
+      setConfirmingFirmId(id)
+      return
+    }
+    
     if (submittingId) return
     setSubmittingId(id)
     try {
@@ -116,6 +124,20 @@ export default function ProposalsView() {
       toast.success(`Contrato marcado como ${newStatus}`)
     } catch (err) { console.error(err); toast.error("Error al actualizar estado") }
     finally { setSubmittingId(null) }
+  }
+  
+  async function confirmFirm() {
+    if (!confirmingFirmId || submittingId) return
+    setSubmittingId(confirmingFirmId)
+    try {
+      await apiUpdateProposal(confirmingFirmId, { estado: "Firmada" })
+      await loadData()
+      toast.success("✅ Contrato firmado. Ya no será editable.")
+    } catch (err) { console.error(err); toast.error("Error al firmar contrato") }
+    finally { 
+      setSubmittingId(null)
+      setConfirmingFirmId(null)
+    }
   }
 
   if (loading) {
@@ -197,6 +219,7 @@ export default function ProposalsView() {
             onView={() => setViewingProposal(p)}
             onEdit={() => setEditingProposal(p)}
             onStatusUpdate={handleStatusUpdate}
+            onPrint={() => setPrintingProposal(p)}
           />
         ))}
       </div>
@@ -208,7 +231,18 @@ export default function ProposalsView() {
         <ContractForm leads={leads} initial={editingProposal} onSubmit={handleUpdate} onClose={() => setEditingProposal(null)} />
       )}
       {viewingProposal && (
-        <ContractDetail proposal={viewingProposal} onClose={() => setViewingProposal(null)} />
+        <ContractDetail proposal={viewingProposal} onClose={() => setViewingProposal(null)} onPrint={() => setPrintingProposal(viewingProposal)} />
+      )}
+      {printingProposal && (
+        <PrintableContract proposal={printingProposal} lead={printingProposal.lead} onClose={() => setPrintingProposal(null)} />
+      )}
+      {confirmingFirmId && (
+        <ConfirmFirmDialog
+          proposalId={confirmingFirmId}
+          onConfirm={confirmFirm}
+          onCancel={() => setConfirmingFirmId(null)}
+          isSubmitting={submittingId === confirmingFirmId}
+        />
       )}
     </div>
   )
@@ -216,7 +250,7 @@ export default function ProposalsView() {
 
 // ─── Tarjeta de contrato ────────────────────────────────────────────────────────
 
-function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdate }) {
+function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdate, onPrint }) {
   const adicionales = ensureArray(p.adicionales)
   const totalAdic = adicionales.length
   const elegidos  = adicionales.filter(a => a.opcion_elegida !== null && a.opcion_elegida !== undefined).length
@@ -266,9 +300,6 @@ function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdat
             {totalAdic} adicional{totalAdic > 1 ? "es" : ""}
             {elegidos > 0 ? ` · ${elegidos} elegido${elegidos > 1 ? "s" : ""}` : " · sin elegir"}
           </p>
-        )}
-        {p.modalidad_actualizacion_precios && (
-          <p className="text-[10px] text-muted-foreground">{p.modalidad_actualizacion_precios}</p>
         )}
         {p.fecha_envio && (
           <p className="text-[10px] text-muted-foreground">
@@ -324,6 +355,13 @@ function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdat
           </button>
         )}
         <button
+          onClick={onPrint}
+          className="flex items-center gap-1 rounded-md bg-blue-100 text-blue-800 px-2.5 py-1 text-xs font-medium hover:bg-blue-200 transition-colors"
+          title="Imprimir contrato"
+        >
+          <Printer className="h-3 w-3" /> Imprimir
+        </button>
+        <button
           onClick={onView}
           className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary ml-auto"
         >
@@ -337,7 +375,7 @@ function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdat
 
 // ─── Modal detalle ──────────────────────────────────────────────────────────────
 
-function ContractDetail({ proposal: p, onClose }) {
+function ContractDetail({ proposal: p, onClose, onPrint }) {
   const adicionales   = ensureArray(p.adicionales)
   const serviciosBase = ensureArray(p.servicios_base)
 
@@ -356,14 +394,13 @@ function ContractDetail({ proposal: p, onClose }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {p.estado === "Firmada" && (
-              <button
-                onClick={() => window.print()}
-                className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
-              >
-                <Printer className="h-3.5 w-3.5" /> Imprimir
-              </button>
-            )}
+            <button
+              onClick={onPrint}
+              className="flex items-center gap-1.5 rounded-md bg-blue-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-600 transition-colors"
+              title="Abrir editor de contrato y imprimir"
+            >
+              <Printer className="h-3.5 w-3.5" /> Imprimir
+            </button>
             <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-secondary">
               <X className="h-4 w-4" />
             </button>
@@ -371,14 +408,39 @@ function ContractDetail({ proposal: p, onClose }) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-5">
+          {/* Cliente */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Cliente</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {p.lead?.nombre && (
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Nombre</p>
+                  <p className="text-sm font-bold">{p.lead.nombre}</p>
+                </div>
+              )}
+              {p.dni && (
+                <div>
+                  <p className="text-[10px] text-muted-foreground">DNI</p>
+                  <p className="text-sm font-bold">{p.dni}</p>
+                </div>
+              )}
+              {p.direccion && (
+                <div className="sm:col-span-2">
+                  <p className="text-[10px] text-muted-foreground">Dirección</p>
+                  <p className="text-sm">{p.direccion}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Financiero */}
-          {(p.precio_senia || p.valor_total_evento || p.modalidad_actualizacion_precios) && (
+          {(p.precio_senia || p.valor_total_evento) && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Financiero</p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {p.precio_senia > 0 && <div><p className="text-[10px] text-muted-foreground">Precio Seña</p><p className="text-sm font-bold">${Number(p.precio_senia).toLocaleString("es-AR", { maximumFractionDigits: 0 })}</p></div>}
                 {p.valor_total_evento > 0 && <div><p className="text-[10px] text-muted-foreground">Valor Total Evento</p><p className="text-sm font-bold">${Number(p.valor_total_evento).toLocaleString("es-AR", { maximumFractionDigits: 0 })}</p></div>}
-                {p.modalidad_actualizacion_precios && <div><p className="text-[10px] text-muted-foreground">Modalidad</p><p className="text-sm">{p.modalidad_actualizacion_precios}</p></div>}
+                <div><p className="text-[10px] text-muted-foreground">Modalidad</p><p className="text-sm">Mixto</p></div>
               </div>
             </div>
           )}
@@ -468,11 +530,13 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
   const [form, setForm] = useState({
     lead_id:                        defaultLeadId,
     contenido_html:                 initial?.contenido_html || "",
+    dni:                            initial?.dni || "",
+    direccion:                      initial?.direccion || "",
     precio_senia:                   initial?.precio_senia ?? "",
     tipo_evento:                    initial?.tipo_evento || defaultLead?.tipo_evento || "",
     invitados_estimados:            initial?.invitados_estimados ?? defaultLead?.invitados_estimados ?? "",
     valor_total_evento:             initial?.valor_total_evento ?? "",
-    modalidad_actualizacion_precios:initial?.modalidad_actualizacion_precios || "",
+    modalidad_actualizacion_precios: "Mixto",
     servicios_base:                 ensureArray(initial?.servicios_base),
     menu_seleccionado:              initial?.menu_seleccionado || "",
     minimo_tarjetas:                initial?.minimo_tarjetas ?? "",
@@ -626,23 +690,35 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
           {/* ── Cliente ── */}
           <section>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Cliente</p>
-            <div className="flex flex-col gap-1.5">
-              <label className={labelCls}>Lead *</label>
-              <select
-                name="lead_id"
-                value={form.lead_id}
-                onChange={handleChange}
-                disabled={isEdit}
-                className={cn(inputCls, isEdit && "opacity-60 cursor-not-allowed")}
-                required
-              >
-                <option value="">Seleccionar lead...</option>
-                {leads.map(l => (
-                  <option key={l.id} value={l.id}>
-                    {l.nombre}{l.tipo_evento ? ` — ${l.tipo_evento}` : ""}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Lead *</label>
+                <select
+                  name="lead_id"
+                  value={form.lead_id}
+                  onChange={handleChange}
+                  disabled={isEdit}
+                  className={cn(inputCls, isEdit && "opacity-60 cursor-not-allowed")}
+                  required
+                >
+                  <option value="">Seleccionar lead...</option>
+                  {leads.map(l => (
+                    <option key={l.id} value={l.id}>
+                      {l.nombre}{l.tipo_evento ? ` — ${l.tipo_evento}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelCls}>DNI</label>
+                  <input type="text" name="dni" value={form.dni} onChange={handleChange} className={inputCls} placeholder="Ej: 12345678" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelCls}>Dirección</label>
+                  <input type="text" name="direccion" value={form.direccion} onChange={handleChange} className={inputCls} placeholder="Calle, número y localidad" />
+                </div>
+              </div>
             </div>
           </section>
 
@@ -678,10 +754,7 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label className={labelCls}>Modalidad de Actualización de Precios</label>
-                <select name="modalidad_actualizacion_precios" value={form.modalidad_actualizacion_precios} onChange={handleChange} className={inputCls}>
-                  <option value="">Seleccionar...</option>
-                  {MODALIDADES_PRECIO.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
+                <div className={cn(inputCls, "opacity-60 cursor-not-allowed bg-secondary text-muted-foreground")}>Mixto</div>
               </div>
             </div>
           </section>
@@ -860,6 +933,57 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Diálogo de confirmación de firma ──────────────────────────────────────────
+
+function ConfirmFirmDialog({ proposalId, onConfirm, onCancel, isSubmitting }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 backdrop-blur-sm">
+      <div className="relative w-full max-w-md rounded-lg border border-border bg-card shadow-xl mx-4">
+        {/* Header */}
+        <div className="border-b border-border px-6 py-4 bg-amber-50 dark:bg-amber-950/30">
+          <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100">⚠️ Confirmar Firma</h3>
+        </div>
+
+        {/* Contenido */}
+        <div className="px-6 py-6 space-y-4">
+          <p className="text-sm text-card-foreground">
+            Una vez <span className="font-bold">firmado</span>, el contrato <span className="font-bold text-red-600">NO PODRÁ SER EDITADO</span>.
+          </p>
+          <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-md p-4">
+            <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+              ⚠️ Esta acción es irreversible
+            </p>
+            <p className="text-xs text-red-700 dark:text-red-300 mt-2">
+              Si necesitas hacer cambios, deberás crear una nueva versión del contrato.
+            </p>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            ¿Estás seguro de que deseas firmar este contrato?
+          </p>
+        </div>
+
+        {/* Botones */}
+        <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4 bg-secondary/20">
+          <button
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isSubmitting}
+            className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isSubmitting ? "Firmando..." : "✓ Sí, Firmar Contrato"}
+          </button>
+        </div>
       </div>
     </div>
   )
