@@ -303,7 +303,7 @@ ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div cl
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => window.print()}
+              onClick={handlePrint}
               className="flex items-center gap-1.5 rounded bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 transition-colors"
             >
               <Printer className="h-3.5 w-3.5" /> Imprimir / PDF
@@ -633,19 +633,7 @@ ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div cl
       </div>
 
       {/* Print styles */}
-      <style jsx global>{`
-        @media print {
-          body > *:not(.fixed) { display: none !important; }
-          .fixed { position: static !important; background: white !important; overflow: visible !important; }
-          .overflow-y-auto { overflow: visible !important; max-height: none !important; }
-          .print\\:hidden { display: none !important; }
-          input, textarea { border: none !important; border-bottom: 1px solid #999 !important; background: transparent !important; outline: none !important; -webkit-print-color-adjust: exact; }
-          input[type="checkbox"] { border: 1px solid #555 !important; }
-          button { display: none !important; }
-          * { color: black !important; }
-          @page { margin: 0; size: A4; }
-        }
-      `}</style>
+      
     </div>
   )
 }
