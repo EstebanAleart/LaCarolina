@@ -65,27 +65,24 @@ export function PrintableContract({ proposal: p, lead, onClose }) {
     cliente_nombre:     leadData.nombre || "",
     cliente_dni:        p.dni || "",
     cliente_domicilio:  p.direccion || "",
+    cliente_telefono:   leadData.telefono || "",
+    cliente_email:      leadData.email || "",
     fecha_evento:       fechaEvento,
     tipo_evento:        p.tipo_evento || leadData.tipo_evento || "",
     valor_total:        p.valor_total_evento ? fmt(p.valor_total_evento) : "",
     valor_senia:        p.precio_senia ? fmt(p.precio_senia) : "",
+    cantidad_minima:    p.minimo_tarjetas ? String(p.minimo_tarjetas) : (p.invitados_estimados ? String(p.invitados_estimados) : (leadData.invitados_estimados ? String(leadData.invitados_estimados) : "")),
+    monto_minimo:       "",
+    combo_cotillon:     "N.º 1",
     menu_1:             false,
     menu_2:             false,
-    recepcion:          "",
-    plato_principal:    "",
-    postre:             "",
-    trasnoche:          "",
-    desayuno:           "",
-    bebidas:            "",
-    barra:              "",
     valor_adulto:       p.valor_tarjeta_adulto ? fmt(p.valor_tarjeta_adulto) : "",
     valor_adolescente:  p.valor_tarjeta_adolescente ? fmt(p.valor_tarjeta_adolescente) : "",
     valor_nino:         p.valor_tarjeta_nino ? fmt(p.valor_tarjeta_nino) : "",
     valor_vigente_hasta:"",
-    ajuste_mensual:     true,
-    ajuste_bimestral:   false,
+    ajuste_mensual:     false,
+    ajuste_bimestral:   true,
     ajuste_trimestral:  false,
-    minimo_tarjetas:    p.minimo_tarjetas ? String(p.minimo_tarjetas) : "80",
     adicionales_texto:  adicionalesArr.map(a => {
       const elegida = Array.isArray(a.opciones) ? a.opciones.find((_, i) => i === a.opcion_elegida) : null
       return `${a.nombre}: ${elegida?.descripcion || "Sin seleccionar"}${elegida?.precio ? ` ($${fmt(elegida.precio)})` : ""}`
@@ -99,6 +96,7 @@ export function PrintableContract({ proposal: p, lead, onClose }) {
   }
 
   function handlePrint() {
+    const origin = typeof window !== "undefined" ? window.location.origin : ""
     const dot = (v) => v || "………………………………………………"
     const check = (v) => v ? "☑" : "☐"
     const linea = (txt) => txt
@@ -113,25 +111,28 @@ export function PrintableContract({ proposal: p, lead, onClose }) {
 <style>
   @page { size: A4; margin: 18mm 20mm 20mm 20mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.45; color: #000; }
-  h1 { font-size: 12.5pt; font-weight: bold; text-align: center; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14pt; }
-  p { margin-bottom: 6pt; text-align: justify; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1.5px solid #888; padding-bottom: 9pt; margin-bottom: 12pt; }
+  body { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.7; color: #000; position: relative; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  strong { font-weight: normal; }
+  table.doc { width: 100%; border-collapse: collapse; position: relative; z-index: 1; }
+  table.doc thead { display: table-header-group; }
+  table.doc td { padding: 0; vertical-align: top; }
+  .watermark { position: fixed; top: 90mm; left: 50%; transform: translateX(-50%); width: 100%; opacity: 0.05; z-index: -1; }
+  h1 { font-size: 13pt; font-weight: normal; text-align: center; text-decoration: underline; margin: 6pt 0 18pt; }
+  p { margin-bottom: 9pt; text-align: justify; }
+  .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #888; padding-bottom: 9pt; margin-bottom: 12pt; }
   .header-left { font-size: 8pt; line-height: 1.7; color: #444; }
-  .header-right { text-align: right; }
-  .brand-name { font-weight: bold; font-size: 13pt; letter-spacing: 0.5px; }
-  .brand-sub { font-size: 8pt; letter-spacing: 3px; color: #666; }
-  .seccion { font-weight: bold; text-align: center; text-transform: uppercase; margin: 10pt 0 8pt; font-size: 11pt; }
+  .header-right { display: flex; align-items: center; gap: 14pt; }
+  .header-right img.logo-ce { width: 150px; height: auto; }
+  .header-right img.logo-tc { width: 110px; height: auto; }
+  .seccion { font-weight: normal; text-align: left; margin: 12pt 0 9pt; font-size: 11pt; }
   .indented { padding-left: 16pt; }
   .sub-indented { padding-left: 10pt; }
   ol.decimal { padding-left: 22pt; list-style-type: decimal; }
-  ol.decimal li { margin-bottom: 4pt; text-align: justify; }
+  ol.upper-latin { padding-left: 22pt; list-style-type: upper-latin; }
+  ol li { margin-bottom: 4pt; text-align: justify; }
   .anexo { border-top: 1.5px solid #888; padding-top: 10pt; margin-top: 10pt; }
   .menu-row { display: flex; gap: 24pt; padding-left: 8pt; margin-bottom: 8pt; }
   .check-box { display: inline-block; width: 13px; height: 13px; border: 1px solid #444; text-align: center; line-height: 12px; font-size: 9pt; margin-right: 4pt; }
-  .menu-section { margin-bottom: 8pt; }
-  .menu-label { font-weight: 600; font-size: 10pt; text-transform: uppercase; margin-bottom: 3pt; }
-  .line-blank { border-bottom: 1px solid #bbb; min-height: 18pt; padding-bottom: 2pt; margin-bottom: 2pt; font-size: 11pt; color: #888; }
   .tarjetas { margin-bottom: 8pt; }
   .tarjetas p { margin-bottom: 4pt; }
   .firmas { display: grid; grid-template-columns: 1fr 1fr; gap: 60pt; margin-top: 40pt; }
@@ -149,6 +150,11 @@ export function PrintableContract({ proposal: p, lead, onClose }) {
 </head>
 <body>
 
+<img class="watermark" src="${origin}/images/LOGO%20PIE1.1%20mail.png" alt="" />
+
+<table class="doc">
+<thead>
+<tr><td>
 <div class="header">
   <div class="header-left">
     Ruta A012 . Kilómetro 7, S2105 La Carolina, Santa Fe.<br/>
@@ -157,10 +163,14 @@ export function PrintableContract({ proposal: p, lead, onClose }) {
     www.carolinaeventos.com.ar
   </div>
   <div class="header-right">
-    <div class="brand-name">CAROLINA</div>
-    <div class="brand-sub">EVENTOS</div>
+    <img class="logo-ce" src="${origin}/images/LOGO%20PIE1.1%20mail.png" alt="Carolina Eventos" />
+    <img class="logo-tc" src="${origin}/images/tonucos-catering.jpeg" alt="Tonucos Catering" />
   </div>
 </div>
+</td></tr>
+</thead>
+<tbody>
+<tr><td>
 
 <h1>CONTRATO SERVICIO: TONUCOS CATERING</h1>
 
@@ -168,89 +178,82 @@ export function PrintableContract({ proposal: p, lead, onClose }) {
   Conste por el presente documento que el dia <strong>${dot(f.fecha_contrato)}</strong>,
   celebran contrato de una parte, identificada con DNI N°36.055.780, Nombre y apellido completo
   <strong>TONONI JUAN MANUEL</strong> con domicilio en GUEMES 50 de la localidad de PIÑERO a quien
-  en lo sucesivo se denominará <strong>CATERING-SALON</strong>; y de otra parte, identificado con
-  DNI N° <strong>${dot(f.cliente_dni)}</strong> Nombre y apellido completo
-  <strong>${dot(f.cliente_nombre)}</strong> con domicilio <strong>${dot(f.cliente_domicilio)}</strong>
-  a quien en lo sucesivo se denominara <strong>LA CLIENTA</strong>; en los términos y condiciones siguientes:
+  en lo sucesivo se denominará <strong>CATERING-SALÓN</strong>; y de otra parte, identificado con
+  DNI N° <strong>${dot(f.cliente_dni)}</strong>, Nombre y apellido completo
+  <strong>${dot(f.cliente_nombre)}</strong> con domicilio en <strong>${dot(f.cliente_domicilio)}</strong>,
+  N° teléfono <strong>${dot(f.cliente_telefono)}</strong>, e-mail <strong>${dot(f.cliente_email)}</strong>
+  a quien en lo sucesivo se denominará <strong>LA CLIENTA</strong>; en los términos y condiciones siguientes:
 </p>
 
-<p><strong>1 -</strong> LA SOCIEDAD DE CATERING-SALON es una persona jurídica, cuyo OBJETO SOCIAL es la prestación de servicios de ALQUILER DE SALON PARA EVENTOS Y SERVICIOS DE CATERING.</p>
-<p><strong>2 -</strong> LA CLIENTA es una persona natural, interesada en contratar los servicios de la sociedad de CATERING-SALON a fin de que se encargue de las prestación de servicio AL CLIENTE.</p>
+<p><strong>1 -</strong> LA SOCIEDAD DE CATERING-SALÓN es una persona jurídica, cuyo OBJETO SOCIAL es la prestación de servicios de ALQUILER DE SALÓN PARA EVENTOS Y SERVICIOS DE CATERING.</p>
+<p><strong>2 -</strong> LA CLIENTA es una persona natural, interesada en contratar los servicios ofrecidos por CATERING-SALÓN para la realización del evento detallado en el presente contrato.</p>
 
 <p class="seccion">OBJETO DEL CONTRATO</p>
 
 <p>
-  <strong>3 -</strong> En virtud del presente contrato, CATERING-SALON ALQUILA, el día
-  <strong>${dot(f.fecha_evento)}</strong>${f.tipo_evento ? ` para el evento de tipo <strong>${f.tipo_evento}</strong>` : ""}.
-  Por tal servicio la clienta abonará la suma de PESOS <strong>${dot(f.valor_total)}</strong>
-  en concepto de salón de eventos con nombre <strong>CAROLINA EVENTOS</strong>. Dirección RUTA A012. a KM 6.5.
-  A PAGAR DE LA SIGUIENTE FORMA:
+  <strong>3 -</strong> CATERING-SALÓN alquila a LA CLIENTA el salón de eventos denominado <strong>CAROLINA EVENTOS</strong>,
+  ubicado en Ruta A012, Km 6,5, para la realización del evento previsto para el día
+  <strong>${dot(f.fecha_evento)}</strong>${f.tipo_evento ? ` (evento de tipo <strong>${f.tipo_evento}</strong>)` : ""}.
+  Por la contratación del referido servicio, LA CLIENTA abonará la suma de PESOS <strong>$${dot(f.valor_total)}</strong>,
+  en concepto de alquiler del salón.
 </p>
+<p style="margin-top:6pt">A PAGAR DE LA SIGUIENTE FORMA:</p>
 <div class="indented">
-  <p><strong>a - RESERVA:</strong> La clienta seña con la suma de PESOS <strong>${dot(f.valor_senia)}</strong> (………………………………………………………………………………)</p>
-  <p><strong>b - Nota:</strong> La cliente asume el compromiso de cancelar la totalidad del precio contratado en un plazo máximo de doce (12) meses contados a partir de la fecha de firma del presente contrato. Asimismo, el saldo total adeudado deberá encontrarse íntegramente abonado con una antelación máxima de treinta (30) días corridos previos a la fecha del evento. En caso de no haber completado el pago dentro de los plazos establecidos, el evento no será cancelado; no obstante, el saldo pendiente será actualizado al valor vigente de lista del salón al momento de su efectiva cancelación.</p>
+  <p><strong>a - RESERVA:</strong> La clienta seña con la suma de PESOS <strong>$${dot(f.valor_senia)}</strong> (………………………………………………………)</p>
+  <p><strong>b - CANTIDAD MÍNIMA GARANTIZADA:</strong> El presente servicio se contrata con una cantidad mínima garantizada de <strong>${dot(f.cantidad_minima)}</strong> personas. En caso de que la asistencia final resulte inferior a dicha cantidad, el contratante se compromete a abonar la suma de <strong>$${dot(f.monto_minimo)}</strong> (……………………………………………), equivalente al valor mínimo pactado para el evento.</p>
+  <p><strong>c - NOTA:</strong> La cliente asume el compromiso de cancelar la totalidad del precio correspondiente al alquiler del salón en un plazo máximo de doce (12) meses contados a partir de la fecha de firma del presente contrato.</p>
 </div>
+<p class="indented">Asimismo, el saldo total adeudado deberá encontrarse íntegramente abonado con una antelación mínima de treinta (30) días corridos previos a la fecha del evento. Si la contratación se realiza con menos de doce (12) meses de anticipación a la fecha del evento, la totalidad del importe deberá encontrarse cancelada, como máximo, veinte (20) días corridos antes de la celebración del evento.</p>
+<p class="indented">En caso de no haberse completado el pago dentro de los plazos establecidos, el evento no será cancelado; sin embargo, el saldo pendiente será actualizado conforme al valor de lista vigente del alquiler del salón al momento de su efectiva cancelación, debiendo la cliente abonar la diferencia resultante antes de la realización del evento.</p>
+<p class="indented">No obstante, si a siete (7) días corridos de la fecha prevista para el evento persistiera deuda pendiente correspondiente al alquiler del salón, el prestador podrá resolver el presente contrato y dejar sin efecto la reserva, perdiendo la cliente las sumas abonadas hasta ese momento en concepto de seña o pagos a cuenta, sin que corresponda devolución de las sumas abonadas ni indemnización alguna a favor de la cliente.</p>
 
-<p><strong>4 -</strong> Detalles de menú en anexo a este documento</p>
-<p><strong>5 -</strong> CATERING-SALÓN contará con los siguientes servicios:</p>
-<ol class="decimal">
+<p><strong>4 -</strong> CATERING-SALÓN contará con los siguientes servicios:</p>
+<ol class="upper-latin">
   <li>GRUPO ELECTROGENO</li><li>COBERTURA MÉDICA</li><li>SONIDO E ILUMINACION</li>
-  <li>DJ SELECTOR</li><li>PANTALLA PARA REPRODUCCIÓN DE VIDEO</li><li>MESAS</li>
+  <li>DJ</li><li>PANTALLA PARA REPRODUCCIÓN DE VIDEO</li><li>MESAS</li>
   <li>SILLAS</li><li>JUEGO DE LIVING INTERIOR</li><li>MANTELERÍA</li>
-  <li>PERSONAL DE LIMPIEZA</li><li>CLIMATIZACIÓN</li>
+  <li>PERSONAL DE LIMPIEZA</li><li>CLIMATIZACIÓN</li><li>COTILLÓN</li>
 </ol>
-<br/>
-<p><strong>6 -</strong> Realiza seña para fecha <strong>${dot(f.fecha_evento)}</strong></p>
-<ol class="decimal">
-  <li>En caso de no realizar dicho evento por motivos relacionados de la clienta no se devolverá el dinero de seña, pago salon y solo se reconoce el valor del 50% de lo pagado en tarjetas, también se deja aclarado que de ser necesario se podrá cambiar fecha original por otro a tal fin de poder realizar el evento.</li>
-  <li>EN relación a suspensión del evento por parte de CATERING-SALON SE DEVOLVERÁ LA TOTALIDAD DEL DINERO RECIBIDO TANTO DE SALON COMO DE SERVICIO DE CATERING.</li>
+<p><strong>NOTA PUNTO L:</strong> El presente servicio incluye, sin costo adicional, el Combo N.º 1 de cotillón, conforme a la descripción y características vigentes establecidas por CAROLINA EVENTOS al momento de la celebración del evento.</p>
+<p>En caso de que LA CLIENTA desee contratar una opción superior, podrá optar por el Combo N.º 2 o el Combo N.º 3, abonando la diferencia económica correspondiente respecto del Combo N.º 1. Dicha elección deberá quedar expresamente consignada en el presente contrato o en un anexo complementario firmado por ambas partes.</p>
+<p>Los valores de actualización y diferencias entre combos serán informados por CAROLINA EVENTOS y deberán encontrarse cancelados junto con el saldo total del evento, respetando los plazos de pago establecidos en el presente contrato.</p>
+<p class="indented"><strong>Combo de cotillón seleccionado:</strong> <strong>${dot(f.combo_cotillon)}</strong></p>
+
+<p><strong>5 -</strong> Realiza seña para fecha <strong>${dot(f.fecha_evento)}</strong></p>
+<ol class="upper-latin">
+  <li>En caso de cancelación del evento por decisión de LA CLIENTA, no se reintegrarán las sumas abonadas en concepto de reserva o alquiler de salón. Respecto de los importes abonados en concepto de tarjetas de catering, se reconocerá un crédito equivalente al cincuenta por ciento (50%) de lo abonado, el cual podrá ser aplicado a una nueva fecha, sujeto a disponibilidad.</li>
+  <li>En caso de suspensión o cancelación del evento por parte de CATERING-SALÓN, se devolverá la totalidad de las sumas percibidas en concepto de alquiler de salón y servicio de catering.</li>
 </ol>
 ${f.adicionales_texto ? `<br/><p><strong>Adicionales contratados:</strong></p><div class="sub-indented">${linea(f.adicionales_texto)}</div>` : ""}
 ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div class="sub-indented"><p style="white-space:pre-wrap">${f.notas}</p></div>` : ""}
 
 <div class="anexo">
-  <p><strong>7 - Anexo 1.</strong></p><br/>
+  <p><strong>6 - Anexo 1.</strong></p><br/>
   <div class="menu-row">
     <span><span class="check-box">${check(f.menu_1)}</span> Menú 1.</span>
     <span><span class="check-box">${check(f.menu_2)}</span> Menú 2.</span>
   </div>
-  <p style="font-weight:600;margin-bottom:8pt">Detalles del menú:</p>
-  ${[
-    ["RECEPCION", f.recepcion],
-    ["PLATO PRINCIPAL", f.plato_principal],
-    ["POSTRE", f.postre],
-    ["TRASNOCHE", f.trasnoche],
-    ["DESAYUNO", f.desayuno],
-    ["BEBIDAS", f.bebidas],
-  ].map(([label, val]) => `
-  <div class="menu-section">
-    <p class="menu-label">${label}:</p>
-    <div class="sub-indented line-blank">${val ? `• ${val}` : "• ………………………………………………………………………………………………"}</div>
-  </div>`).join("")}
-  <div class="menu-section">
-    <p class="menu-label">BEBIDAS — Barra:</p>
-    <div class="sub-indented line-blank">${f.barra ? `• Barra: ${f.barra}` : "• Barra:........................................................................"}</div>
-  </div>
+  <p>Las características, composición y detalle del menú seleccionado serán especificadas por el servicio de catering en documento separado, el cual será entregado al contratante y se considerará parte integrante del presente acuerdo.</p>
 
   <br/>
   <div class="tarjetas">
-    <p style="font-weight:600;margin-bottom:6pt">Valor de tarjeta unitaria inicial:</p>
-    <ol class="decimal">
-      <li>Adultos: Pesos <strong>${dot(f.valor_adulto)}</strong></li>
-      <li>Adolescentes: Pesos <strong>${dot(f.valor_adolescente)}</strong></li>
-      <li>Niños de 3 a 10 años: <strong>${dot(f.valor_nino)}</strong></li>
+    <p style="margin-bottom:6pt">Valor de tarjeta unitaria inicial:</p>
+    <ol class="upper-latin">
+      <li>Adultos: $<strong>${dot(f.valor_adulto)}</strong></li>
+      <li>Adolescentes: $<strong>${dot(f.valor_adolescente)}</strong></li>
+      <li>Niños de 3 a 10 años: $<strong>${dot(f.valor_nino)}</strong></li>
     </ol>
   </div>
 
   <p>Valor vigente hasta la fecha: <strong>${dot(f.valor_vigente_hasta)}</strong></p>
   <br/>
-  <p style="font-weight:600;margin-bottom:5pt">Actualización de precio: Ajuste por CAC</p>
+  <p style="margin-bottom:5pt">Actualización de precio tarjetas: Ajuste por IPC</p>
   <div class="cac-row">
-    <span><span class="check-box">${check(f.ajuste_mensual)}</span> Mensual</span>
+    <span><span class="check-box">${check(f.ajuste_mensual)}</span> <s>Mensual</s></span>
     <span><span class="check-box">${check(f.ajuste_bimestral)}</span> Bimestral</span>
     <span><span class="check-box">${check(f.ajuste_trimestral)}</span> Trimestral</span>
   </div>
-  <p>Mínimo de tarjetas: <strong>${f.minimo_tarjetas || "80"}</strong> ADULTOS.</p>
+  <p>La actualización por IPC será aplicable exclusivamente a los valores de las tarjetas de catering. El alquiler del salón se regirá por las condiciones de actualización previstas en el punto 3.c del presente contrato.</p>
 
   <div class="firmas">
     <div class="firma-box">
@@ -262,7 +265,7 @@ ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div cl
     </div>
     <div class="firma-box">
       <div class="firma-line">
-        <p class="firma-title">Firma de CATERING-SALON</p>
+        <p class="firma-title">Firma de CATERING-SALÓN</p>
         <p class="firma-detail">TONONI JUAN MANUEL</p>
         <p class="firma-detail">DNI: 36.055.780</p>
       </div>
@@ -278,6 +281,10 @@ ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div cl
 
   <p class="footer">Documento generado automáticamente por CarolinaOS · ${new Date().toLocaleDateString("es-AR")}</p>
 </div>
+
+</td></tr>
+</tbody>
+</table>
 
 </body>
 </html>`
@@ -328,11 +335,19 @@ ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div cl
           {/* The printable page */}
           <div
             className="mx-auto bg-white print:m-0"
-            style={{ maxWidth: "210mm", padding: "15mm 20mm 20mm 20mm", fontFamily: "Arial, sans-serif", fontSize: "11pt", lineHeight: "1.45", color: "#000" }}
+            style={{ position: "relative", maxWidth: "210mm", padding: "15mm 20mm 20mm 20mm", fontFamily: "Arial, sans-serif", fontSize: "11pt", lineHeight: "1.7", color: "#000" }}
           >
+            <style>{`.contract-cuerpo strong { font-weight: normal; }`}</style>
+
+            {/* ── WATERMARK ── */}
+            <img
+              src="/images/LOGO%20PIE1.1%20mail.png"
+              alt=""
+              style={{ position: "absolute", top: "60mm", left: "50%", transform: "translateX(-50%)", width: "100%", opacity: 0.05, pointerEvents: "none", zIndex: 0 }}
+            />
 
             {/* ── HEADER ── */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12pt", borderBottom: "1px solid #ccc", paddingBottom: "10pt" }}>
+            <div style={{ position: "relative", zIndex: 1, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12pt", borderBottom: "1.5px solid #888", paddingBottom: "10pt" }}>
               {/* Left: contact info */}
               <div style={{ fontSize: "8pt", lineHeight: "1.6", color: "#444" }}>
                 <div>Ruta A012 . Kilómetro 7, S2105 La Carolina, Santa Fe.</div>
@@ -340,20 +355,20 @@ ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div cl
                 <div>carolinaeventos.arg@gmail.com | carolinaeventos.comercial@gmail.com</div>
                 <div>www.carolinaeventos.com.ar</div>
               </div>
-              {/* Right: logo area */}
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontWeight: "bold", fontSize: "13pt", letterSpacing: "0.5px", color: "#222" }}>CAROLINA</div>
-                <div style={{ fontSize: "8pt", color: "#666", letterSpacing: "2px" }}>EVENTOS</div>
+              {/* Right: logos */}
+              <div style={{ display: "flex", alignItems: "center", gap: "14pt" }}>
+                <img src="/images/LOGO%20PIE1.1%20mail.png" alt="Carolina Eventos" style={{ width: "150px", height: "auto" }} />
+                <img src="/images/tonucos-catering.jpeg" alt="Tonucos Catering" style={{ width: "110px", height: "auto" }} />
               </div>
             </div>
 
             {/* ── TITLE ── */}
-            <div style={{ textAlign: "center", fontWeight: "bold", fontSize: "13pt", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "14pt" }}>
+            <div style={{ position: "relative", zIndex: 1, textAlign: "center", fontSize: "13pt", textDecoration: "underline", margin: "6pt 0 16pt" }}>
               CONTRATO SERVICIO: TONUCOS CATERING
             </div>
 
             {/* ── CUERPO ── */}
-            <div style={{ textAlign: "justify" }}>
+            <div className="contract-cuerpo" style={{ position: "relative", zIndex: 1, textAlign: "justify" }}>
 
               {/* Párrafo intro */}
               <p style={{ marginBottom: "8pt" }}>
@@ -361,39 +376,46 @@ ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div cl
                 <Campo editMode={editMode} name="fecha_contrato" value={f.fecha_contrato} onChange={handleChange} className="w-36" />,
                 celebran contrato de una parte, identificada con DNI N°36.055.780, Nombre y apellido completo{" "}
                 <strong>TONONI JUAN MANUEL</strong> con domicilio en GUEMES 50 de la localidad de PIÑERO a quien en lo
-                sucesivo se denominará <strong>CATERING-SALON</strong>; y de otra parte, identificado con DNI N°{" "}
+                sucesivo se denominará <strong>CATERING-SALÓN</strong>; y de otra parte, identificado con DNI N°{" "}
                 <Campo editMode={editMode} name="cliente_dni" value={f.cliente_dni} onChange={handleChange} placeholder="………" className="w-28" />
-                {" "}Nombre y apellido completo{" "}
+                {", "}Nombre y apellido completo{" "}
                 <Campo editMode={editMode} name="cliente_nombre" value={f.cliente_nombre} onChange={handleChange} placeholder="……………………………" className="w-52" />
-                {" "}con domicilio{" "}
+                {" "}con domicilio en{" "}
                 <Campo editMode={editMode} name="cliente_domicilio" value={f.cliente_domicilio} onChange={handleChange} placeholder="……………………………………" className="w-64" />
-                {" "}a quien en lo sucesivo se denominara <strong>LA CLIENTA</strong>; en los términos y condiciones siguientes:
+                {", "}N° teléfono{" "}
+                <Campo editMode={editMode} name="cliente_telefono" value={f.cliente_telefono} onChange={handleChange} placeholder="…………………………" className="w-40" />
+                {", "}e-mail{" "}
+                <Campo editMode={editMode} name="cliente_email" value={f.cliente_email} onChange={handleChange} placeholder="…………………………………" className="w-56" />
+                {" "}a quien en lo sucesivo se denominará <strong>LA CLIENTA</strong>; en los términos y condiciones siguientes:
               </p>
 
               <p style={{ marginBottom: "6pt" }}>
-                <strong>1 -</strong> LA SOCIEDAD DE CATERING-SALON es una persona jurídica, cuyo OBJETO SOCIAL es la prestación
-                de servicios de ALQUILER DE SALON PARA EVENTOS Y SERVICIOS DE CATERING.
+                <strong>1 -</strong> LA SOCIEDAD DE CATERING-SALÓN es una persona jurídica, cuyo OBJETO SOCIAL es la prestación
+                de servicios de ALQUILER DE SALÓN PARA EVENTOS Y SERVICIOS DE CATERING.
               </p>
               <p style={{ marginBottom: "6pt" }}>
-                <strong>2 -</strong> LA CLIENTA es una persona natural, interesada en contratar los servicios de la sociedad de
-                CATERING-SALON a fin de que se encargue de las prestación de servicio AL CLIENTE.
+                <strong>2 -</strong> LA CLIENTA es una persona natural, interesada en contratar los servicios ofrecidos por
+                CATERING-SALÓN para la realización del evento detallado en el presente contrato.
               </p>
 
               {/* Objeto */}
-              <p style={{ textAlign: "center", fontWeight: "bold", textTransform: "uppercase", margin: "10pt 0 8pt" }}>
+              <p style={{ textAlign: "left", margin: "12pt 0 9pt" }}>
                 OBJETO DEL CONTRATO
               </p>
 
               <p style={{ marginBottom: "8pt" }}>
-                <strong>3 -</strong> En virtud del presente contrato, CATERING-SALON ALQUILA, el día{" "}
+                <strong>3 -</strong> CATERING-SALÓN alquila a LA CLIENTA el salón de eventos denominado{" "}
+                <strong>CAROLINA EVENTOS</strong>, ubicado en Ruta A012, Km 6,5, para la realización del evento previsto para
+                el día{" "}
                 <Campo editMode={editMode} name="fecha_evento" value={f.fecha_evento} onChange={handleChange} placeholder="…………………………" className="w-36" />
-                {" "}para el evento de tipo{" "}
-                <Campo editMode={editMode} name="tipo_evento" value={f.tipo_evento} onChange={handleChange} placeholder="…………………………" className="w-36" />.
-                {" "}Por tal servicio la clienta abonará la suma de PESOS{" "}
+                {" "}(evento de tipo{" "}
+                <Campo editMode={editMode} name="tipo_evento" value={f.tipo_evento} onChange={handleChange} placeholder="…………………………" className="w-36" />).
+                {" "}Por la contratación del referido servicio, LA CLIENTA abonará la suma de PESOS{" "}
                 <Campo editMode={editMode} name="valor_total" value={f.valor_total} onChange={handleChange} placeholder="………………………" className="w-44" />
-                {" "}en concepto de salón de eventos con nombre <strong>CAROLINA EVENTOS</strong>. Dirección RUTA A012. a KM 6.5.
-                A PAGAR DE LA SIGUIENTE FORMA:
+                {", "}en concepto de alquiler del salón.
               </p>
+
+              <p style={{ marginBottom: "5pt" }}>A PAGAR DE LA SIGUIENTE FORMA:</p>
 
               <div style={{ paddingLeft: "16pt", marginBottom: "8pt" }}>
                 <p style={{ marginBottom: "5pt" }}>
@@ -402,38 +424,83 @@ ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div cl
                   {" "}(……………………………………………………………………………………)
                 </p>
                 <p style={{ marginBottom: "5pt" }}>
-                  <strong>b - Nota:</strong> La cliente asume el compromiso de cancelar la totalidad del precio contratado en
-                  un plazo máximo de doce (12) meses contados a partir de la fecha de firma del presente contrato. Asimismo,
-                  el saldo total adeudado deberá encontrarse íntegramente abonado con una antelación máxima de treinta (30)
-                  días corridos previos a la fecha del evento. En caso de no haber completado el pago dentro de los plazos
-                  establecidos, el evento no será cancelado; no obstante, el saldo pendiente será actualizado al valor vigente
-                  de lista del salón al momento de su efectiva cancelación.
+                  <strong>b - CANTIDAD MÍNIMA GARANTIZADA:</strong> El presente servicio se contrata con una cantidad mínima
+                  garantizada de{" "}
+                  <Campo editMode={editMode} name="cantidad_minima" value={f.cantidad_minima} onChange={handleChange} placeholder="……" className="w-16" />
+                  {" "}personas. En caso de que la asistencia final resulte inferior a dicha cantidad, el contratante se
+                  compromete a abonar la suma de{" "}
+                  <Campo editMode={editMode} name="monto_minimo" value={f.monto_minimo} onChange={handleChange} placeholder="………………………" className="w-40" />
+                  {" "}(………………………………………), equivalente al valor mínimo pactado para el evento.
+                </p>
+                <p style={{ marginBottom: "5pt" }}>
+                  <strong>c - NOTA:</strong> La cliente asume el compromiso de cancelar la totalidad del precio correspondiente
+                  al alquiler del salón en un plazo máximo de doce (12) meses contados a partir de la fecha de firma del
+                  presente contrato.
                 </p>
               </div>
 
-              <p style={{ marginBottom: "5pt" }}><strong>4 -</strong> Detalles de menú en anexo a este documento</p>
-              <p style={{ marginBottom: "5pt" }}><strong>5 -</strong> CATERING-SALÓN contará con los siguientes servicios:</p>
+              <p style={{ paddingLeft: "16pt", marginBottom: "6pt" }}>
+                Asimismo, el saldo total adeudado deberá encontrarse íntegramente abonado con una antelación mínima de treinta
+                (30) días corridos previos a la fecha del evento. Si la contratación se realiza con menos de doce (12) meses de
+                anticipación a la fecha del evento, la totalidad del importe deberá encontrarse cancelada, como máximo, veinte
+                (20) días corridos antes de la celebración del evento.
+              </p>
+              <p style={{ paddingLeft: "16pt", marginBottom: "6pt" }}>
+                En caso de no haberse completado el pago dentro de los plazos establecidos, el evento no será cancelado; sin
+                embargo, el saldo pendiente será actualizado conforme al valor de lista vigente del alquiler del salón al
+                momento de su efectiva cancelación, debiendo la cliente abonar la diferencia resultante antes de la realización
+                del evento.
+              </p>
+              <p style={{ paddingLeft: "16pt", marginBottom: "8pt" }}>
+                No obstante, si a siete (7) días corridos de la fecha prevista para el evento persistiera deuda pendiente
+                correspondiente al alquiler del salón, el prestador podrá resolver el presente contrato y dejar sin efecto la
+                reserva, perdiendo la cliente las sumas abonadas hasta ese momento en concepto de seña o pagos a cuenta, sin que
+                corresponda devolución de las sumas abonadas ni indemnización alguna a favor de la cliente.
+              </p>
 
-              <ol style={{ paddingLeft: "24pt", marginBottom: "8pt", listStyleType: "decimal" }}>
-                {["GRUPO ELECTROGENO","COBERTURA MÉDICA","SONIDO E ILUMINACION","DJ SELECTOR","PANTALLA PARA REPRODUCCIÓN DE VIDEO","MESAS","SILLAS","JUEGO DE LIVING INTERIOR","MANTELERÍA","PERSONAL DE LIMPIEZA","CLIMATIZACIÓN"].map(s => (
+              <p style={{ marginBottom: "5pt" }}><strong>4 -</strong> CATERING-SALÓN contará con los siguientes servicios:</p>
+
+              <ol style={{ paddingLeft: "24pt", marginBottom: "8pt", listStyleType: "upper-latin" }}>
+                {["GRUPO ELECTROGENO","COBERTURA MÉDICA","SONIDO E ILUMINACION","DJ","PANTALLA PARA REPRODUCCIÓN DE VIDEO","MESAS","SILLAS","JUEGO DE LIVING INTERIOR","MANTELERÍA","PERSONAL DE LIMPIEZA","CLIMATIZACIÓN","COTILLÓN"].map(s => (
                   <li key={s} style={{ marginBottom: "2pt" }}>{s}</li>
                 ))}
               </ol>
 
               <p style={{ marginBottom: "5pt" }}>
-                <strong>6 -</strong> Realiza seña para fecha{" "}
+                <strong>NOTA PUNTO L:</strong> El presente servicio incluye, sin costo adicional, el Combo N.º 1 de cotillón,
+                conforme a la descripción y características vigentes establecidas por CAROLINA EVENTOS al momento de la
+                celebración del evento.
+              </p>
+              <p style={{ marginBottom: "5pt" }}>
+                En caso de que LA CLIENTA desee contratar una opción superior, podrá optar por el Combo N.º 2 o el Combo N.º 3,
+                abonando la diferencia económica correspondiente respecto del Combo N.º 1. Dicha elección deberá quedar
+                expresamente consignada en el presente contrato o en un anexo complementario firmado por ambas partes.
+              </p>
+              <p style={{ marginBottom: "5pt" }}>
+                Los valores de actualización y diferencias entre combos serán informados por CAROLINA EVENTOS y deberán
+                encontrarse cancelados junto con el saldo total del evento, respetando los plazos de pago establecidos en el
+                presente contrato.
+              </p>
+              <p style={{ paddingLeft: "16pt", marginBottom: "8pt" }}>
+                <strong>Combo de cotillón seleccionado:</strong>{" "}
+                <Campo editMode={editMode} name="combo_cotillon" value={f.combo_cotillon} onChange={handleChange} placeholder="N.º 1" className="w-28" />
+              </p>
+
+              <p style={{ marginBottom: "5pt" }}>
+                <strong>5 -</strong> Realiza seña para fecha{" "}
                 <Campo editMode={editMode} name="fecha_evento" value={f.fecha_evento} onChange={handleChange} placeholder="……………………………" className="w-40" />
               </p>
 
-              <ol style={{ paddingLeft: "24pt", marginBottom: "10pt", listStyleType: "decimal" }}>
+              <ol style={{ paddingLeft: "24pt", marginBottom: "10pt", listStyleType: "upper-latin" }}>
                 <li style={{ marginBottom: "5pt" }}>
-                  En caso de no realizar dicho evento por motivos relacionados de la clienta no se devolverá el dinero de seña,
-                  pago salon y solo se reconoce el valor del 50% de lo pagado en tarjetas, también se deja aclarado que de ser
-                  necesario se podrá cambiar fecha original por otro a tal fin de poder realizar el evento.
+                  En caso de cancelación del evento por decisión de LA CLIENTA, no se reintegrarán las sumas abonadas en
+                  concepto de reserva o alquiler de salón. Respecto de los importes abonados en concepto de tarjetas de
+                  catering, se reconocerá un crédito equivalente al cincuenta por ciento (50%) de lo abonado, el cual podrá ser
+                  aplicado a una nueva fecha, sujeto a disponibilidad.
                 </li>
                 <li style={{ marginBottom: "5pt" }}>
-                  EN relación a suspensión del evento por parte de CATERING-SALON SE DEVOLVERÁ LA TOTALIDAD DEL DINERO RECIBIDO
-                  TANTO DE SALON COMO DE SERVICIO DE CATERING.
+                  En caso de suspensión o cancelación del evento por parte de CATERING-SALÓN, se devolverá la totalidad de las
+                  sumas percibidas en concepto de alquiler de salón y servicio de catering.
                 </li>
               </ol>
 
@@ -477,7 +544,7 @@ ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div cl
 
               {/* ── ANEXO 1 ── */}
               <div style={{ borderTop: "1.5px solid #999", paddingTop: "10pt", marginTop: "6pt" }}>
-                <p style={{ fontWeight: "bold", marginBottom: "8pt" }}><strong>7 - Anexo 1.</strong></p>
+                <p style={{ fontWeight: "bold", marginBottom: "8pt" }}><strong>6 - Anexo 1.</strong></p>
 
                 {/* Selección menú */}
                 <div style={{ display: "flex", gap: "20pt", paddingLeft: "8pt", marginBottom: "8pt" }}>
@@ -495,72 +562,26 @@ ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div cl
                   ))}
                 </div>
 
-                <p style={{ fontWeight: "600", marginBottom: "6pt" }}>Detalles del menú:</p>
-
-                {[
-                  { label: "RECEPCION", name: "recepcion" },
-                  { label: "PLATO PRINCIPAL", name: "plato_principal" },
-                  { label: "POSTRE", name: "postre" },
-                  { label: "TRASNOCHE", name: "trasnoche" },
-                  { label: "DESAYUNO", name: "desayuno" },
-                  { label: "BEBIDAS", name: "bebidas" },
-                ].map(({ label, name }) => (
-                  <div key={name} style={{ marginBottom: "6pt" }}>
-                    <p style={{ fontWeight: "600", fontSize: "10pt", textTransform: "uppercase", marginBottom: "2pt" }}>{label}:</p>
-                    <div style={{ paddingLeft: "10pt" }}>
-                      {editMode ? (
-                        <textarea
-                          name={name}
-                          value={f[name]}
-                          onChange={handleChange}
-                          rows={2}
-                          placeholder="●  ……………………………………………………………………………"
-                          className="w-full border-b border-gray-400 bg-transparent text-[11pt] focus:outline-none resize-none py-0.5"
-                        />
-                      ) : (
-                        <p style={{ fontSize: "11pt", borderBottom: "1px solid #aaa", minHeight: "20pt", paddingBottom: "2pt" }}>
-                          {f[name] ? `● ${f[name]}` : <span style={{ color: "#aaa" }}>● ………………………………………………………………………………………………</span>}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-
-                {/* Barra */}
-                <div style={{ marginBottom: "10pt" }}>
-                  <p style={{ fontWeight: "600", fontSize: "10pt", textTransform: "uppercase", marginBottom: "2pt" }}>BEBIDAS — Barra:</p>
-                  <div style={{ paddingLeft: "10pt" }}>
-                    {editMode ? (
-                      <textarea
-                        name="barra"
-                        value={f.barra}
-                        onChange={handleChange}
-                        rows={2}
-                        placeholder="●  Barra:........................................................................"
-                        className="w-full border-b border-gray-400 bg-transparent text-[11pt] focus:outline-none resize-none py-0.5"
-                      />
-                    ) : (
-                      <p style={{ fontSize: "11pt", borderBottom: "1px solid #aaa", minHeight: "20pt", paddingBottom: "2pt" }}>
-                        {f.barra ? `● Barra: ${f.barra}` : <span style={{ color: "#aaa" }}>● Barra:........................................................................</span>}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                <p style={{ marginBottom: "10pt" }}>
+                  Las características, composición y detalle del menú seleccionado serán especificadas por el servicio de
+                  catering en documento separado, el cual será entregado al contratante y se considerará parte integrante del
+                  presente acuerdo.
+                </p>
 
                 {/* Tarjetas */}
                 <div style={{ marginBottom: "8pt" }}>
-                  <p style={{ fontWeight: "600", marginBottom: "5pt" }}>Valor de tarjeta unitaria inicial:</p>
-                  <ol style={{ paddingLeft: "24pt", listStyleType: "decimal" }}>
+                  <p style={{ marginBottom: "5pt" }}>Valor de tarjeta unitaria inicial:</p>
+                  <ol style={{ paddingLeft: "24pt", listStyleType: "upper-latin" }}>
                     <li style={{ marginBottom: "4pt" }}>
-                      Adultos: Pesos{" "}
+                      Adultos: $
                       <Campo editMode={editMode} name="valor_adulto" value={f.valor_adulto} onChange={handleChange} placeholder="…………………………………………" className="w-52" />
                     </li>
                     <li style={{ marginBottom: "4pt" }}>
-                      Adolescentes: Pesos{" "}
+                      Adolescentes: $
                       <Campo editMode={editMode} name="valor_adolescente" value={f.valor_adolescente} onChange={handleChange} placeholder="…………………………………" className="w-52" />
                     </li>
                     <li style={{ marginBottom: "4pt" }}>
-                      Niños de 3 a 10 años:{" "}
+                      Niños de 3 a 10 años: $
                       <Campo editMode={editMode} name="valor_nino" value={f.valor_nino} onChange={handleChange} placeholder="………………………………………………" className="w-52" />
                     </li>
                   </ol>
@@ -571,13 +592,13 @@ ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div cl
                   <Campo editMode={editMode} name="valor_vigente_hasta" value={f.valor_vigente_hasta} onChange={handleChange} placeholder="………………………………………………" className="w-52" />
                 </p>
 
-                <p style={{ fontWeight: "600", marginBottom: "5pt" }}>Actualización de precio: Ajuste por CAC</p>
+                <p style={{ marginBottom: "5pt" }}>Actualización de precio tarjetas: Ajuste por IPC</p>
                 <div style={{ display: "flex", gap: "20pt", paddingLeft: "8pt", marginBottom: "8pt" }}>
                   {[
-                    ["ajuste_mensual","Mensual"],
-                    ["ajuste_bimestral","Bimestral"],
-                    ["ajuste_trimestral","Trimestral"],
-                  ].map(([nm, label]) => (
+                    ["ajuste_mensual","Mensual", true],
+                    ["ajuste_bimestral","Bimestral", false],
+                    ["ajuste_trimestral","Trimestral", false],
+                  ].map(([nm, label, strike]) => (
                     <label key={nm} style={{ display:"flex", alignItems:"center", gap:"5pt", cursor:"pointer", fontSize:"11pt" }}>
                       {editMode ? (
                         <input type="checkbox" name={nm} checked={f[nm]} onChange={handleChange} />
@@ -586,15 +607,14 @@ ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div cl
                           {f[nm] ? "✓" : ""}
                         </span>
                       )}
-                      {label}
+                      <span style={strike ? { textDecoration: "line-through", color: "#999" } : undefined}>{label}</span>
                     </label>
                   ))}
                 </div>
 
                 <p style={{ marginBottom: "14pt" }}>
-                  Mínimo de tarjetas:{" "}
-                  <Campo editMode={editMode} name="minimo_tarjetas" value={f.minimo_tarjetas} onChange={handleChange} placeholder="…" className="w-16" />
-                  {" "}ADULTOS.
+                  La actualización por IPC será aplicable exclusivamente a los valores de las tarjetas de catering. El alquiler
+                  del salón se regirá por las condiciones de actualización previstas en el punto 3.c del presente contrato.
                 </p>
 
                 {/* Firmas */}
@@ -608,7 +628,7 @@ ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div cl
                   </div>
                   <div style={{ textAlign: "center" }}>
                     <div style={{ borderTop: "1px solid #000", paddingTop: "6pt" }}>
-                      <p style={{ fontSize: "10pt", fontWeight: "600" }}>Firma de CATERING-SALON</p>
+                      <p style={{ fontSize: "10pt", fontWeight: "600" }}>Firma de CATERING-SALÓN</p>
                       <p style={{ fontSize: "9.5pt", color: "#444" }}>TONONI JUAN MANUEL</p>
                       <p style={{ fontSize: "9.5pt", color: "#444" }}>DNI: 36.055.780</p>
                     </div>
@@ -633,7 +653,7 @@ ${f.notas ? `<br/><p><strong>Condiciones especiales / Notas:</strong></p><div cl
       </div>
 
       {/* Print styles */}
-      
+
     </div>
   )
 }
