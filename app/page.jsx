@@ -9,6 +9,8 @@ import ProposalsView from "../components/proposals-view"
 import TasksView from "../components/tasks-view"
 import EventsView from "../components/events-view"
 import PaymentsView from "../components/payments-view"
+import StockView from "../components/stock-view"
+import AlertsView from "../components/alerts-view"
 import ReportsView from "../components/reports-view"
 import GuideView from "../components/guide-view"
 import LandingPage from "../components/landing-page"
@@ -108,6 +110,8 @@ export default function Home() {
           {activeView === "proposals" && <ProposalsView />}
           {activeView === "events" && <EventsView />}
           {activeView === "payments" && <PaymentsView />}
+          {activeView === "stock" && <StockView />}
+          {activeView === "alerts" && <AlertsView />}
           {activeView === "tasks" && <TasksView />}
           {activeView === "reports" && <ReportsView />}
           {activeView === "guide" && <GuideView />}

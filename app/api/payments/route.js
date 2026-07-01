@@ -63,7 +63,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { event_id, lead_id, monto, tipo, metodo_pago, fecha_pago, estado, observacion, created_by_user_id } = body;
+    const { event_id, service_id, lead_id, monto, tipo, metodo_pago, fecha_pago, estado, observacion, created_by_user_id } = body;
 
     if (!event_id) {
       return NextResponse.json({ error: 'event_id es requerido' }, { status: 400 });
@@ -74,6 +74,7 @@ export async function POST(request) {
 
     const payment = await Payment.create({
       event_id,
+      service_id: service_id || null,
       lead_id: lead_id || null,
       monto,
       tipo: tipo || 'pago_parcial',

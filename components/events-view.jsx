@@ -14,7 +14,9 @@ import {
   CheckCircle,
   XCircle,
   Search,
+  FileText,
 } from "lucide-react"
+import EventSheet from "./event-sheet"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -85,6 +87,7 @@ export default function EventsView() {
   const [searchNombre, setSearchNombre] = useState("")
   const [filterFecha, setFilterFecha] = useState("")
   const [expandedId, setExpandedId] = useState(null)
+  const [sheetEvent, setSheetEvent] = useState(null) // evento abierto en la ficha única
   const [eventPaymentsMap, setEventPaymentsMap] = useState({}) // { eventId: Payment[] }
   const [showPaymentForm, setShowPaymentForm] = useState(null) // eventId or null
   const [payForm, setPayForm] = useState({
@@ -324,6 +327,14 @@ export default function EventsView() {
               {/* Expanded detail */}
               {isExpanded && (
                 <div className="border-t border-border px-4 py-4 flex flex-col gap-5">
+
+                  {/* Ficha única (saldos por servicio) */}
+                  <button
+                    onClick={() => setSheetEvent(evt)}
+                    className="flex items-center justify-center gap-2 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 transition-opacity"
+                  >
+                    <FileText className="h-4 w-4" /> Ficha del evento · saldos por servicio
+                  </button>
 
                   {/* Estado operativo */}
                   <div className="flex flex-col gap-1.5">
@@ -730,6 +741,8 @@ export default function EventsView() {
           )
         })}
       </div>
+
+      {sheetEvent && <EventSheet event={sheetEvent} onClose={() => { setSheetEvent(null); loadData() }} />}
     </div>
   )
 }

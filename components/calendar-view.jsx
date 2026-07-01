@@ -6,6 +6,7 @@ import {
   ChevronRight,
   X,
   Plus,
+  PartyPopper,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -14,8 +15,17 @@ import {
   apiSetCalendarDate,
   apiRemoveCalendarDate,
   fetchLeads,
+  fetchEvents,
+  fetchEventServices,
   CALENDAR_STATES,
 } from "@/lib/api"
+
+// Color del badge de cotillón según combo
+const COMBO_COLORS = {
+  1: "bg-amber-400 text-amber-950",
+  2: "bg-violet-400 text-violet-950",
+  3: "bg-rose-400 text-rose-950",
+}
 
 const STATE_COLORS = {
   Disponible: "bg-emerald-200 text-emerald-900",
@@ -59,16 +69,22 @@ export default function CalendarView() {
   const [showForm, setShowForm] = useState(false)
   const [calendarDatesRaw, setCalendarDatesRaw] = useState([])
   const [leads, setLeads] = useState([])
+  const [events, setEvents] = useState([])
+  const [eventServices, setEventServices] = useState([])
   const [loading, setLoading] = useState(true)
 
   async function loadData() {
     try {
-      const [dates, lds] = await Promise.all([
+      const [dates, lds, evs, srv] = await Promise.all([
         fetchCalendarDates(),
-        fetchLeads()
+        fetchLeads(),
+        fetchEvents().catch(() => []),
+        fetchEventServices().catch(() => []),
       ])
       setCalendarDatesRaw(dates)
       setLeads(lds)
+      setEvents(evs)
+      setEventServices(srv)
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
   }
@@ -97,6 +113,20 @@ export default function CalendarView() {
     })
     return map
   }, [leads])
+
+  // Mapa fecha → número de combo de cotillón (para el indicador del calendario)
+  const comboByDate = useMemo(() => {
+    const eventCombo = {} // event_id -> combo numero
+    for (const s of eventServices) {
+      if (s.service_type?.usa_combo && s.combo) eventCombo[s.event_id] = s.combo.numero
+    }
+    const map = {}
+    for (const e of events) {
+      const c = eventCombo[e.id]
+      if (c && e.fecha_confirmada) map[e.fecha_confirmada.substring(0, 10)] = c
+    }
+    return map
+  }, [events, eventServices])
 
   const daysInMonth = getDaysInMonth(currentYear, currentMonth)
   const firstDay = getFirstDayOfMonth(currentYear, currentMonth)
@@ -140,6 +170,7 @@ export default function CalendarView() {
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = formatDate(day)
     const calEntries = calendarDates[dateStr] || []
+    const combo = comboByDate[dateStr]
     const tentativeLeads = tentativeMap[dateStr] || []
     // Solo mostrar tentativas que no tengan ya un CalendarDate con lead asociado
     const filteredTentative = tentativeLeads.filter(
@@ -159,14 +190,24 @@ export default function CalendarView() {
           isToday && "ring-2 ring-primary ring-inset"
         )}
       >
-        <span
-          className={cn(
-            "text-xs font-medium",
-            isToday ? "text-primary font-bold" : "text-foreground"
+        <div className="flex w-full items-center justify-between">
+          <span
+            className={cn(
+              "text-xs font-medium",
+              isToday ? "text-primary font-bold" : "text-foreground"
+            )}
+          >
+            {day}
+          </span>
+          {combo && (
+            <span
+              className={cn("flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-bold", COMBO_COLORS[combo] || "bg-gray-300 text-gray-900")}
+              title={`Cotillón Combo ${combo}`}
+            >
+              <PartyPopper className="h-2.5 w-2.5" /> C{combo}
+            </span>
           )}
-        >
-          {day}
-        </span>
+        </div>
         <div className="mt-auto w-full flex flex-col gap-0.5">
           {filteredTentative.map((l) => (
             <div key={l.id} className={cn("w-full rounded px-1 py-0.5 text-[10px] font-medium truncate", STATE_COLORS.Tentativa)}>

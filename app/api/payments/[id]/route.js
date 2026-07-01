@@ -46,10 +46,11 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Estado inválido' }, { status: 400 });
     }
 
-    // Solo se permite cambiar el estado y observacion
+    // Inmutable: monto/tipo no se editan. Se permite estado, observacion y asignar a servicio.
     const updates = {};
     if (body.estado) updates.estado = body.estado;
     if (body.observacion !== undefined) updates.observacion = body.observacion;
+    if (body.service_id !== undefined) updates.service_id = body.service_id || null;
 
     await payment.update(updates);
 
