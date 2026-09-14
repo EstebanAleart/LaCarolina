@@ -678,10 +678,10 @@ export default function LeadsView() {
   const [calendarDates, setCalendarDates] = useState([])
   const [soloHistoricos, setSoloHistoricos] = useState(false)
   const [page, setPage] = useState(1)
-  const PAGE_SIZE = 20
+  const [pageSize, setPageSize] = useState(5) // 5 por defecto: en móvil es lo cómodo
 
-  // Cualquier cambio de filtro vuelve a la página 1
-  useEffect(() => { setPage(1) }, [search, filterYear, filterState, filterChannel, soloHistoricos])
+  // Cualquier cambio de filtro o de tamaño de página vuelve a la página 1
+  useEffect(() => { setPage(1) }, [search, filterYear, filterState, filterChannel, soloHistoricos, pageSize])
 
   function toggleExpand(id) {
     setExpandedLeadIds(prev => {
@@ -768,22 +768,30 @@ export default function LeadsView() {
   }, [leads])
 
   const totalHistoricos = leads.filter((l) => l.es_historico).length
-  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE))
-  const pageLeads = filteredLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  const paginacion = filteredLeads.length > PAGE_SIZE && (
-    <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">
-      <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-        className="rounded-md border border-border px-4 py-2 font-medium text-foreground hover:bg-secondary disabled:opacity-40">
-        Anterior
-      </button>
-      <span className="text-center text-xs text-muted-foreground">
-        {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredLeads.length)} de {filteredLeads.length}
-        <span className="hidden sm:inline"> · página {page} de {totalPages}</span>
-      </span>
-      <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-        className="rounded-md border border-border px-4 py-2 font-medium text-foreground hover:bg-secondary disabled:opacity-40">
-        Siguiente
-      </button>
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize))
+  const pageLeads = filteredLeads.slice((page - 1) * pageSize, page * pageSize)
+  // Se renderiza arriba y abajo de la lista
+  const paginacion = filteredLeads.length > 0 && (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        Ver
+        <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}
+          className="rounded-md border border-input bg-card px-2 py-1.5 text-xs text-card-foreground">
+          {[5, 10, 20].map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <span>· {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredLeads.length)} de {filteredLeads.length}</span>
+      </label>
+      <div className="flex items-center gap-2">
+        <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+          className="rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary disabled:opacity-40">
+          Anterior
+        </button>
+        <span className="text-xs text-muted-foreground">{page}/{totalPages}</span>
+        <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+          className="rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary disabled:opacity-40">
+          Siguiente
+        </button>
+      </div>
     </div>
   )
 
@@ -876,6 +884,8 @@ export default function LeadsView() {
       {/* Table View */}
       {viewMode === "table" && (
         <>
+          {paginacion}
+
           {/* Mobile: cards expandibles */}
           <div className="flex flex-col gap-2 md:hidden">
             {filteredLeads.length === 0 && (

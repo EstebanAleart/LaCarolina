@@ -87,6 +87,9 @@ export default function EventsView() {
   const [searchNombre, setSearchNombre] = useState("")
   const [filterFecha, setFilterFecha] = useState("")
   const [expandedId, setExpandedId] = useState(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5) // 5 por defecto: en móvil es lo cómodo
+  useEffect(() => { setPage(1) }, [filterEstado, searchNombre, filterFecha, pageSize])
   const [sheetEvent, setSheetEvent] = useState(null) // evento abierto en la ficha única
   const [eventPaymentsMap, setEventPaymentsMap] = useState({}) // { eventId: Payment[] }
   const [showPaymentForm, setShowPaymentForm] = useState(null) // eventId or null
@@ -123,6 +126,33 @@ export default function EventsView() {
       return true
     })
   }, [events, filterEstado, searchNombre, filterFecha])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const pageEvents = filtered.slice((page - 1) * pageSize, page * pageSize)
+  // Se renderiza arriba y abajo de la lista (mismo paginado que Leads)
+  const paginacion = filtered.length > 0 && (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        Ver
+        <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}
+          className="rounded-md border border-input bg-card px-2 py-1.5 text-xs text-card-foreground">
+          {[5, 10, 20].map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <span>· {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} de {filtered.length}</span>
+      </label>
+      <div className="flex items-center gap-2">
+        <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+          className="rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary disabled:opacity-40">
+          Anterior
+        </button>
+        <span className="text-xs text-muted-foreground">{page}/{totalPages}</span>
+        <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+          className="rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary disabled:opacity-40">
+          Siguiente
+        </button>
+      </div>
+    </div>
+  )
 
   async function handleUpdateEstado(id, nuevoEstado) {
     try {
@@ -264,8 +294,10 @@ export default function EventsView() {
         </div>
       )}
 
+      {paginacion}
+
       <div className="flex flex-col gap-3">
-        {filtered.map((evt) => {
+        {pageEvents.map((evt) => {
           const isExpanded = expandedId === evt.id
           const leadName = evt.lead?.nombre || "Sin lead"
           const leadTipo = evt.lead?.tipo_evento || evt.tipo_evento || "---"
