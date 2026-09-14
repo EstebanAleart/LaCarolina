@@ -61,3 +61,17 @@ Agrega `leads.es_historico` y marca los 72 leads de la carga inicial (marzo 2026
 & $PSQL $PROD  -c "SELECT es_historico, count(*) FROM leads GROUP BY 1;"   # esperado: true 72 / false 36
 ```
 Rollback: `ALTER TABLE leads DROP COLUMN IF EXISTS es_historico;`
+
+## Staging (develop) — Supabase compartido
+Proyecto Supabase `djzmmzqlmfxckranftov` (eu-west-1), compartido con otra app de pruebas (tablas `agent_*`, `ai_logs`, `jarvis_embeddings`: NO tocarlas).
+Credenciales en `.env.develop` (ignorado por git): `DIRECT_URL` = session pooler 5432 (restore/migraciones), `DATABASE_URL` = transaction pooler 6543 (la app).
+Estado: restaurado `backups-local/prod_sept2026.dump` + `004` aplicada (14/09/2026).
+
+Refrescar staging desde prod (solo nuestras tablas; el resto del schema queda):
+```powershell
+$STG = ((Get-Content .env.develop | Where-Object { $_ -match '^DIRECT_URL=' }) -replace '^DIRECT_URL=','')
+& "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" $PROD --schema=public --no-owner --no-privileges -Fc -f "backups-local/prod_$(Get-Date -Format yyyyMMdd).dump"
+& $PSQL $STG -c "DROP TABLE IF EXISTS event_services, service_types, stock_movements, combo_products, combos, products, payments, tasks, visits, interactions, lead_status_history, reservations, proposals, calendar_dates, events, leads, users CASCADE;"
+& "C:\Program Files\PostgreSQL\18\bin\pg_restore.exe" --no-owner --no-privileges --schema=public -d $STG "backups-local/prod_<fecha>.dump"
+& $PSQL $STG -f "$M\004_leads_historico.sql"     # y las migraciones que prod aún no tenga
+```
