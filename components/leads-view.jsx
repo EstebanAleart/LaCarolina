@@ -375,6 +375,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
             <span className={cn("inline-block mt-1 rounded-full px-2.5 py-0.5 text-xs font-medium", STATE_COLORS[lead.estado_actual])}>
               {lead.estado_actual}
             </span>
+            {lead.es_historico && <span className="ml-1.5 inline-block rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">Histórico</span>}
           </div>
           <button onClick={onClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary transition-colors">
             <X className="h-5 w-5" />
@@ -836,6 +837,7 @@ export default function LeadsView() {
                       <p className="text-xs text-muted-foreground truncate">{lead.tipo_evento || "Sin tipo"}{lead.canal_origen ? ` · ${lead.canal_origen}` : ""}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      {lead.es_historico && <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground whitespace-nowrap">Histórico</span>}
                       <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap", STATE_COLORS[lead.estado_actual])}>
                         {lead.estado_actual}
                       </span>

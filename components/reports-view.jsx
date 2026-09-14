@@ -65,7 +65,10 @@ function StatCard({ icon: Icon, label, value, sub, color = "blue" }) {
 }
 
 // ─── TAB PIPELINE ─────────────────────────────────────────────────────────────
-function PipelineTab({ leads }) {
+function PipelineTab({ leads: leadsTodos }) {
+  // Cartera histórica (cargada ya firmada en la puesta en marcha): fuera de conversión y pipeline.
+  const historicos = leadsTodos.filter((l) => l.es_historico).length
+  const leads = leadsTodos.filter((l) => !l.es_historico)
   const byState = useMemo(() => {
     const map = {}
     LEAD_STATES.forEach((s) => { map[s] = 0 })
@@ -102,7 +105,7 @@ function PipelineTab({ leads }) {
     <div className="flex flex-col gap-6">
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard icon={Users} label="Total leads" value={total} color="blue" />
+        <StatCard icon={Users} label="Total leads" value={total} sub={historicos ? `+ ${historicos} históricos (excluidos)` : undefined} color="blue" />
         <StatCard icon={TrendingUp} label="Tasa conversión" value={`${tasa}%`} sub="contrato o más" color="green" />
         <StatCard icon={Users} label="En pipeline activo" value={leads.filter((l) => !["Perdido", "Post-evento / cerrado"].includes(l.estado_actual)).length} color="purple" />
         <StatCard icon={Users} label="Perdidos" value={perdidos} sub={`${total > 0 ? ((perdidos / total) * 100).toFixed(1) : 0}% del total`} color="red" />

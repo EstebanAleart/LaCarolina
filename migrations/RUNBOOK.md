@@ -51,3 +51,13 @@ ALTER TABLE payments DROP COLUMN IF EXISTS service_id;
 DROP TABLE IF EXISTS event_services;
 DROP TABLE IF EXISTS service_types;
 ```
+
+## R-03 — Cartera histórica en leads (`004_leads_historico.sql`)
+Agrega `leads.es_historico` y marca los 72 leads de la carga inicial (marzo 2026). Aditivo e idempotente.
+**Correr en prod ANTES de desplegar la rama `sep-mant`**: el modelo `Lead` ya lee la columna y sin ella Leads da error.
+```powershell
+& $PSQL $LOCAL -f "$M\004_leads_historico.sql"     # local
+& $PSQL $PROD  -f "$M\004_leads_historico.sql"     # prod ($PROD = DIRECT_URL de .env.local)
+& $PSQL $PROD  -c "SELECT es_historico, count(*) FROM leads GROUP BY 1;"   # esperado: true 72 / false 36
+```
+Rollback: `ALTER TABLE leads DROP COLUMN IF EXISTS es_historico;`
