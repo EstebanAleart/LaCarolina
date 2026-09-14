@@ -136,7 +136,7 @@ const PAGES = [
     ],
     notas: [
       "No hay que cargar nada acá: se arma sola con los eventos y sus fechas.",
-      "Solo aparecen eventos de los próximos 30 días (y los recién vencidos que todavía no marcaste como 'Realizado').",
+      "Solo aparecen eventos de los próximos 30 días. Los que ya pasaron se marcan solos como 'Realizado' y dejan de aparecer.",
       "Si un evento ya está 'Realizado' o 'Cancelado', no molesta más en las alertas.",
     ],
   },
