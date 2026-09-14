@@ -1074,7 +1074,7 @@ export default function LeadsView() {
           const visible = expanded ? colLeads : colLeads.slice(0, KANBAN_VISIBLE)
           const hidden = colLeads.length - visible.length
           return (
-            <div className={cn("flex flex-col gap-2 p-2", expanded && "max-h-[70vh] overflow-y-auto")}>
+            <div className={cn("flex flex-col gap-2 p-2 md:min-h-[29.5rem]", expanded && "max-h-[70vh] overflow-y-auto")}>
               {visible.map(card)}
               {colLeads.length === 0 && <p className="text-center text-xs text-muted-foreground py-4">Sin leads</p>}
               {hidden > 0 && (
@@ -1115,7 +1115,7 @@ export default function LeadsView() {
             </div>
 
             {/* Escritorio: columnas */}
-            <div className="hidden md:flex gap-3 overflow-x-auto pb-4 items-start">
+            <div className="hidden md:flex gap-3 overflow-x-auto pb-4 items-stretch">
               {kanbanCols.map((c) => (
                 <div key={c.state} className="flex w-64 shrink-0 flex-col rounded-lg border border-border bg-secondary/50">
                   <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
