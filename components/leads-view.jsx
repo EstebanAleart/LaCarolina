@@ -679,6 +679,10 @@ export default function LeadsView() {
   const [soloHistoricos, setSoloHistoricos] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(5) // 5 por defecto: en móvil es lo cómodo
+  // Kanban: 5 visibles por columna, "Ver más" expande la columna; en móvil una columna por vez (pestañas)
+  const KANBAN_VISIBLE = 5
+  const [kanbanExpanded, setKanbanExpanded] = useState(() => new Set())
+  const [kanbanTab, setKanbanTab] = useState(LEAD_STATES[0])
 
   // Cualquier cambio de filtro o de tamaño de página vuelve a la página 1
   useEffect(() => { setPage(1) }, [search, filterYear, filterState, filterChannel, soloHistoricos, pageSize])
@@ -766,6 +770,15 @@ export default function LeadsView() {
     const y = new Set(leads.map((l) => l.anio_evento))
     return [...y].sort()
   }, [leads])
+
+  // Columnas del kanban: sin "Perdido", cada una ordenada por último movimiento (más reciente arriba)
+  const kanbanCols = useMemo(() => {
+    const ts = (l) => new Date(l.updated_at || l.created_at || 0).getTime()
+    return LEAD_STATES.filter((s) => s !== "Perdido").map((state) => ({
+      state,
+      leads: filteredLeads.filter((l) => l.estado_actual === state).sort((a, b) => ts(b) - ts(a)),
+    }))
+  }, [filteredLeads])
 
   const totalHistoricos = leads.filter((l) => l.es_historico).length
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / pageSize))
@@ -1033,43 +1046,89 @@ export default function LeadsView() {
         </>
       )}
 
-      {/* Kanban View */}
-      {viewMode === "kanban" && (
-        <div className="flex gap-3 overflow-x-auto pb-4 items-stretch min-h-[calc(100vh-13rem)]">
-          {LEAD_STATES.filter((s) => s !== "Perdido").map((state) => {
-            const stateLeads = filteredLeads.filter((l) => l.estado_actual === state)
-            return (
-              <div key={state} className="flex w-64 shrink-0 flex-col rounded-lg border border-border bg-secondary/50">
-                <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
-                  <span className="text-xs font-semibold text-foreground">{state}</span>
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
-                    {stateLeads.length}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-2 p-2 flex-1 overflow-y-auto">
-                  {stateLeads.map((lead) => (
-                    <button
-                      key={lead.id}
-                      onClick={() => setDetailLead(lead)}
-                      className="rounded-md border border-border bg-card p-3 text-left hover:shadow-md transition-shadow"
-                    >
-                      <p className="flex items-center gap-1.5 text-sm font-medium text-card-foreground">
-                        {lead.es_historico && <span title="Lead histórico" className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">H</span>}
-                        {lead.nombre}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{lead.tipo_evento}</p>
-                      <p className="text-xs font-semibold text-primary mt-1">${(lead.valor_estimado || 0).toLocaleString()}</p>
-                    </button>
-                  ))}
-                  {stateLeads.length === 0 && (
-                    <p className="text-center text-xs text-muted-foreground py-4">Sin leads</p>
-                  )}
-                </div>
+      {/* Kanban View: 5 visibles por columna + contador + "Ver más"; en móvil, pestañas por estado */}
+      {viewMode === "kanban" && (() => {
+        const card = (lead) => (
+          <button
+            key={lead.id}
+            onClick={() => setDetailLead(lead)}
+            className="w-full rounded-md border border-border bg-card p-3 text-left hover:shadow-md transition-shadow"
+          >
+            <p className="flex items-center gap-1.5 text-sm font-medium text-card-foreground">
+              {lead.es_historico && <span title="Lead histórico" className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">H</span>}
+              {lead.nombre}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">{lead.tipo_evento}</p>
+            <p className="text-xs font-semibold text-primary mt-1">${(lead.valor_estimado || 0).toLocaleString()}</p>
+          </button>
+        )
+        const toggleCol = (state) => setKanbanExpanded((prev) => {
+          const next = new Set(prev)
+          if (next.has(state)) next.delete(state)
+          else next.add(state)
+          return next
+        })
+        // Cuerpo de una columna: primeras 5 (o todas si está expandida) + "Ver N más" / "Ver menos"
+        const colBody = ({ state, leads: colLeads }) => {
+          const expanded = kanbanExpanded.has(state)
+          const visible = expanded ? colLeads : colLeads.slice(0, KANBAN_VISIBLE)
+          const hidden = colLeads.length - visible.length
+          return (
+            <div className={cn("flex flex-col gap-2 p-2", expanded && "max-h-[70vh] overflow-y-auto")}>
+              {visible.map(card)}
+              {colLeads.length === 0 && <p className="text-center text-xs text-muted-foreground py-4">Sin leads</p>}
+              {hidden > 0 && (
+                <button onClick={() => toggleCol(state)} className="rounded-md py-2.5 text-xs font-medium text-primary hover:bg-primary/10">
+                  Ver {hidden} más →
+                </button>
+              )}
+              {expanded && colLeads.length > KANBAN_VISIBLE && (
+                <button onClick={() => toggleCol(state)} className="rounded-md py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary">
+                  Ver menos
+                </button>
+              )}
+            </div>
+          )
+        }
+        const activeState = kanbanCols.some((c) => c.state === kanbanTab) ? kanbanTab : kanbanCols[0].state
+        const activeCol = kanbanCols.find((c) => c.state === activeState)
+        return (
+          <>
+            {/* Móvil: una columna por vez, pestañas con scroll horizontal */}
+            <div className="flex flex-col gap-3 md:hidden">
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                {kanbanCols.map((c) => (
+                  <button
+                    key={c.state}
+                    onClick={() => setKanbanTab(c.state)}
+                    className={cn(
+                      "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium whitespace-nowrap",
+                      c.state === activeState ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground"
+                    )}
+                  >
+                    {c.state}
+                    <span className={cn("rounded-full px-1.5 text-[10px] font-bold", c.state === activeState ? "bg-primary-foreground/20" : "bg-primary/10 text-primary")}>{c.leads.length}</span>
+                  </button>
+                ))}
               </div>
-            )
-          })}
-        </div>
-      )}
+              <div className="rounded-lg border border-border bg-secondary/50">{colBody(activeCol)}</div>
+            </div>
+
+            {/* Escritorio: columnas */}
+            <div className="hidden md:flex gap-3 overflow-x-auto pb-4 items-start">
+              {kanbanCols.map((c) => (
+                <div key={c.state} className="flex w-64 shrink-0 flex-col rounded-lg border border-border bg-secondary/50">
+                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
+                    <span className="text-xs font-semibold text-foreground">{c.state}</span>
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1 text-[10px] font-bold text-primary">{c.leads.length}</span>
+                  </div>
+                  {colBody(c)}
+                </div>
+              ))}
+            </div>
+          </>
+        )
+      })()}
 
       {/* Detail Slideout */}
       {detailLead && (
