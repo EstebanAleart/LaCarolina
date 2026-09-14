@@ -394,7 +394,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
             <span className={cn("inline-block mt-1 rounded-full px-2.5 py-0.5 text-xs font-medium", STATE_COLORS[lead.estado_actual])}>
               {lead.estado_actual}
             </span>
-            {lead.es_historico && <span className="ml-1.5 inline-block rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">Histórico</span>}
+            {lead.es_historico && <span title="Lead histórico" className="ml-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-[11px] font-bold text-white align-middle">H</span>}
           </div>
           <button onClick={onClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary transition-colors">
             <X className="h-5 w-5" />
@@ -674,6 +674,12 @@ export default function LeadsView() {
   const [viewMode, setViewMode] = useState("table")
   const [expandedLeadIds, setExpandedLeadIds] = useState(new Set())
   const [calendarDates, setCalendarDates] = useState([])
+  const [soloHistoricos, setSoloHistoricos] = useState(false)
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 20
+
+  // Cualquier cambio de filtro vuelve a la página 1
+  useEffect(() => { setPage(1) }, [search, filterYear, filterState, filterChannel, soloHistoricos])
 
   function toggleExpand(id) {
     setExpandedLeadIds(prev => {
@@ -713,8 +719,9 @@ export default function LeadsView() {
     if (filterYear) result = result.filter((l) => String(l.anio_evento) === filterYear)
     if (filterState) result = result.filter((l) => l.estado_actual === filterState)
     if (filterChannel) result = result.filter((l) => l.canal_origen === filterChannel)
+    if (soloHistoricos) result = result.filter((l) => l.es_historico)
     return result
-  }, [leads, search, filterYear, filterState, filterChannel])
+  }, [leads, search, filterYear, filterState, filterChannel, soloHistoricos])
 
   async function handleCreate(formData) {
     try {
@@ -758,6 +765,26 @@ export default function LeadsView() {
     return [...y].sort()
   }, [leads])
 
+  const totalHistoricos = leads.filter((l) => l.es_historico).length
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE))
+  const pageLeads = filteredLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const paginacion = filteredLeads.length > PAGE_SIZE && (
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+      <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+        className="rounded-md border border-border px-4 py-2 font-medium text-foreground hover:bg-secondary disabled:opacity-40">
+        Anterior
+      </button>
+      <span className="text-center text-xs text-muted-foreground">
+        {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredLeads.length)} de {filteredLeads.length}
+        <span className="hidden sm:inline"> · página {page} de {totalPages}</span>
+      </span>
+      <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+        className="rounded-md border border-border px-4 py-2 font-medium text-foreground hover:bg-secondary disabled:opacity-40">
+        Siguiente
+      </button>
+    </div>
+  )
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -773,7 +800,7 @@ export default function LeadsView() {
           <h1 className="text-2xl font-bold text-foreground">CRM Leads</h1>
           <p className="text-sm text-muted-foreground">Gestion del pipeline comercial</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-center gap-2 sm:w-auto">
           <button
             onClick={() => setViewMode(viewMode === "table" ? "kanban" : "table")}
             className="rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
@@ -782,7 +809,7 @@ export default function LeadsView() {
           </button>
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity sm:flex-none sm:py-2"
           >
             <Plus className="h-4 w-4" /> Nuevo Lead
           </button>
@@ -791,7 +818,7 @@ export default function LeadsView() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
+        <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[200px] sm:max-w-xs">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={search}
@@ -812,6 +839,18 @@ export default function LeadsView() {
           <option value="">Todos los canales</option>
           {CANALES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
+        <button
+          type="button"
+          onClick={() => setSoloHistoricos((v) => !v)}
+          className={cn(
+            "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+            soloHistoricos
+              ? "border-orange-500 bg-orange-500 text-white"
+              : "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
+          )}
+        >
+          Históricos ({totalHistoricos})
+        </button>
       </div>
 
       {/* Create/Edit form modal */}
@@ -842,7 +881,7 @@ export default function LeadsView() {
                 No hay leads que coincidan con los filtros
               </div>
             )}
-            {filteredLeads.map((lead) => {
+            {pageLeads.map((lead) => {
               const isExpanded = expandedLeadIds.has(lead.id)
               return (
                 <div key={lead.id} className="rounded-lg border border-border bg-card overflow-hidden">
@@ -856,7 +895,7 @@ export default function LeadsView() {
                       <p className="text-xs text-muted-foreground truncate">{lead.tipo_evento || "Sin tipo"}{lead.canal_origen ? ` · ${lead.canal_origen}` : ""}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {lead.es_historico && <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground whitespace-nowrap">Histórico</span>}
+                      {lead.es_historico && <span title="Lead histórico" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[11px] font-bold text-white">H</span>}
                       <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap", STATE_COLORS[lead.estado_actual])}>
                         {lead.estado_actual}
                       </span>
@@ -936,11 +975,14 @@ export default function LeadsView() {
                     <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No hay leads que coincidan con los filtros</td>
                   </tr>
                 )}
-                {filteredLeads.map((lead) => (
+                {pageLeads.map((lead) => (
                   <tr key={lead.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
                     <td className="px-4 py-3">
                       <button onClick={() => setDetailLead(lead)} className="text-left">
-                        <p className="font-medium text-card-foreground">{lead.nombre}</p>
+                        <p className="flex items-center gap-1.5 font-medium text-card-foreground">
+                          {lead.nombre}
+                          {lead.es_historico && <span title="Lead histórico" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[11px] font-bold text-white">H</span>}
+                        </p>
                         <p className="text-xs text-muted-foreground">{lead.email || lead.telefono}</p>
                       </button>
                     </td>
@@ -972,6 +1014,8 @@ export default function LeadsView() {
               </tbody>
             </table>
           </div>
+
+          {paginacion}
         </>
       )}
 
@@ -995,7 +1039,10 @@ export default function LeadsView() {
                       onClick={() => setDetailLead(lead)}
                       className="rounded-md border border-border bg-card p-3 text-left hover:shadow-md transition-shadow"
                     >
-                      <p className="text-sm font-medium text-card-foreground">{lead.nombre}</p>
+                      <p className="flex items-center gap-1.5 text-sm font-medium text-card-foreground">
+                        {lead.nombre}
+                        {lead.es_historico && <span title="Lead histórico" className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">H</span>}
+                      </p>
                       <p className="text-xs text-muted-foreground mt-0.5">{lead.tipo_evento}</p>
                       <p className="text-xs font-semibold text-primary mt-1">${(lead.valor_estimado || 0).toLocaleString()}</p>
                     </button>
