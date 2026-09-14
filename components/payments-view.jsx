@@ -40,7 +40,8 @@ function fmt(n) {
 
 function fmtFecha(f) {
   if (!f) return "—"
-  const d = new Date(f + "T12:00:00")
+  // Acepta "AAAA-MM-DD" (fecha_pago) o ISO completo "AAAA-MM-DDT00:00:00.000Z" (fecha_confirmada)
+  const d = new Date(String(f).substring(0, 10) + "T12:00:00")
   return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
