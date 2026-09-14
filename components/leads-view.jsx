@@ -390,11 +390,13 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
       <div className="relative h-full w-full max-w-lg overflow-y-auto bg-card border-l border-border shadow-lg">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-5 py-4">
           <div>
-            <h2 className="text-lg font-bold text-card-foreground">{lead.nombre}</h2>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-card-foreground">
+              {lead.es_historico && <span title="Lead histórico" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[11px] font-bold text-white">H</span>}
+              {lead.nombre}
+            </h2>
             <span className={cn("inline-block mt-1 rounded-full px-2.5 py-0.5 text-xs font-medium", STATE_COLORS[lead.estado_actual])}>
               {lead.estado_actual}
             </span>
-            {lead.es_historico && <span title="Lead histórico" className="ml-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-[11px] font-bold text-white align-middle">H</span>}
           </div>
           <button onClick={onClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary transition-colors">
             <X className="h-5 w-5" />
@@ -891,11 +893,13 @@ export default function LeadsView() {
                     className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-card-foreground truncate">{lead.nombre}</p>
+                      <p className="flex items-center gap-1.5 font-medium text-card-foreground">
+                        {lead.es_historico && <span title="Lead histórico" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[11px] font-bold text-white">H</span>}
+                        <span className="truncate">{lead.nombre}</span>
+                      </p>
                       <p className="text-xs text-muted-foreground truncate">{lead.tipo_evento || "Sin tipo"}{lead.canal_origen ? ` · ${lead.canal_origen}` : ""}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {lead.es_historico && <span title="Lead histórico" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[11px] font-bold text-white">H</span>}
                       <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap", STATE_COLORS[lead.estado_actual])}>
                         {lead.estado_actual}
                       </span>
@@ -980,8 +984,8 @@ export default function LeadsView() {
                     <td className="px-4 py-3">
                       <button onClick={() => setDetailLead(lead)} className="text-left">
                         <p className="flex items-center gap-1.5 font-medium text-card-foreground">
-                          {lead.nombre}
                           {lead.es_historico && <span title="Lead histórico" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[11px] font-bold text-white">H</span>}
+                          {lead.nombre}
                         </p>
                         <p className="text-xs text-muted-foreground">{lead.email || lead.telefono}</p>
                       </button>
@@ -1040,8 +1044,8 @@ export default function LeadsView() {
                       className="rounded-md border border-border bg-card p-3 text-left hover:shadow-md transition-shadow"
                     >
                       <p className="flex items-center gap-1.5 text-sm font-medium text-card-foreground">
-                        {lead.nombre}
                         {lead.es_historico && <span title="Lead histórico" className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">H</span>}
+                        {lead.nombre}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">{lead.tipo_evento}</p>
                       <p className="text-xs font-semibold text-primary mt-1">${(lead.valor_estimado || 0).toLocaleString()}</p>
