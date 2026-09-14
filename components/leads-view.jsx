@@ -294,9 +294,9 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
         <textarea name="notas" value={form.notas} onChange={handleChange} rows={3} className={`${inputCls} resize-none`} placeholder="Notas adicionales..." />
       </div>
 
-      <div className="flex items-center justify-end gap-2">
-        <button type="button" onClick={onCancel} className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors">Cancelar</button>
-        <button type="submit" disabled={submitting} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">{submitting ? "Guardando..." : "Guardar"}</button>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+        <button type="button" onClick={onCancel} className="w-full rounded-md border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors sm:w-auto sm:py-2">Cancelar</button>
+        <button type="submit" disabled={submitting} className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto sm:py-2">{submitting ? "Guardando..." : "Guardar"}</button>
       </div>
     </form>
   )
@@ -389,7 +389,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
       <div className="absolute inset-0 bg-foreground/20" onClick={onClose} />
       <div className="relative h-full w-full max-w-lg overflow-y-auto bg-card border-l border-border shadow-lg">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-5 py-4">
-          <div>
+          <div className="min-w-0">
             <h2 className="flex items-center gap-2 text-lg font-bold text-card-foreground">
               {lead.es_historico && <span title="Lead histórico" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[11px] font-bold text-white">H</span>}
               {lead.nombre}
@@ -398,18 +398,18 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
               {lead.estado_actual}
             </span>
           </div>
-          <button onClick={onClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary transition-colors">
+          <button onClick={onClose} className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-secondary transition-colors">
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <div className="px-5 py-4">
           {/* Lead info */}
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 mb-4 text-sm">
-            <div className="flex items-center gap-2 text-muted-foreground col-span-2 sm:col-span-1">
+          <div className="grid grid-cols-1 gap-x-4 gap-y-2 mb-4 text-sm sm:grid-cols-2">
+            <div className="flex items-center gap-2 text-muted-foreground">
               <Phone className="h-3.5 w-3.5 shrink-0" /> {lead.telefono || "---"}
             </div>
-            <div className="flex items-center gap-2 text-muted-foreground col-span-2 sm:col-span-1">
+            <div className="flex items-center gap-2 text-muted-foreground break-all">
               <Mail className="h-3.5 w-3.5 shrink-0" /> {lead.email || "---"}
             </div>
             <div className="text-muted-foreground">
@@ -455,7 +455,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
             {!showStatusChange ? (
               <button
                 onClick={() => setShowStatusChange(true)}
-                className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+                className="flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity sm:w-auto sm:py-1.5"
               >
                 <ArrowRight className="h-3.5 w-3.5" /> Cambiar Estado
               </button>
@@ -480,21 +480,21 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
                   />
                 )}
                 <div className="flex gap-2">
-                  <button onClick={handleStatusChange} disabled={submitting} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">{submitting ? "Guardando..." : "Confirmar"}</button>
-                  <button onClick={() => setShowStatusChange(false)} className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary">Cancelar</button>
+                  <button onClick={handleStatusChange} disabled={submitting} className="flex-1 rounded-md bg-primary px-3 py-2.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed sm:flex-none sm:py-1.5">{submitting ? "Guardando..." : "Confirmar"}</button>
+                  <button onClick={() => setShowStatusChange(false)} className="flex-1 rounded-md border border-border bg-card px-3 py-2.5 text-xs font-medium text-foreground hover:bg-secondary sm:flex-none sm:py-1.5">Cancelar</button>
                 </div>
               </div>
             )}
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 border-b border-border mb-4">
+          <div className="flex gap-1 border-b border-border mb-4 overflow-x-auto">
             {["timeline", "interacciones", "propuestas"].map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
                 className={cn(
-                  "px-3 py-2 text-xs font-medium border-b-2 transition-colors capitalize",
+                  "shrink-0 whitespace-nowrap px-3 py-2 text-xs font-medium border-b-2 transition-colors capitalize",
                   tab === t
                     ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground"
@@ -522,7 +522,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
                     {i < timeline.length - 1 && <div className="flex-1 w-px bg-border mt-1" />}
                   </div>
                   <div className="flex-1 pb-3">
-                    <div className="text-[10px] text-muted-foreground">
+                    <div className="text-xs text-muted-foreground">
                       {new Date(item.date).toLocaleDateString("es-AR")}
                     </div>
                     {item.type === "status" && (
@@ -606,7 +606,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
                     className="flex-1 min-w-[140px] rounded-md border border-input bg-card px-2 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
-                <button type="submit" className="self-end rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:opacity-90">Agregar</button>
+                <button type="submit" className="w-full rounded-md bg-primary px-3 py-2.5 text-xs font-medium text-primary-foreground hover:opacity-90 sm:w-auto sm:self-end sm:py-1">Agregar</button>
               </form>
               {interactions.map((i) => {
                 const canal = i.canal || i.tipo || "—"
@@ -625,7 +625,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
                             {direction === "OUT" ? "→ Saliente" : "← Entrante"}
                           </span>
                         )}
-                        <span className="text-[10px] text-muted-foreground">{new Date(i.fecha).toLocaleDateString("es-AR")}</span>
+                        <span className="text-xs text-muted-foreground">{new Date(i.fecha).toLocaleDateString("es-AR")}</span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{i.descripcion}</p>
                     </div>
@@ -859,7 +859,7 @@ export default function LeadsView() {
       {(showForm || editLead) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-foreground/20" onClick={() => { setShowForm(false); setEditLead(null) }} />
-          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg border border-border bg-card p-6 shadow-lg mx-4">
+          <div className="relative z-10 w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-lg border border-border bg-card p-6 shadow-lg mx-4">
             <h3 className="text-lg font-bold text-card-foreground mb-4">
               {editLead ? "Editar Lead" : "Nuevo Lead"}
             </h3>

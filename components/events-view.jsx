@@ -219,15 +219,15 @@ export default function EventsView() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative w-full sm:w-auto">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <input
             type="text"
             value={searchNombre}
             onChange={(e) => setSearchNombre(e.target.value)}
             placeholder="Buscar por nombre..."
-            className="rounded-md border border-input bg-card pl-8 pr-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full rounded-md border border-input bg-card pl-8 pr-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
         <input
@@ -235,12 +235,12 @@ export default function EventsView() {
           value={filterFecha}
           onChange={(e) => setFilterFecha(e.target.value)}
           title="Filtrar por día de evento"
-          className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="w-full sm:w-auto rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
         <select
           value={filterEstado}
           onChange={(e) => setFilterEstado(e.target.value)}
-          className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="w-full sm:w-auto rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">Todos los estados</option>
           {ESTADO_OPERATIVO_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -248,7 +248,7 @@ export default function EventsView() {
         {(searchNombre || filterFecha || filterEstado) && (
           <button
             onClick={() => { setSearchNombre(""); setFilterFecha(""); setFilterEstado("") }}
-            className="text-xs text-muted-foreground hover:text-foreground underline"
+            className="self-start sm:self-auto py-2 text-xs text-muted-foreground hover:text-foreground underline"
           >
             Limpiar filtros
           </button>
@@ -345,7 +345,7 @@ export default function EventsView() {
                           key={s}
                           onClick={() => handleUpdateEstado(evt.id, s)}
                           className={cn(
-                            "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                            "rounded-md px-3 py-2 text-xs font-medium transition-colors",
                             evt.estado_operativo === s
                               ? "bg-primary text-primary-foreground"
                               : "border border-border bg-card text-foreground hover:bg-secondary"
@@ -452,7 +452,7 @@ export default function EventsView() {
                             type="button"
                             onClick={() => handleToggleServicio(evt, s)}
                             className={cn(
-                              "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                              "rounded-md px-3 py-2 text-xs font-medium transition-colors",
                               servicios.includes(s)
                                 ? "bg-primary text-primary-foreground"
                                 : "border border-border bg-card text-foreground hover:bg-secondary"
@@ -470,7 +470,7 @@ export default function EventsView() {
                             type="button"
                             onClick={() => handleToggleServicio(evt, s)}
                             className={cn(
-                              "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                              "rounded-md px-3 py-2 text-xs font-medium transition-colors",
                               servicios.includes(s)
                                 ? "bg-secondary text-secondary-foreground border border-primary/30"
                                 : "border border-border bg-card text-foreground hover:bg-secondary"
@@ -581,7 +581,7 @@ export default function EventsView() {
                                 setPayForm({ monto: "", tipo: "seña", metodo_pago: "efectivo", fecha_pago: new Date().toISOString().substring(0, 10), estado: "pendiente", observacion: "" })
                               }
                             }}
-                            className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                            className="flex items-center gap-1 py-2 text-xs text-primary hover:text-primary/80 transition-colors"
                           >
                             <Plus className="h-3 w-3" /> Registrar pago
                           </button>
@@ -598,7 +598,7 @@ export default function EventsView() {
                         {/* Formulario inline */}
                         {showPaymentForm === evt.id && (
                           <div className="rounded-md border border-border bg-secondary/20 p-3 mb-3 flex flex-col gap-3">
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                               <div>
                                 <label className="text-[10px] font-medium text-muted-foreground">Monto *</label>
                                 <input
@@ -654,38 +654,42 @@ export default function EventsView() {
                                 className="w-full rounded border border-border bg-background px-2 py-1.5 text-xs text-foreground"
                               />
                             </div>
-                            <div className="flex items-center gap-2">
-                              <label className="text-[10px] font-medium text-muted-foreground mr-1">Estado:</label>
-                              {["pendiente", "confirmado"].map((s) => (
-                                <button
-                                  key={s}
-                                  type="button"
-                                  onClick={() => setPayForm((f) => ({ ...f, estado: s }))}
-                                  className={cn(
-                                    "rounded px-2.5 py-1 text-[10px] font-medium capitalize transition-colors",
-                                    payForm.estado === s
-                                      ? "bg-primary text-primary-foreground"
-                                      : "border border-border bg-background text-foreground hover:bg-secondary"
-                                  )}
-                                >
-                                  {s}
-                                </button>
-                              ))}
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                              <div className="flex items-center gap-2">
+                                <label className="text-[10px] font-medium text-muted-foreground mr-1">Estado:</label>
+                                {["pendiente", "confirmado"].map((s) => (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => setPayForm((f) => ({ ...f, estado: s }))}
+                                    className={cn(
+                                      "rounded px-2.5 py-2 text-xs font-medium capitalize transition-colors",
+                                      payForm.estado === s
+                                        ? "bg-primary text-primary-foreground"
+                                        : "border border-border bg-background text-foreground hover:bg-secondary"
+                                    )}
+                                  >
+                                    {s}
+                                  </button>
+                                ))}
+                              </div>
                               <div className="flex-1" />
-                              <button
-                                type="button"
-                                onClick={() => setShowPaymentForm(null)}
-                                className="text-[10px] text-muted-foreground hover:text-foreground"
-                              >
-                                Cancelar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleCreatePayment(evt)}
-                                className="rounded bg-primary px-3 py-1 text-[10px] font-medium text-primary-foreground hover:bg-primary/90"
-                              >
-                                Guardar
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPaymentForm(null)}
+                                  className="px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                  Cancelar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCreatePayment(evt)}
+                                  className="flex-1 sm:flex-none rounded bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                                >
+                                  Guardar
+                                </button>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -696,7 +700,7 @@ export default function EventsView() {
                         ) : (
                           <div className="flex flex-col gap-1.5">
                             {pagos.map((p) => (
-                              <div key={p.id} className="flex items-center gap-2 rounded-md bg-secondary/30 px-3 py-2 text-xs">
+                              <div key={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-secondary/30 px-3 py-2 text-xs">
                                 <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", PAGO_ESTADO_COLORS[p.estado])}>
                                   {p.estado}
                                 </span>
@@ -707,13 +711,13 @@ export default function EventsView() {
                                 {p.observacion && <span className="text-muted-foreground italic">· {p.observacion}</span>}
                                 <div className="flex-1" />
                                 {p.estado === "pendiente" && (
-                                  <button onClick={() => handleConfirmarPago(p, evt.id)} title="Confirmar" className="text-green-600 hover:text-green-800">
-                                    <CheckCircle className="h-3.5 w-3.5" />
+                                  <button onClick={() => handleConfirmarPago(p, evt.id)} title="Confirmar" className="p-2 text-green-600 hover:text-green-800">
+                                    <CheckCircle className="h-4 w-4" />
                                   </button>
                                 )}
                                 {(p.estado === "pendiente" || p.estado === "confirmado") && (
-                                  <button onClick={() => handleAnularPago(p, evt.id)} title="Anular" className="text-red-500 hover:text-red-700 ml-1">
-                                    <XCircle className="h-3.5 w-3.5" />
+                                  <button onClick={() => handleAnularPago(p, evt.id)} title="Anular" className="p-2 text-red-500 hover:text-red-700">
+                                    <XCircle className="h-4 w-4" />
                                   </button>
                                 )}
                               </div>

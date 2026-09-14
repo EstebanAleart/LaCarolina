@@ -62,19 +62,19 @@ export default function EventSheet({ event, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="relative flex w-full max-w-4xl max-h-[95vh] flex-col rounded-lg border border-border bg-card shadow-2xl">
+      <div className="relative flex w-full max-w-4xl max-h-[90dvh] flex-col rounded-lg border border-border bg-card shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-5 py-3">
-          <div>
+        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3 sm:px-5">
+          <div className="min-w-0">
             <h2 className="text-base font-bold text-card-foreground">{event.lead?.nombre || "Evento"}</h2>
             <p className="text-xs text-muted-foreground">{fecha} · {event.tipo_evento || event.lead?.tipo_evento || "—"}</p>
           </div>
-          <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="shrink-0 rounded p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
           {/* Resumen consolidado */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Card label="Total contratado" value={fmt(resumen.totalContratado)} />
             <Card label="Cobrado" value={fmt(resumen.cobradoTotal)} tone="green" />
             <Card label="Saldo" value={fmt(resumen.saldoTotal)} tone={resumen.saldoTotal > 0 ? "red" : "green"} />
@@ -85,9 +85,9 @@ export default function EventSheet({ event, onClose }) {
           ) : (
             <>
               {/* Servicios */}
-              <div className="mt-6 flex items-center justify-between">
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="text-sm font-semibold text-foreground">Servicios contratados</h3>
-                <button onClick={() => setAdding(true)} className="flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90">
+                <button onClick={() => setAdding(true)} className="flex w-full items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:opacity-90 sm:w-auto sm:py-1.5">
                   <Plus className="h-3.5 w-3.5" /> Agregar servicio
                 </button>
               </div>
@@ -171,11 +171,11 @@ function ServiceCard({ svc, event, combos, onChanged }) {
             {combos.map(c => <option key={c.id} value={c.id}>{c.nombre} ({fmt(c.precio)})</option>)}
           </select>
         )}
-        <button onClick={del} className="ml-auto rounded p-1 text-red-500 hover:bg-red-50" title="Quitar servicio"><Trash2 className="h-3.5 w-3.5" /></button>
+        <button onClick={del} className="ml-auto rounded p-2 text-red-500 hover:bg-red-50" title="Quitar servicio"><Trash2 className="h-3.5 w-3.5" /></button>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 px-3 py-2 text-sm">
-        <label className="flex flex-col gap-0.5">
+      <div className="grid grid-cols-2 gap-2 px-3 py-2 text-sm sm:grid-cols-3">
+        <label className="col-span-2 flex flex-col gap-0.5 sm:col-span-1">
           <span className="text-[11px] text-muted-foreground">Total contratado</span>
           <input type="number" defaultValue={total} onBlur={(e) => { const v = Number(e.target.value) || 0; if (v !== total) setField("total_contratado", v) }} className={inp} />
         </label>
@@ -192,7 +192,7 @@ function ServiceCard({ svc, event, combos, onChanged }) {
       {/* Pagos del servicio */}
       <div className="px-3 pb-2">
         {(svc.payments || []).map(p => (
-          <div key={p.id} className="flex items-center gap-2 border-t border-border/60 py-1 text-xs">
+          <div key={p.id} className="flex flex-wrap items-center gap-2 border-t border-border/60 py-1 text-xs">
             <span className={cn("rounded px-1.5 py-0.5",
               p.estado === "confirmado" ? "bg-green-100 text-green-700" : p.estado === "anulado" ? "bg-gray-100 text-gray-500 line-through" : "bg-amber-100 text-amber-700")}>{p.estado}</span>
             <span className="font-medium">{p.tipo === "devolucion" ? "-" : ""}{fmt(p.monto)}</span>
@@ -203,7 +203,7 @@ function ServiceCard({ svc, event, combos, onChanged }) {
         {showPay ? (
           <PaymentForm event={event} serviceId={svc.id} tipoNombre={st.nombre} onClose={() => setShowPay(false)} onSaved={() => { setShowPay(false); onChanged() }} />
         ) : (
-          <button onClick={() => setShowPay(true)} className="mt-1.5 flex items-center gap-1 text-xs text-primary hover:underline">
+          <button onClick={() => setShowPay(true)} className="mt-1 flex items-center gap-1 py-2.5 text-xs text-primary hover:underline sm:mt-1.5 sm:py-1">
             <DollarSign className="h-3 w-3" /> Registrar pago
           </button>
         )}
@@ -229,14 +229,14 @@ function PaymentForm({ event, serviceId, tipoNombre, onClose, onSaved }) {
     } catch (err) { toast.error(err.message || "Error") } finally { setSaving(false) }
   }
   return (
-    <div className="mt-2 flex flex-wrap items-end gap-2 rounded-md bg-secondary/40 p-2">
-      <input name="monto" type="number" placeholder="Monto" value={f.monto} onChange={ch} className={cn(inp, "w-28")} />
-      <select name="tipo" value={f.tipo} onChange={ch} className={inp}>{TIPOS_PAGO.map(t => <option key={t} value={t}>{t}</option>)}</select>
-      <select name="metodo_pago" value={f.metodo_pago} onChange={ch} className={inp}>{METODOS_PAGO.map(m => <option key={m} value={m}>{m}</option>)}</select>
-      <select name="concepto" value={f.concepto} onChange={ch} className={inp}>{CONCEPTOS_PAGO.map(c => <option key={c} value={c}>{c}</option>)}</select>
-      <input name="fecha_pago" type="date" value={f.fecha_pago} onChange={ch} className={inp} />
-      <button onClick={save} disabled={saving} className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50">{saving ? "…" : "Guardar"}</button>
-      <button onClick={onClose} className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-secondary">Cancelar</button>
+    <div className="mt-2 flex flex-col gap-2 rounded-md bg-secondary/40 p-2 sm:flex-row sm:flex-wrap sm:items-end">
+      <input name="monto" type="number" placeholder="Monto" value={f.monto} onChange={ch} className={cn(inp, "w-full sm:w-28")} />
+      <select name="tipo" value={f.tipo} onChange={ch} className={cn(inp, "w-full sm:w-auto")}>{TIPOS_PAGO.map(t => <option key={t} value={t}>{t}</option>)}</select>
+      <select name="metodo_pago" value={f.metodo_pago} onChange={ch} className={cn(inp, "w-full sm:w-auto")}>{METODOS_PAGO.map(m => <option key={m} value={m}>{m}</option>)}</select>
+      <select name="concepto" value={f.concepto} onChange={ch} className={cn(inp, "w-full sm:w-auto")}>{CONCEPTOS_PAGO.map(c => <option key={c} value={c}>{c}</option>)}</select>
+      <input name="fecha_pago" type="date" value={f.fecha_pago} onChange={ch} className={cn(inp, "w-full sm:w-auto")} />
+      <button onClick={save} disabled={saving} className="w-full rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50 sm:w-auto sm:py-1">{saving ? "…" : "Guardar"}</button>
+      <button onClick={onClose} className="w-full rounded-md px-2 py-2 text-xs text-muted-foreground hover:bg-secondary sm:w-auto sm:py-1">Cancelar</button>
     </div>
   )
 }
@@ -257,20 +257,20 @@ function AddServiceRow({ event, tipos, combos, onClose, onSaved }) {
     } catch (err) { toast.error(err.message || "Error") } finally { setSaving(false) }
   }
   return (
-    <div className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border p-2">
-      <select value={f.service_type_id} onChange={(e) => setF(p => ({ ...p, service_type_id: e.target.value }))} className={inp}>
+    <div className="mt-2 flex flex-col gap-2 rounded-md border border-dashed border-border p-2 sm:flex-row sm:flex-wrap sm:items-end">
+      <select value={f.service_type_id} onChange={(e) => setF(p => ({ ...p, service_type_id: e.target.value }))} className={cn(inp, "w-full sm:w-auto")}>
         <option value="">Tipo de servicio…</option>
         {tipos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
       </select>
       {tipo?.usa_combo && (
-        <select value={f.combo_id} onChange={(e) => setF(p => ({ ...p, combo_id: e.target.value }))} className={inp}>
+        <select value={f.combo_id} onChange={(e) => setF(p => ({ ...p, combo_id: e.target.value }))} className={cn(inp, "w-full sm:w-auto")}>
           <option value="">Sin combo</option>
           {combos.map(c => <option key={c.id} value={c.id}>{c.nombre} ({fmt(c.precio)})</option>)}
         </select>
       )}
-      <input type="number" placeholder="Total $" value={f.total_contratado} onChange={(e) => setF(p => ({ ...p, total_contratado: e.target.value }))} className={cn(inp, "w-28")} />
-      <button onClick={save} disabled={saving} className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50">{saving ? "…" : "Agregar"}</button>
-      <button onClick={onClose} className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-secondary">Cancelar</button>
+      <input type="number" placeholder="Total $" value={f.total_contratado} onChange={(e) => setF(p => ({ ...p, total_contratado: e.target.value }))} className={cn(inp, "w-full sm:w-28")} />
+      <button onClick={save} disabled={saving} className="w-full rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50 sm:w-auto sm:py-1">{saving ? "…" : "Agregar"}</button>
+      <button onClick={onClose} className="w-full rounded-md px-2 py-2 text-xs text-muted-foreground hover:bg-secondary sm:w-auto sm:py-1">Cancelar</button>
     </div>
   )
 }
@@ -286,11 +286,11 @@ function UnassignedPayment({ p, services, tipos, onAssigned }) {
     catch (err) { toast.error(err.message || "Error") }
   }
   return (
-    <div className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-xs">
-      <Link2 className="h-3 w-3 text-muted-foreground" />
+    <div className="flex flex-wrap items-center gap-2 rounded-md border border-border px-2 py-1.5 text-xs">
+      <Link2 className="h-3 w-3 shrink-0 text-muted-foreground" />
       <span className="font-medium">{fmt(p.monto)}</span>
       <span className="text-muted-foreground">{p.tipo} · {p.metodo_pago} · {p.fecha_pago}</span>
-      <select defaultValue="" onChange={(e) => e.target.value && assign(e.target.value)} className={cn(inp, "ml-auto text-xs")}>
+      <select defaultValue="" onChange={(e) => e.target.value && assign(e.target.value)} className={cn(inp, "w-full text-xs sm:ml-auto sm:w-auto")}>
         <option value="">Asignar a…</option>
         {services.map(s => <option key={s.id} value={s.id}>{nombreTipo(s.id)}</option>)}
       </select>

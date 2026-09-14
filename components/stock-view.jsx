@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Package, Plus, X, AlertTriangle, ArrowDownUp, Boxes, Pencil } from "lucide-react"
+import { Package, Plus, X, AlertTriangle, ArrowDownUp, Boxes, Pencil, ChevronDown } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -49,7 +49,7 @@ export default function StockView() {
         </div>
         <button
           onClick={() => setShowNewProduct(true)}
-          className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+          className="flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity sm:w-auto"
         >
           <Plus className="h-4 w-4" /> Nuevo Producto
         </button>
@@ -104,9 +104,71 @@ export default function StockView() {
 }
 
 function ProductsTable({ products, onMov, onEdit }) {
+  const [expandedIds, setExpandedIds] = useState(() => new Set())
+  function toggleExpand(id) {
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
   if (!products.length) return <p className="text-sm text-muted-foreground">No hay productos. Cargá uno o aplicá el seed de combos.</p>
   return (
-    <div className="overflow-x-auto rounded-md border border-border">
+    <>
+    {/* Mobile: cards expandibles */}
+    <div className="flex flex-col gap-2 md:hidden">
+      {products.map(p => {
+        const isExpanded = expandedIds.has(p.id)
+        return (
+          <div key={p.id} className={cn("rounded-md border border-border bg-card overflow-hidden", p.bajo_minimo && "bg-red-50")}>
+            <button
+              onClick={() => toggleExpand(p.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="flex items-center gap-1.5 font-medium text-card-foreground">
+                  {p.bajo_minimo && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-600" />}
+                  <span className="truncate">{p.nombre}</span>
+                </p>
+                <p className="text-xs text-muted-foreground truncate">Código: {p.codigo || "—"} · Mínimo: {fmt(p.stock_minimo)}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={cn("text-sm font-semibold whitespace-nowrap", p.bajo_minimo ? "text-red-700" : "text-emerald-700")}>{fmt(p.stock_disponible)} disp.</span>
+                <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-180")} />
+              </div>
+            </button>
+            {isExpanded && (
+              <div className="border-t border-border bg-muted/20 px-4 py-3 flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+                  <div className="flex flex-col"><span className="text-muted-foreground">Actual</span><span className="font-medium text-foreground">{fmt(p.stock_actual)}</span></div>
+                  <div className="flex flex-col"><span className="text-muted-foreground">Reservado</span><span className="font-medium text-amber-700">{fmt(p.stock_reservado)}</span></div>
+                  <div className="flex flex-col"><span className="text-muted-foreground">Disponible</span><span className={cn("font-semibold", p.bajo_minimo ? "text-red-700" : "text-emerald-700")}>{fmt(p.stock_disponible)}</span></div>
+                  <div className="flex flex-col"><span className="text-muted-foreground">Mínimo</span><span className="font-medium text-foreground">{fmt(p.stock_minimo)}</span></div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => onEdit(p)}
+                    className="flex items-center justify-center gap-1.5 rounded-md bg-secondary py-2.5 text-sm hover:bg-secondary/70"
+                  >
+                    <Pencil className="h-4 w-4" /> Editar
+                  </button>
+                  <button
+                    onClick={() => onMov(p)}
+                    className="flex items-center justify-center gap-1.5 rounded-md bg-secondary py-2.5 text-sm hover:bg-secondary/70"
+                  >
+                    <ArrowDownUp className="h-4 w-4" /> Movimiento
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+
+    {/* Desktop: tabla */}
+    <div className="hidden md:block overflow-x-auto rounded-md border border-border">
       <table className="w-full text-sm">
         <thead className="bg-secondary/50 text-left text-xs uppercase text-muted-foreground">
           <tr>
@@ -150,6 +212,7 @@ function ProductsTable({ products, onMov, onEdit }) {
         </tbody>
       </table>
     </div>
+    </>
   )
 }
 
@@ -198,11 +261,11 @@ function NewProductModal({ onClose, onSaved }) {
     <Modal title="Nuevo Producto" onClose={onClose}>
       <div className="grid gap-3">
         <Field label="Nombre"><input name="nombre" value={f.nombre} onChange={ch} className={inp} /></Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Código"><input name="codigo" value={f.codigo} onChange={ch} className={inp} /></Field>
           <Field label="Categoría"><input name="categoria" value={f.categoria} onChange={ch} className={inp} /></Field>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Unidad"><input name="unidad" value={f.unidad} onChange={ch} className={inp} /></Field>
           <Field label="Stock inicial"><input type="number" name="stock_actual" value={f.stock_actual} onChange={ch} className={inp} /></Field>
           <Field label="Mínimo"><input type="number" name="stock_minimo" value={f.stock_minimo} onChange={ch} className={inp} /></Field>
@@ -246,11 +309,11 @@ function EditProductModal({ product, onClose, onSaved }) {
     <Modal title={`Editar — ${product.nombre}`} onClose={onClose}>
       <div className="grid gap-3">
         <Field label="Nombre"><input name="nombre" value={f.nombre} onChange={ch} className={inp} /></Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Código"><input name="codigo" value={f.codigo} onChange={ch} className={inp} /></Field>
           <Field label="Categoría"><input name="categoria" value={f.categoria} onChange={ch} className={inp} /></Field>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Unidad"><input name="unidad" value={f.unidad} onChange={ch} className={inp} /></Field>
           <Field label="Stock actual"><input type="number" name="stock_actual" value={f.stock_actual} onChange={ch} className={inp} /></Field>
           <Field label="Mínimo"><input type="number" name="stock_minimo" value={f.stock_minimo} onChange={ch} className={inp} /></Field>
@@ -314,10 +377,10 @@ function Field({ label, children }) {
 function Modal({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="relative w-full max-w-md rounded-lg border border-border bg-card shadow-lg">
+      <div className="relative w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-lg border border-border bg-card shadow-lg">
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h3 className="text-sm font-bold text-card-foreground">{title}</h3>
-          <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="rounded p-2 text-muted-foreground hover:bg-secondary"><X className="h-4 w-4" /></button>
         </div>
         <div className="p-5">{children}</div>
       </div>
@@ -327,9 +390,9 @@ function Modal({ title, onClose, children }) {
 
 function ModalActions({ onClose, onSave, saving }) {
   return (
-    <div className="mt-5 flex justify-end gap-2">
-      <button onClick={onClose} className="rounded-md px-4 py-2 text-sm text-muted-foreground hover:bg-secondary">Cancelar</button>
-      <button onClick={onSave} disabled={saving} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">
+    <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+      <button onClick={onClose} className="w-full rounded-md px-4 py-2 text-sm text-muted-foreground hover:bg-secondary sm:w-auto">Cancelar</button>
+      <button onClick={onSave} disabled={saving} className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 sm:w-auto">
         {saving ? "Guardando…" : "Guardar"}
       </button>
     </div>
