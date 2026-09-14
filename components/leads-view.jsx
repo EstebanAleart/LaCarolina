@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, useEffect } from "react"
+import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import {
   Plus,
   Search,
@@ -663,6 +663,73 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
   )
 }
 
+// Modal "Ver más" del kanban: listado completo de una columna con búsqueda y paginado 10/20
+function KanbanColumnModal({ state, leads, onClose, onOpenLead }) {
+  const [q, setQ] = useState("")
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
+  useEffect(() => { setPage(1) }, [q, pageSize])
+  const list = useMemo(() => {
+    const s = q.toLowerCase().trim()
+    if (!s) return leads
+    return leads.filter((l) => l.nombre.toLowerCase().includes(s) || (l.tipo_evento || "").toLowerCase().includes(s))
+  }, [leads, q])
+  const totalPages = Math.max(1, Math.ceil(list.length / pageSize))
+  const rows = list.slice((page - 1) * pageSize, page * pageSize)
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-foreground/20" onClick={onClose} />
+      <div className="relative z-10 mx-3 flex max-h-[90dvh] w-full max-w-lg flex-col rounded-lg border border-border bg-card shadow-lg">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <h3 className="text-base font-bold text-card-foreground">
+            {state} <span className="font-normal text-muted-foreground">— {leads.length}</span>
+          </h3>
+          <button onClick={onClose} className="rounded-md p-2 text-muted-foreground hover:bg-secondary" aria-label="Cerrar">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex items-center gap-2 border-b border-border px-4 py-2">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Buscar..."
+            className="min-w-0 flex-1 rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="rounded-md border border-input bg-card px-2 py-2 text-xs text-card-foreground">
+            {[5, 10, 20].map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {rows.length === 0 && <p className="px-4 py-8 text-center text-sm text-muted-foreground">Sin resultados</p>}
+          {rows.map((lead, i) => (
+            <button
+              key={lead.id}
+              onClick={() => onOpenLead(lead)}
+              className="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left hover:bg-muted/50 last:border-0"
+            >
+              <span className="w-6 shrink-0 text-xs text-muted-foreground">{(page - 1) * pageSize + i + 1}</span>
+              {lead.es_historico && <span title="Lead histórico" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[11px] font-bold text-white">H</span>}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-card-foreground">{lead.nombre}</span>
+                <span className="block truncate text-xs text-muted-foreground">{lead.tipo_evento}{lead.canal_origen ? ` · ${lead.canal_origen}` : ""}</span>
+              </span>
+              <span className="shrink-0 text-xs font-semibold text-primary">${(lead.valor_estimado || 0).toLocaleString()}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2 text-xs text-muted-foreground">
+          <span>{list.length ? `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, list.length)} de ${list.length}` : "0 de 0"}</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="rounded-md border border-border px-3 py-2 font-medium text-foreground hover:bg-secondary disabled:opacity-40">Anterior</button>
+            <span>{page}/{totalPages}</span>
+            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="rounded-md border border-border px-3 py-2 font-medium text-foreground hover:bg-secondary disabled:opacity-40">Siguiente</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function LeadsView() {
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
@@ -681,8 +748,8 @@ export default function LeadsView() {
   const [pageSize, setPageSize] = useState(5) // 5 por defecto: en móvil es lo cómodo
   // Kanban: 5 visibles por columna, "Ver más" expande la columna; en móvil una columna por vez (pestañas)
   const KANBAN_VISIBLE = 5
-  const [kanbanExpanded, setKanbanExpanded] = useState(() => new Set())
-  const [kanbanTab, setKanbanTab] = useState(LEAD_STATES[0])
+  const [kanbanModal, setKanbanModal] = useState(null) // estado (columna) abierto con "Ver más"
+  const kanbanDrag = useRef(null) // arrastre del tablero con el mouse (en touch scrollea nativo)
 
   // Cualquier cambio de filtro o de tamaño de página vuelve a la página 1
   useEffect(() => { setPage(1) }, [search, filterYear, filterState, filterChannel, soloHistoricos, pageSize])
@@ -1046,7 +1113,8 @@ export default function LeadsView() {
         </>
       )}
 
-      {/* Kanban View: 5 visibles por columna + contador + "Ver más"; en móvil, pestañas por estado */}
+      {/* Kanban View: 5 visibles por columna + contador + "Ver más" (modal). Columnas en todos los tamaños;
+          en touch scrollea nativo hacia los lados y arriba/abajo, con mouse se arrastra manteniendo apretado. */}
       {viewMode === "kanban" && (() => {
         const card = (lead) => (
           <button
@@ -1062,77 +1130,71 @@ export default function LeadsView() {
             <p className="text-xs font-semibold text-primary mt-1">${(lead.valor_estimado || 0).toLocaleString()}</p>
           </button>
         )
-        const toggleCol = (state) => setKanbanExpanded((prev) => {
-          const next = new Set(prev)
-          if (next.has(state)) next.delete(state)
-          else next.add(state)
-          return next
-        })
-        // Cuerpo de una columna: primeras 5 (o todas si está expandida) + "Ver N más" / "Ver menos"
-        const colBody = ({ state, leads: colLeads }) => {
-          const expanded = kanbanExpanded.has(state)
-          const visible = expanded ? colLeads : colLeads.slice(0, KANBAN_VISIBLE)
-          const hidden = colLeads.length - visible.length
-          return (
-            <div className={cn("flex flex-col gap-2 p-2 md:min-h-[29.5rem]", expanded && "max-h-[70vh] overflow-y-auto")}>
-              {visible.map(card)}
-              {colLeads.length === 0 && <p className="text-center text-xs text-muted-foreground py-4">Sin leads</p>}
-              {hidden > 0 && (
-                <button onClick={() => toggleCol(state)} className="rounded-md py-2.5 text-xs font-medium text-primary hover:bg-primary/10">
-                  Ver {hidden} más →
-                </button>
-              )}
-              {expanded && colLeads.length > KANBAN_VISIBLE && (
-                <button onClick={() => toggleCol(state)} className="rounded-md py-2.5 text-xs font-medium text-muted-foreground hover:bg-secondary">
-                  Ver menos
-                </button>
-              )}
-            </div>
-          )
+        // Arrastre con mouse: mueve el tablero a los lados y el contenido principal arriba/abajo
+        const onDown = (e) => {
+          if (e.pointerType !== "mouse" || e.button !== 0) return
+          const main = e.currentTarget.closest("main")
+          kanbanDrag.current = { x: e.clientX, y: e.clientY, left: e.currentTarget.scrollLeft, top: main ? main.scrollTop : 0, main, moved: false }
         }
-        const activeState = kanbanCols.some((c) => c.state === kanbanTab) ? kanbanTab : kanbanCols[0].state
-        const activeCol = kanbanCols.find((c) => c.state === activeState)
+        const onMove = (e) => {
+          const d = kanbanDrag.current
+          if (!d) return
+          const dx = e.clientX - d.x, dy = e.clientY - d.y
+          if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true
+          e.currentTarget.scrollLeft = d.left - dx
+          if (d.main) d.main.scrollTop = d.top - dy
+        }
+        const onUp = () => { const d = kanbanDrag.current; if (d) setTimeout(() => { kanbanDrag.current = null }, 0) }
+        const onClickCapture = (e) => { if (kanbanDrag.current?.moved) { e.stopPropagation(); e.preventDefault() } }
         return (
-          <>
-            {/* Móvil: una columna por vez, pestañas con scroll horizontal */}
-            <div className="flex flex-col gap-3 md:hidden">
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-                {kanbanCols.map((c) => (
-                  <button
-                    key={c.state}
-                    onClick={() => setKanbanTab(c.state)}
-                    className={cn(
-                      "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium whitespace-nowrap",
-                      c.state === activeState ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground"
-                    )}
-                  >
-                    {c.state}
-                    <span className={cn("rounded-full px-1.5 text-[10px] font-bold", c.state === activeState ? "bg-primary-foreground/20" : "bg-primary/10 text-primary")}>{c.leads.length}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="rounded-lg border border-border bg-secondary/50">{colBody(activeCol)}</div>
-            </div>
-
-            {/* Escritorio: columnas */}
-            <div className="hidden md:flex gap-3 overflow-x-auto pb-4 items-stretch">
-              {kanbanCols.map((c) => (
+          <div
+            className="flex gap-3 overflow-x-auto pb-4 items-stretch cursor-grab active:cursor-grabbing select-none"
+            onPointerDown={onDown}
+            onPointerMove={onMove}
+            onPointerUp={onUp}
+            onPointerLeave={onUp}
+            onPointerCancel={onUp}
+            onClickCapture={onClickCapture}
+          >
+            {kanbanCols.map((c) => {
+              const visible = c.leads.slice(0, KANBAN_VISIBLE)
+              const hidden = c.leads.length - visible.length
+              return (
                 <div key={c.state} className="flex w-64 shrink-0 flex-col rounded-lg border border-border bg-secondary/50">
                   <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
                     <span className="text-xs font-semibold text-foreground">{c.state}</span>
                     <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1 text-[10px] font-bold text-primary">{c.leads.length}</span>
                   </div>
-                  {colBody(c)}
+                  {/* Altura fija de 5 tarjetas, tenga 1 o 3 */}
+                  <div className="flex min-h-[29.5rem] flex-col gap-2 p-2">
+                    {visible.map(card)}
+                    {c.leads.length === 0 && <p className="text-center text-xs text-muted-foreground py-4">Sin leads</p>}
+                    {hidden > 0 && (
+                      <button onClick={() => setKanbanModal(c.state)} className="mt-auto rounded-md py-2.5 text-xs font-medium text-primary hover:bg-primary/10">
+                        Ver {hidden} más →
+                      </button>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </>
+              )
+            })}
+          </div>
         )
       })()}
 
       {/* Detail Slideout */}
       {detailLead && (
         <LeadDetail lead={detailLead} onClose={() => setDetailLead(null)} onRefresh={handleRefresh} />
+      )}
+
+      {/* Kanban: "Ver más" de una columna */}
+      {kanbanModal && (
+        <KanbanColumnModal
+          state={kanbanModal}
+          leads={kanbanCols.find((c) => c.state === kanbanModal)?.leads || []}
+          onClose={() => setKanbanModal(null)}
+          onOpenLead={(lead) => setDetailLead(lead)}
+        />
       )}
     </div>
   )
