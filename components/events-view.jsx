@@ -778,6 +778,8 @@ export default function EventsView() {
         })}
       </div>
 
+      {paginacion}
+
       {sheetEvent && <EventSheet event={sheetEvent} onClose={() => { setSheetEvent(null); loadData() }} />}
     </div>
   )
