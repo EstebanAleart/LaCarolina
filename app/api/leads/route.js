@@ -51,6 +51,7 @@ export async function POST(request) {
       valor_estimado: body.valor_estimado || 0,
       invitados_estimados: body.invitados_estimados || 0,
       notas: body.notas || '',
+      es_historico: !!body.es_historico,
     });
 
     // Sync: si se estableció fecha_visita_salon, crear CalendarDate como "Visita" para este lead

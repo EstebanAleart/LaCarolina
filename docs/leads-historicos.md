@@ -29,8 +29,10 @@ mostraba 103 de 108 leads en "Contrato firmado". Dos causas, las dos de datos, n
 - **Etiqueta `es_historico` en leads** (migración `migrations/004_leads_historico.sql`, la corre el
   dueño). Marca como históricos los 72 leads creados hasta el 25 de marzo de 2026 inclusive, última
   jornada de carga masiva. Los 3 leads del 31 de marzo quedan operativos: uno de ellos firmó recién
-  en mayo, o sea que fue un prospecto real. Es una columna editable: si algún lead de marzo era un
-  prospecto real, se destilda por SQL.
+  en mayo, o sea que fue un prospecto real. Es una columna editable.
+- **Tilde "Lead histórico"** arriba del formulario de alta y edición de lead, en naranja. Sirve para
+  cargar clientes previos que falten (no cuentan como lead nuevo) o para corregir alguno de los 72,
+  sin SQL. Independiente del canal de origen.
 - **Dashboard y Reportes** calculan conversión, pipeline y canal de origen **sin los históricos**,
   y muestran cuántos quedaron afuera. Los eventos, pagos, calendario y alertas de esos clientes
   no cambian en nada.

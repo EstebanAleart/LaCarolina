@@ -82,6 +82,7 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
       valor_estimado: 0,
       invitados_estimados: "",
       notas: "",
+      es_historico: false,
     }
   })
 
@@ -149,6 +150,7 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
         valor_estimado:      typeof form.valor_estimado === 'number' ? form.valor_estimado : Number(String(form.valor_estimado).replace(/\D/g, '')) || 0,
         invitados_estimados: form.invitados_estimados === '' ? null : parseInt(String(form.invitados_estimados).replace(/\./g, ""), 10) || null,
         notas:               form.notas,
+        es_historico:        !!form.es_historico,
       })
     } finally { setSubmitting(false) }
   }
@@ -158,6 +160,23 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+
+      {/* Lead histórico: cliente previo que se carga al sistema, no cuenta para conversión ni pipeline */}
+      <label className={cn(
+        "flex cursor-pointer items-center gap-3 rounded-lg border-2 px-4 py-3 transition-colors",
+        form.es_historico ? "border-orange-500 bg-orange-50" : "border-orange-200 bg-orange-50/40 hover:bg-orange-50"
+      )}>
+        <input
+          type="checkbox"
+          checked={!!form.es_historico}
+          onChange={(e) => setForm((f) => ({ ...f, es_historico: e.target.checked }))}
+          className="h-5 w-5 accent-orange-500"
+        />
+        <span>
+          <span className="block text-sm font-bold text-orange-700">Lead histórico</span>
+          <span className="block text-xs text-orange-700/80">No es un lead nuevo: es un cliente previo que se ingresa al sistema. No cuenta para conversión ni pipeline.</span>
+        </span>
+      </label>
 
       {/* Datos de contacto */}
       <div>
