@@ -45,25 +45,25 @@ export default function LandingPage({ onLogin }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f2ece6] via-[#f7f3ee] to-[#e6e0d3]">
       {/* Navbar */}
-      <nav className="flex items-center justify-between px-6 py-4 lg:px-16 lg:py-6 bg-white/80 backdrop-blur-md shadow-sm rounded-b-2xl">
+      <nav className="flex items-center justify-between px-4 sm:px-6 py-4 lg:px-16 lg:py-6 bg-white/80 backdrop-blur-md shadow-sm rounded-b-2xl">
         <div className="flex items-center gap-3">
           <img
             src="/images/LOGO PIE1.1 mail.png"
             alt="Carolina Eventos"
-            className="h-10 lg:h-12 object-contain drop-shadow-md"
+            className="h-8 sm:h-10 lg:h-12 object-contain drop-shadow-md"
           />
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => setAuthView('register')}
-            className="px-5 py-2 rounded-full text-sm font-medium tracking-wide transition-all hover:bg-[#2d2b3d]/10"
+            className="px-3 sm:px-5 py-2.5 sm:py-2 rounded-full text-sm font-medium tracking-wide transition-all hover:bg-[#2d2b3d]/10"
             style={{ color: "#2d2b3d" }}
           >
             Registrarse
           </button>
           <button
             onClick={() => setAuthView('login')}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-full text-base font-semibold tracking-wide shadow-md bg-gradient-to-r from-[#2d2b3d] to-[#5c5650] text-[#f2ece6] hover:opacity-90 transition-all"
+            className="flex items-center gap-2 px-4 sm:px-6 py-2.5 rounded-full text-sm sm:text-base font-semibold tracking-wide shadow-md bg-gradient-to-r from-[#2d2b3d] to-[#5c5650] text-[#f2ece6] hover:opacity-90 transition-all"
           >
             <Lock className="h-5 w-5" />
             Acceder
@@ -81,14 +81,14 @@ export default function LandingPage({ onLogin }) {
               EventTech CRM
             </p>
             <h1
-              className="text-5xl lg:text-7xl font-extrabold leading-tight mb-8 text-balance bg-gradient-to-r from-[#2d2b3d] via-[#5c5650] to-[#a09888] text-transparent bg-clip-text"
+              className="text-3xl sm:text-5xl lg:text-7xl font-extrabold leading-tight mb-8 text-balance bg-gradient-to-r from-[#2d2b3d] via-[#5c5650] to-[#a09888] text-transparent bg-clip-text"
               style={{ fontFamily: "var(--font-inter)" }}
             >
               Tu negocio de eventos,<br className="hidden md:block" />
               <span className="font-black">organizado</span>
             </h1>
             <p
-              className="text-lg lg:text-xl leading-relaxed max-w-2xl mb-10 text-[#5c5650]"
+              className="text-base sm:text-lg lg:text-xl leading-relaxed max-w-2xl mb-10 text-[#5c5650]"
             >
               CarolinaOS centraliza leads, calendario, propuestas, reservaciones y tareas en una sola plataforma. <span className="font-semibold text-[#2d2b3d]">Diseña tu operación comercial de principio a fin.</span>
             </p>
@@ -258,7 +258,7 @@ export default function LandingPage({ onLogin }) {
           </p>
           <button
             onClick={() => setAuthView('register')}
-            className="flex items-center gap-2 px-8 py-3.5 rounded-lg text-sm font-semibold tracking-wide transition-all hover:opacity-90"
+            className="flex w-full sm:w-auto items-center justify-center gap-2 px-8 py-3.5 rounded-lg text-sm font-semibold tracking-wide transition-all hover:opacity-90"
             style={{
               backgroundColor: "#2d2b3d",
               color: "#f2ece6",

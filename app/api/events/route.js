@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 const { Event, Lead, CalendarDate, LeadStatusHistory } = require('@/lib/models/associations');
+const { cerrarEventosVencidos } = require('@/lib/automations');
 
-// GET /api/events - Todos los eventos
+// GET /api/events - Todos los eventos (cierra primero los vencidos → Realizado)
 export async function GET() {
   try {
+    await cerrarEventosVencidos(Event);
     const events = await Event.findAll({
       include: [
         { association: 'lead' },

@@ -6,6 +6,7 @@ import {
   ChevronRight,
   X,
   Plus,
+  PartyPopper,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -14,8 +15,17 @@ import {
   apiSetCalendarDate,
   apiRemoveCalendarDate,
   fetchLeads,
+  fetchEvents,
+  fetchEventServices,
   CALENDAR_STATES,
 } from "@/lib/api"
+
+// Color del badge de cotillón según combo
+const COMBO_COLORS = {
+  1: "bg-amber-400 text-amber-950",
+  2: "bg-violet-400 text-violet-950",
+  3: "bg-rose-400 text-rose-950",
+}
 
 const STATE_COLORS = {
   Disponible: "bg-emerald-200 text-emerald-900",
@@ -59,16 +69,22 @@ export default function CalendarView() {
   const [showForm, setShowForm] = useState(false)
   const [calendarDatesRaw, setCalendarDatesRaw] = useState([])
   const [leads, setLeads] = useState([])
+  const [events, setEvents] = useState([])
+  const [eventServices, setEventServices] = useState([])
   const [loading, setLoading] = useState(true)
 
   async function loadData() {
     try {
-      const [dates, lds] = await Promise.all([
+      const [dates, lds, evs, srv] = await Promise.all([
         fetchCalendarDates(),
-        fetchLeads()
+        fetchLeads(),
+        fetchEvents().catch(() => []),
+        fetchEventServices().catch(() => []),
       ])
       setCalendarDatesRaw(dates)
       setLeads(lds)
+      setEvents(evs)
+      setEventServices(srv)
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
   }
@@ -97,6 +113,20 @@ export default function CalendarView() {
     })
     return map
   }, [leads])
+
+  // Mapa fecha → número de combo de cotillón (para el indicador del calendario)
+  const comboByDate = useMemo(() => {
+    const eventCombo = {} // event_id -> combo numero
+    for (const s of eventServices) {
+      if (s.service_type?.usa_combo && s.combo) eventCombo[s.event_id] = s.combo.numero
+    }
+    const map = {}
+    for (const e of events) {
+      const c = eventCombo[e.id]
+      if (c && e.fecha_confirmada) map[e.fecha_confirmada.substring(0, 10)] = c
+    }
+    return map
+  }, [events, eventServices])
 
   const daysInMonth = getDaysInMonth(currentYear, currentMonth)
   const firstDay = getFirstDayOfMonth(currentYear, currentMonth)
@@ -140,6 +170,7 @@ export default function CalendarView() {
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = formatDate(day)
     const calEntries = calendarDates[dateStr] || []
+    const combo = comboByDate[dateStr]
     const tentativeLeads = tentativeMap[dateStr] || []
     // Solo mostrar tentativas que no tengan ya un CalendarDate con lead asociado
     const filteredTentative = tentativeLeads.filter(
@@ -155,18 +186,28 @@ export default function CalendarView() {
         key={day}
         onClick={() => handleDayClick(day)}
         className={cn(
-          "h-24 flex flex-col items-start p-1.5 border border-border/50 text-left transition-colors hover:bg-muted/50",
+          "h-24 min-w-0 overflow-hidden flex flex-col items-start p-1 sm:p-1.5 border border-border/50 text-left transition-colors hover:bg-muted/50",
           isToday && "ring-2 ring-primary ring-inset"
         )}
       >
-        <span
-          className={cn(
-            "text-xs font-medium",
-            isToday ? "text-primary font-bold" : "text-foreground"
+        <div className="flex w-full items-center justify-between">
+          <span
+            className={cn(
+              "text-xs font-medium",
+              isToday ? "text-primary font-bold" : "text-foreground"
+            )}
+          >
+            {day}
+          </span>
+          {combo && (
+            <span
+              className={cn("flex shrink-0 items-center gap-0.5 rounded px-0.5 sm:px-1 py-0.5 text-[10px] font-bold", COMBO_COLORS[combo] || "bg-gray-300 text-gray-900")}
+              title={`Cotillón Combo ${combo}`}
+            >
+              <PartyPopper className="h-2.5 w-2.5" /> C{combo}
+            </span>
           )}
-        >
-          {day}
-        </span>
+        </div>
         <div className="mt-auto w-full flex flex-col gap-0.5">
           {filteredTentative.map((l) => (
             <div key={l.id} className={cn("w-full rounded px-1 py-0.5 text-[10px] font-medium truncate", STATE_COLORS.Tentativa)}>
@@ -179,7 +220,7 @@ export default function CalendarView() {
             </div>
           ))}
           {calEntries.length > 2 && (
-            <div className="text-[9px] text-muted-foreground px-1">+{calEntries.length - 2} más</div>
+            <div className="text-[10px] text-muted-foreground px-1">+{calEntries.length - 2} más</div>
           )}
         </div>
       </button>
@@ -213,7 +254,7 @@ export default function CalendarView() {
 
       {/* Month navigation */}
       <div className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3">
-        <button onClick={prevMonth} className="rounded-md p-1.5 text-foreground hover:bg-secondary transition-colors" aria-label="Mes anterior">
+        <button onClick={prevMonth} className="rounded-md p-2.5 text-foreground hover:bg-secondary transition-colors" aria-label="Mes anterior">
           <ChevronLeft className="h-5 w-5" />
         </button>
         <div className="flex items-center gap-2">
@@ -236,7 +277,7 @@ export default function CalendarView() {
             ))}
           </select>
         </div>
-        <button onClick={nextMonth} className="rounded-md p-1.5 text-foreground hover:bg-secondary transition-colors" aria-label="Mes siguiente">
+        <button onClick={nextMonth} className="rounded-md p-2.5 text-foreground hover:bg-secondary transition-colors" aria-label="Mes siguiente">
           <ChevronRight className="h-5 w-5" />
         </button>
       </div>
@@ -304,6 +345,21 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
 
   async function handleSubmit(e) {
     e.preventDefault()
+    setError("")
+    // Pre-validación: Reservada/Confirmada no puede coexistir con otro lead en el mismo día
+    if (!editingEntry && (estado === "Reservada" || estado === "Confirmada")) {
+      const conflict = existingEntries.find(
+        (entry) =>
+          (entry.estado_fecha === "Reservada" || entry.estado_fecha === "Confirmada") &&
+          (!leadId || entry.lead_id !== Number(leadId))
+      )
+      if (conflict) {
+        const msg = `Esta fecha ya está ${conflict.estado_fecha.toLowerCase()} para otro evento. No se puede reservar ni confirmar.`
+        setError(msg)
+        toast.error(msg)
+        return
+      }
+    }
     setSubmitting(true)
     try {
       await apiSetCalendarDate({
@@ -318,7 +374,7 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
       onSave()
     } catch (err) {
       setError(err.message)
-      toast.error("Error al guardar fecha")
+      toast.error(err.message)
     } finally {
       setSubmitting(false)
     }
@@ -355,7 +411,7 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-foreground/20" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="relative z-10 w-full max-w-md rounded-lg border border-border bg-card p-4 sm:p-6 shadow-lg mx-3 sm:mx-auto max-h-[90dvh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-card-foreground">
             {new Date(date + "T12:00:00").toLocaleDateString("es-AR", {
@@ -365,7 +421,7 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
               day: "numeric",
             })}
           </h3>
-          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-secondary">
+          <button onClick={onClose} className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-secondary">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -388,10 +444,10 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
                       {entry.nota && <span className="text-[10px] truncate opacity-75">{entry.nota}</span>}
                     </div>
                     <div className="flex items-center gap-1 ml-2 shrink-0">
-                      <button type="button" onClick={() => startEdit(entry)} className="rounded px-2 py-0.5 text-[10px] bg-white/40 hover:bg-white/70 transition-colors">
+                      <button type="button" onClick={() => startEdit(entry)} className="rounded px-2.5 py-2 text-xs bg-white/40 hover:bg-white/70 transition-colors">
                         Editar
                       </button>
-                      <button type="button" onClick={() => handleDelete(entry)} className="rounded px-2 py-0.5 text-[10px] bg-red-100 text-red-700 hover:bg-red-200 transition-colors">
+                      <button type="button" onClick={() => handleDelete(entry)} className="rounded px-2.5 py-2 text-xs bg-red-100 text-red-700 hover:bg-red-200 transition-colors">
                         Eliminar
                       </button>
                     </div>
@@ -400,7 +456,7 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
               })}
             </div>
             {!formOpen && (
-              <button type="button" onClick={startNew} className="mt-3 flex items-center gap-1.5 text-xs text-primary hover:underline">
+              <button type="button" onClick={startNew} className="mt-3 flex items-center gap-1.5 py-2 text-xs text-primary hover:underline">
                 <Plus className="h-3.5 w-3.5" /> Agregar otra entrada
               </button>
             )}
@@ -418,14 +474,14 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
                   type="button"
                   onClick={() => handleSelectTentative(l)}
                   className={cn(
-                    "flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs transition-colors text-left",
+                    "flex items-center justify-between gap-2 rounded-md px-2.5 py-2 text-xs transition-colors text-left",
                     leadId === l.id
                       ? "bg-purple-200 dark:bg-purple-800 text-purple-900 dark:text-purple-100 font-semibold"
                       : "bg-white dark:bg-card hover:bg-purple-100 dark:hover:bg-purple-900/50 text-foreground"
                   )}
                 >
                   <span>{l.nombre} - {l.tipo_evento || "Sin tipo"}</span>
-                  {leadId === l.id && <span className="text-purple-600 dark:text-purple-300 text-[10px]">seleccionado</span>}
+                  {leadId === l.id && <span className="shrink-0 text-purple-600 dark:text-purple-300 text-[10px]">seleccionado</span>}
                 </button>
               ))}
             </div>
@@ -441,17 +497,19 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
         {/* Formulario nueva entrada / editar */}
         {formOpen && (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {existingEntries.length > 0 && (
+            {existingEntries.length > 0 && !editingEntry && (
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {editingEntry ? 'Editando entrada' : 'Nueva entrada'}
+                Nueva entrada
               </p>
             )}
-            <div className="flex flex-col gap-1.5">
-              <label className={labelCls}>Estado de la Fecha</label>
-              <select value={estado} onChange={(e) => setEstado(e.target.value)} className={inputCls}>
-                {CALENDAR_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
+            {!editingEntry && (
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Estado de la Fecha</label>
+                <select value={estado} onChange={(e) => setEstado(e.target.value)} className={inputCls}>
+                  {CALENDAR_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               <label className={labelCls}>Lead Asociado (opcional)</label>
               <select value={leadId} onChange={(e) => setLeadId(e.target.value)} className={inputCls}>
@@ -463,11 +521,11 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
               <label className={labelCls}>Nota</label>
               <input value={nota} onChange={(e) => setNota(e.target.value)} className={inputCls} placeholder="Nota sobre esta fecha..." />
             </div>
-            <div className="flex items-center gap-2 justify-end">
-              <button type="button" onClick={cancelForm} className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <button type="button" onClick={cancelForm} className="w-full sm:w-auto rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors">
                 Cancelar
               </button>
-              <button type="submit" disabled={submitting} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50">
+              <button type="submit" disabled={submitting} className="w-full sm:w-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50">
                 {submitting ? 'Guardando...' : 'Guardar'}
               </button>
             </div>

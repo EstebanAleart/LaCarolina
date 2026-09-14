@@ -10,5 +10,10 @@ node_modules/
 .next/
 .env
 .env*.local
+.env.develop
 .DS_Store
 .claude/
+
+# Backups - contienen datos sensibles
+backups/
+backups-local/

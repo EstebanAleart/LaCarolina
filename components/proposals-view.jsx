@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Plus, X, Send, Check, XCircle, FileText, Eye, Pencil, Trash2, Printer, PenLine } from "lucide-react"
+import { Plus, X, Send, Check, XCircle, FileText, Eye, Pencil, Trash2, Printer, PenLine, Search } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import {
@@ -12,8 +12,8 @@ import {
   TIPOS_EVENTO,
   SERVICIOS_BASE,
   SERVICIOS_ADICIONALES,
-  MODALIDADES_PRECIO,
 } from "@/lib/api"
+import { PrintableContract } from "./printable-contract"
 
 const STATUS_STYLES = {
   Creada:   "bg-secondary text-secondary-foreground",
@@ -26,6 +26,28 @@ const STATUS_STYLES = {
 const labelCls = "text-xs font-medium text-foreground"
 const inputCls = "rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring w-full"
 
+// ─── Utility: Safe JSON field converter ────────────────────────────────────────
+function ensureArray(value) {
+  if (!value) return []
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string') {
+    try { return JSON.parse(value) } catch { return [] }
+  }
+  return []
+}
+
+// Formatea número con puntos de miles (es-AR) para mostrar en inputs
+function toDisplayNum(v) {
+  if (v === "" || v === null || v === undefined) return ""
+  const n = typeof v === "number" ? v : parseInt(String(v).replace(/\./g, ""), 10)
+  if (isNaN(n)) return ""
+  return n.toLocaleString("es-AR", { maximumFractionDigits: 0 })
+}
+// Extrae dígitos crudos de un string formateado (quita puntos de miles)
+function fromDisplayNum(str) {
+  return String(str).replace(/\./g, "").replace(/[^\d]/g, "")
+}
+
 // ─── Vista principal ───────────────────────────────────────────────────────────
 
 export default function ProposalsView() {
@@ -35,8 +57,28 @@ export default function ProposalsView() {
   const [showForm, setShowForm] = useState(false)
   const [editingProposal, setEditingProposal] = useState(null)
   const [filterStatus, setFilterStatus] = useState("")
+  const [searchNombre, setSearchNombre] = useState("")
+  const [filterFecha, setFilterFecha] = useState("")
   const [viewingProposal, setViewingProposal] = useState(null)
+  const [printingProposal, setPrintingProposal] = useState(null)
   const [submittingId, setSubmittingId] = useState(null)
+  const [confirmingFirmId, setConfirmingFirmId] = useState(null)
+
+   const filteredProposals = useMemo(() => {
+    let result = proposals
+    if (filterStatus) result = result.filter(p => p.estado === filterStatus)
+    if (searchNombre) {
+      const q = searchNombre.toLowerCase()
+      result = result.filter(p => (p.lead?.nombre || "").toLowerCase().includes(q))
+    }
+    if (filterFecha) {
+      result = result.filter(p => {
+        const fecha = p.lead?.fecha_tentativa ? p.lead.fecha_tentativa.toString().substring(0, 10) : null
+        return fecha === filterFecha
+      })
+    }
+    return result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  }, [proposals, filterStatus, searchNombre, filterFecha])
 
   async function loadData() {
     try {
@@ -49,11 +91,7 @@ export default function ProposalsView() {
 
   useEffect(() => { loadData() }, [])
 
-  const filteredProposals = useMemo(() => {
-    let result = proposals
-    if (filterStatus) result = result.filter(p => p.estado === filterStatus)
-    return result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-  }, [proposals, filterStatus])
+ 
 
   async function handleCreate(data) {
     try {
@@ -74,6 +112,12 @@ export default function ProposalsView() {
   }
 
   async function handleStatusUpdate(id, newStatus) {
+    // Si es FIRMA, pedir confirmación primero
+    if (newStatus === "Firmada") {
+      setConfirmingFirmId(id)
+      return
+    }
+    
     if (submittingId) return
     setSubmittingId(id)
     try {
@@ -82,6 +126,20 @@ export default function ProposalsView() {
       toast.success(`Contrato marcado como ${newStatus}`)
     } catch (err) { console.error(err); toast.error("Error al actualizar estado") }
     finally { setSubmittingId(null) }
+  }
+  
+  async function confirmFirm() {
+    if (!confirmingFirmId || submittingId) return
+    setSubmittingId(confirmingFirmId)
+    try {
+      await apiUpdateProposal(confirmingFirmId, { estado: "Firmada" })
+      await loadData()
+      toast.success("✅ Contrato firmado. Ya no será editable.")
+    } catch (err) { console.error(err); toast.error("Error al firmar contrato") }
+    finally { 
+      setSubmittingId(null)
+      setConfirmingFirmId(null)
+    }
   }
 
   if (loading) {
@@ -101,25 +159,52 @@ export default function ProposalsView() {
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+          className="flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity sm:w-auto sm:py-2"
         >
           <Plus className="h-4 w-4" /> Nuevo Contrato
         </button>
       </div>
 
-      {/* Filtro */}
-      <div className="flex items-center gap-3">
+      {/* Filtros */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative w-full sm:w-auto">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={searchNombre}
+            onChange={(e) => setSearchNombre(e.target.value)}
+            placeholder="Buscar por nombre..."
+            className="w-full rounded-md border border-input bg-card pl-8 pr-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <input
+          type="date"
+          value={filterFecha}
+          onChange={(e) => setFilterFecha(e.target.value)}
+          title="Filtrar por día de evento"
+          className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring sm:w-auto"
+        />
         <select
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value)}
-          className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring sm:w-auto"
         >
           <option value="">Todos los estados</option>
           {["Creada", "Enviada", "Aprobada", "Rechazada", "Firmada"].map(s => (
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
-        <span className="text-xs text-muted-foreground">{filteredProposals.length} contratos</span>
+        <div className="flex items-center gap-3">
+          {(searchNombre || filterFecha || filterStatus) && (
+            <button
+              onClick={() => { setSearchNombre(""); setFilterFecha(""); setFilterStatus("") }}
+              className="py-2 text-xs text-muted-foreground hover:text-foreground underline sm:py-0"
+            >
+              Limpiar filtros
+            </button>
+          )}
+          <span className="text-xs text-muted-foreground">{filteredProposals.length} contratos</span>
+        </div>
       </div>
 
       {/* Grid de tarjetas */}
@@ -138,6 +223,7 @@ export default function ProposalsView() {
             onView={() => setViewingProposal(p)}
             onEdit={() => setEditingProposal(p)}
             onStatusUpdate={handleStatusUpdate}
+            onPrint={() => setPrintingProposal(p)}
           />
         ))}
       </div>
@@ -149,7 +235,18 @@ export default function ProposalsView() {
         <ContractForm leads={leads} initial={editingProposal} onSubmit={handleUpdate} onClose={() => setEditingProposal(null)} />
       )}
       {viewingProposal && (
-        <ContractDetail proposal={viewingProposal} onClose={() => setViewingProposal(null)} />
+        <ContractDetail proposal={viewingProposal} onClose={() => setViewingProposal(null)} onPrint={() => setPrintingProposal(viewingProposal)} />
+      )}
+      {printingProposal && (
+        <PrintableContract proposal={printingProposal} lead={printingProposal.lead} onClose={() => setPrintingProposal(null)} />
+      )}
+      {confirmingFirmId && (
+        <ConfirmFirmDialog
+          proposalId={confirmingFirmId}
+          onConfirm={confirmFirm}
+          onCancel={() => setConfirmingFirmId(null)}
+          isSubmitting={submittingId === confirmingFirmId}
+        />
       )}
     </div>
   )
@@ -157,10 +254,11 @@ export default function ProposalsView() {
 
 // ─── Tarjeta de contrato ────────────────────────────────────────────────────────
 
-function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdate }) {
-  const totalAdic = (p.adicionales || []).length
-  const elegidos  = (p.adicionales || []).filter(a => a.opcion_elegida !== null && a.opcion_elegida !== undefined).length
-  const serviciosBase = p.servicios_base || []
+function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdate, onPrint }) {
+  const adicionales = ensureArray(p.adicionales)
+  const totalAdic = adicionales.length
+  const elegidos  = adicionales.filter(a => a.opcion_elegida !== null && a.opcion_elegida !== undefined).length
+  const serviciosBase = ensureArray(p.servicios_base)
 
   return (
     <div className="flex flex-col rounded-lg border border-border bg-card overflow-hidden">
@@ -207,9 +305,6 @@ function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdat
             {elegidos > 0 ? ` · ${elegidos} elegido${elegidos > 1 ? "s" : ""}` : " · sin elegir"}
           </p>
         )}
-        {p.modalidad_actualizacion_precios && (
-          <p className="text-[10px] text-muted-foreground">{p.modalidad_actualizacion_precios}</p>
-        )}
         {p.fecha_envio && (
           <p className="text-[10px] text-muted-foreground">
             Enviada: {new Date(p.fecha_envio).toLocaleDateString("es-AR")}
@@ -223,7 +318,7 @@ function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdat
           <button
             onClick={() => onStatusUpdate(p.id, "Enviada")}
             disabled={!!submittingId}
-            className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-2 text-xs font-medium sm:py-1 text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send className="h-3 w-3" /> {submittingId === p.id ? "..." : "Enviar"}
           </button>
@@ -233,14 +328,14 @@ function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdat
             <button
               onClick={() => onStatusUpdate(p.id, "Aprobada")}
               disabled={!!submittingId}
-              className="flex items-center gap-1 rounded-md bg-amber-500 px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 rounded-md bg-amber-500 px-2.5 py-2 text-xs font-medium sm:py-1 text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Check className="h-3 w-3" /> {submittingId === p.id ? "..." : "Aprobar"}
             </button>
             <button
               onClick={() => onStatusUpdate(p.id, "Rechazada")}
               disabled={!!submittingId}
-              className="flex items-center gap-1 rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 rounded-md bg-destructive px-2.5 py-2 text-xs font-medium sm:py-1 text-destructive-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <XCircle className="h-3 w-3" /> {submittingId === p.id ? "..." : "Rechazar"}
             </button>
@@ -250,7 +345,7 @@ function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdat
           <button
             onClick={() => onStatusUpdate(p.id, "Firmada")}
             disabled={!!submittingId}
-            className="flex items-center gap-1 rounded-md bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 rounded-md bg-green-600 px-2.5 py-2 text-xs font-medium sm:py-1 text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <PenLine className="h-3 w-3" /> {submittingId === p.id ? "..." : "Firmar"}
           </button>
@@ -258,14 +353,21 @@ function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdat
         {p.estado !== "Firmada" && (
           <button
             onClick={onEdit}
-            className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary"
+            className="flex items-center gap-1 rounded-md border border-border px-2.5 py-2 text-xs font-medium sm:py-1 text-muted-foreground hover:bg-secondary"
           >
             <Pencil className="h-3 w-3" /> Editar
           </button>
         )}
         <button
+          onClick={onPrint}
+          className="flex items-center gap-1 rounded-md bg-blue-100 text-blue-800 px-2.5 py-2 text-xs font-medium sm:py-1 hover:bg-blue-200 transition-colors"
+          title="Imprimir contrato"
+        >
+          <Printer className="h-3 w-3" /> Imprimir
+        </button>
+        <button
           onClick={onView}
-          className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary ml-auto"
+          className="flex items-center gap-1 rounded-md border border-border px-2.5 py-2 text-xs font-medium sm:py-1 text-muted-foreground hover:bg-secondary ml-auto"
         >
           <Eye className="h-3 w-3" /> Ver
         </button>
@@ -277,16 +379,16 @@ function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdat
 
 // ─── Modal detalle ──────────────────────────────────────────────────────────────
 
-function ContractDetail({ proposal: p, onClose }) {
-  const adicionales   = p.adicionales || []
-  const serviciosBase = p.servicios_base || []
+function ContractDetail({ proposal: p, onClose, onPrint }) {
+  const adicionales   = ensureArray(p.adicionales)
+  const serviciosBase = ensureArray(p.servicios_base)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-foreground/20" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-2xl rounded-lg border border-border bg-card shadow-lg mx-4 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <div>
+      <div className="relative z-10 w-full max-w-2xl rounded-lg border border-border bg-card shadow-lg mx-3 max-h-[90dvh] flex flex-col">
+        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-4 sm:px-6">
+          <div className="min-w-0">
             <h3 className="text-lg font-bold text-card-foreground">
               {p.lead?.nombre} — v{p.version}
             </h3>
@@ -295,30 +397,54 @@ function ContractDetail({ proposal: p, onClose }) {
               <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_STYLES[p.estado])}>{p.estado}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {p.estado === "Firmada" && (
-              <button
-                onClick={() => window.print()}
-                className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
-              >
-                <Printer className="h-3.5 w-3.5" /> Imprimir
-              </button>
-            )}
-            <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-secondary">
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={onPrint}
+              className="flex items-center gap-1.5 rounded-md bg-blue-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-600 transition-colors"
+              title="Abrir editor de contrato y imprimir"
+            >
+              <Printer className="h-3.5 w-3.5" /> Imprimir
+            </button>
+            <button onClick={onClose} className="rounded-md p-2 text-muted-foreground hover:bg-secondary">
               <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-5">
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-5 sm:px-6">
+          {/* Cliente */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Cliente</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {p.lead?.nombre && (
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Nombre</p>
+                  <p className="text-sm font-bold">{p.lead.nombre}</p>
+                </div>
+              )}
+              {p.dni && (
+                <div>
+                  <p className="text-[10px] text-muted-foreground">DNI</p>
+                  <p className="text-sm font-bold">{p.dni}</p>
+                </div>
+              )}
+              {p.direccion && (
+                <div className="sm:col-span-2">
+                  <p className="text-[10px] text-muted-foreground">Dirección</p>
+                  <p className="text-sm">{p.direccion}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Financiero */}
-          {(p.precio_senia || p.valor_total_evento || p.modalidad_actualizacion_precios) && (
+          {(p.precio_senia || p.valor_total_evento) && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Financiero</p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {p.precio_senia > 0 && <div><p className="text-[10px] text-muted-foreground">Precio Seña</p><p className="text-sm font-bold">${Number(p.precio_senia).toLocaleString("es-AR", { maximumFractionDigits: 0 })}</p></div>}
                 {p.valor_total_evento > 0 && <div><p className="text-[10px] text-muted-foreground">Valor Total Evento</p><p className="text-sm font-bold">${Number(p.valor_total_evento).toLocaleString("es-AR", { maximumFractionDigits: 0 })}</p></div>}
-                {p.modalidad_actualizacion_precios && <div><p className="text-[10px] text-muted-foreground">Modalidad</p><p className="text-sm">{p.modalidad_actualizacion_precios}</p></div>}
+                <div><p className="text-[10px] text-muted-foreground">Modalidad</p><p className="text-sm">Mixto</p></div>
               </div>
             </div>
           )}
@@ -402,15 +528,20 @@ function ContractDetail({ proposal: p, onClose }) {
 function ContractForm({ leads, initial, onSubmit, onClose }) {
   const isEdit = !!initial
 
+  const defaultLeadId = initial?.lead_id || leads[0]?.id || ""
+  const defaultLead = leads.find(l => l.id === defaultLeadId)
+
   const [form, setForm] = useState({
-    lead_id:                        initial?.lead_id || leads[0]?.id || "",
+    lead_id:                        defaultLeadId,
     contenido_html:                 initial?.contenido_html || "",
+    dni:                            initial?.dni || "",
+    direccion:                      initial?.direccion || "",
     precio_senia:                   initial?.precio_senia ?? "",
-    tipo_evento:                    initial?.tipo_evento || "",
-    invitados_estimados:            initial?.invitados_estimados ?? "",
+    tipo_evento:                    initial?.tipo_evento || defaultLead?.tipo_evento || "",
+    invitados_estimados:            initial?.invitados_estimados ?? defaultLead?.invitados_estimados ?? "",
     valor_total_evento:             initial?.valor_total_evento ?? "",
-    modalidad_actualizacion_precios:initial?.modalidad_actualizacion_precios || "",
-    servicios_base:                 initial?.servicios_base || [],
+    modalidad_actualizacion_precios: "Mixto",
+    servicios_base:                 ensureArray(initial?.servicios_base),
     menu_seleccionado:              initial?.menu_seleccionado || "",
     minimo_tarjetas:                initial?.minimo_tarjetas ?? "",
     valor_tarjeta_adulto:           initial?.valor_tarjeta_adulto ?? "",
@@ -419,12 +550,45 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
   })
 
   const [adicionales, setAdicionales] = useState(
-    initial?.adicionales ? JSON.parse(JSON.stringify(initial.adicionales)) : []
+    ensureArray(initial?.adicionales).map(a => ({
+      ...a,
+      opciones: ensureArray(a.opciones).map(o => ({ ...o, precioDisplay: toDisplayNum(o.precio) }))
+    }))
   )
   const [submitting, setSubmitting] = useState(false)
 
+  // Estado de display (con puntos) separado del estado numérico crudo del form
+  const [displays, setDisplays] = useState({
+    precio_senia:              toDisplayNum(initial?.precio_senia),
+    valor_total_evento:        toDisplayNum(initial?.valor_total_evento),
+    invitados_estimados:       toDisplayNum(initial?.invitados_estimados ?? defaultLead?.invitados_estimados),
+    minimo_tarjetas:           toDisplayNum(initial?.minimo_tarjetas),
+    valor_tarjeta_adulto:      toDisplayNum(initial?.valor_tarjeta_adulto),
+    valor_tarjeta_adolescente: toDisplayNum(initial?.valor_tarjeta_adolescente),
+    valor_tarjeta_nino:        toDisplayNum(initial?.valor_tarjeta_nino),
+  })
+
+  function handleNumericChange(name, rawStr) {
+    const digits = fromDisplayNum(rawStr)
+    const num = digits !== "" ? parseInt(digits, 10) : ""
+    setDisplays(d => ({ ...d, [name]: digits !== "" ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : "" }))
+    setForm(f => ({ ...f, [name]: num }))
+  }
+
   function handleChange(e) {
     const { name, value } = e.target
+    if (name === "lead_id" && !isEdit) {
+      const lead = leads.find(l => String(l.id) === String(value))
+      const newInvitados = lead?.invitados_estimados ?? ""
+      setForm(f => ({
+        ...f,
+        lead_id: value,
+        tipo_evento: lead?.tipo_evento || f.tipo_evento,
+        invitados_estimados: newInvitados,
+      }))
+      setDisplays(d => ({ ...d, invitados_estimados: toDisplayNum(newInvitados) }))
+      return
+    }
     setForm(f => ({ ...f, [name]: value }))
   }
 
@@ -439,7 +603,7 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
 
   // ── helpers adicionales ──
   function addAdicional() {
-    setAdicionales(prev => [...prev, { nombre: "", opciones: [{ descripcion: "", precio: "" }], opcion_elegida: null }])
+    setAdicionales(prev => [...prev, { nombre: "", opciones: [{ descripcion: "", precio: "", precioDisplay: "" }], opcion_elegida: null }])
   }
   function removeAdicional(i) {
     setAdicionales(prev => prev.filter((_, idx) => idx !== i))
@@ -449,7 +613,16 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
   }
   function addOpcion(i) {
     setAdicionales(prev => prev.map((a, idx) => idx === i
-      ? { ...a, opciones: [...a.opciones, { descripcion: "", precio: "" }] }
+      ? { ...a, opciones: [...a.opciones, { descripcion: "", precio: "", precioDisplay: "" }] }
+      : a
+    ))
+  }
+  function updateOpcionPrecio(ai, oi, rawStr) {
+    const digits = fromDisplayNum(rawStr)
+    const num = digits !== "" ? parseInt(digits, 10) : ""
+    const display = digits !== "" ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : ""
+    setAdicionales(prev => prev.map((a, idx) => idx === ai
+      ? { ...a, opciones: a.opciones.map((o, idx2) => idx2 === oi ? { ...o, precio: num, precioDisplay: display } : o) }
       : a
     ))
   }
@@ -477,7 +650,11 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
     if (!form.lead_id) { toast.warning("Seleccioná un lead"); return }
     setSubmitting(true)
     try {
-      const toNum = v => (v !== "" && v !== null && v !== undefined) ? Number(v) : null
+      const toNum = v => {
+        if (v === "" || v === null || v === undefined) return null
+        const n = Number(String(v).replace(/\./g, ""))
+        return isNaN(n) ? null : n
+      }
       const payload = {
         ...form,
         precio_senia:            toNum(form.precio_senia),
@@ -489,7 +666,10 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
         valor_tarjeta_nino:      toNum(form.valor_tarjeta_nino),
         adicionales: adicionales.map(a => ({
           ...a,
-          opciones: a.opciones.map(o => ({ ...o, precio: o.precio !== "" ? Number(o.precio) : 0 })),
+          opciones: a.opciones.map(o => {
+            const { precioDisplay, ...rest } = o
+            return { ...rest, precio: o.precio !== "" ? Number(String(o.precio).replace(/\./g, "")) : 0 }
+          }),
         })),
       }
       await onSubmit(payload)
@@ -499,38 +679,50 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-foreground/20" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-2xl rounded-lg border border-border bg-card shadow-lg mx-4 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+      <div className="relative z-10 w-full max-w-2xl rounded-lg border border-border bg-card shadow-lg mx-3 max-h-[90dvh] flex flex-col">
+        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-4 sm:px-6">
           <h3 className="text-lg font-bold text-card-foreground">
             {isEdit ? `Editar Contrato — ${initial.lead?.nombre}` : "Nuevo Contrato"}
           </h3>
-          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-secondary">
+          <button onClick={onClose} className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-secondary">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-6 sm:px-6">
 
           {/* ── Cliente ── */}
           <section>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Cliente</p>
-            <div className="flex flex-col gap-1.5">
-              <label className={labelCls}>Lead *</label>
-              <select
-                name="lead_id"
-                value={form.lead_id}
-                onChange={handleChange}
-                disabled={isEdit}
-                className={cn(inputCls, isEdit && "opacity-60 cursor-not-allowed")}
-                required
-              >
-                <option value="">Seleccionar lead...</option>
-                {leads.map(l => (
-                  <option key={l.id} value={l.id}>
-                    {l.nombre}{l.tipo_evento ? ` — ${l.tipo_evento}` : ""}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className={labelCls}>Lead *</label>
+                <select
+                  name="lead_id"
+                  value={form.lead_id}
+                  onChange={handleChange}
+                  disabled={isEdit}
+                  className={cn(inputCls, isEdit && "opacity-60 cursor-not-allowed")}
+                  required
+                >
+                  <option value="">Seleccionar lead...</option>
+                  {leads.map(l => (
+                    <option key={l.id} value={l.id}>
+                      {l.nombre}{l.tipo_evento ? ` — ${l.tipo_evento}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelCls}>DNI</label>
+                  <input type="text" name="dni" value={form.dni} onChange={handleChange} className={inputCls} placeholder="Ej: 12345678" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelCls}>Dirección</label>
+                  <input type="text" name="direccion" value={form.direccion} onChange={handleChange} className={inputCls} placeholder="Calle, número y localidad" />
+                </div>
+              </div>
             </div>
           </section>
 
@@ -547,7 +739,7 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Cantidad de Invitados Estimados</label>
-                <input type="number" name="invitados_estimados" value={form.invitados_estimados} onChange={handleChange} className={inputCls} placeholder="0" min="0" />
+                <input type="text" inputMode="numeric" value={displays.invitados_estimados} onChange={e => handleNumericChange("invitados_estimados", e.target.value)} className={inputCls} placeholder="0" />
               </div>
             </div>
           </section>
@@ -558,18 +750,15 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Precio de Seña ($)</label>
-                <input type="number" name="precio_senia" value={form.precio_senia} onChange={handleChange} className={inputCls} placeholder="0" min="0" />
+                <input type="text" inputMode="numeric" value={displays.precio_senia} onChange={e => handleNumericChange("precio_senia", e.target.value)} className={inputCls} placeholder="0" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Valor Total del Evento ($)</label>
-                <input type="number" name="valor_total_evento" value={form.valor_total_evento} onChange={handleChange} className={inputCls} placeholder="0" min="0" />
+                <input type="text" inputMode="numeric" value={displays.valor_total_evento} onChange={e => handleNumericChange("valor_total_evento", e.target.value)} className={inputCls} placeholder="0" />
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label className={labelCls}>Modalidad de Actualización de Precios</label>
-                <select name="modalidad_actualizacion_precios" value={form.modalidad_actualizacion_precios} onChange={handleChange} className={inputCls}>
-                  <option value="">Seleccionar...</option>
-                  {MODALIDADES_PRECIO.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
+                <div className={cn(inputCls, "opacity-60 cursor-not-allowed bg-secondary text-muted-foreground")}>Mixto</div>
               </div>
             </div>
           </section>
@@ -603,7 +792,7 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
               <button
                 type="button"
                 onClick={addAdicional}
-                className="flex items-center gap-1 rounded-md bg-secondary px-2.5 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80"
+                className="flex items-center gap-1 rounded-md bg-secondary px-2.5 py-2 text-xs font-medium text-secondary-foreground hover:bg-secondary/80"
               >
                 <Plus className="h-3 w-3" /> Agregar Adicional
               </button>
@@ -626,7 +815,7 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
                     <button
                       type="button"
                       onClick={() => removeAdicional(ai)}
-                      className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -659,18 +848,18 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
                           className="rounded-md border border-input bg-card px-2.5 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring flex-1"
                         />
                         <input
-                          type="number"
-                          value={op.precio}
-                          onChange={e => updateOpcion(ai, oi, "precio", e.target.value)}
+                          type="text"
+                          inputMode="numeric"
+                          value={op.precioDisplay ?? ""}
+                          onChange={e => updateOpcionPrecio(ai, oi, e.target.value)}
                           placeholder="$"
-                          min="0"
-                          className="rounded-md border border-input bg-card px-2.5 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring w-28"
+                          className="rounded-md border border-input bg-card px-2.5 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring w-24 sm:w-28"
                         />
                         {a.opciones.length > 1 && (
                           <button
                             type="button"
                             onClick={() => removeOpcion(ai, oi)}
-                            className="text-muted-foreground hover:text-destructive"
+                            className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:text-destructive"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -680,7 +869,7 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
                     <button
                       type="button"
                       onClick={() => addOpcion(ai)}
-                      className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                      className="mt-1 flex items-center gap-1 py-1.5 text-xs text-muted-foreground hover:text-foreground"
                     >
                       <Plus className="h-3 w-3" /> Agregar otra opción
                     </button>
@@ -700,19 +889,19 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Mínimo de Tarjetas</label>
-                <input type="number" name="minimo_tarjetas" value={form.minimo_tarjetas} onChange={handleChange} className={inputCls} placeholder="0" min="0" />
+                <input type="text" inputMode="numeric" value={displays.minimo_tarjetas} onChange={e => handleNumericChange("minimo_tarjetas", e.target.value)} className={inputCls} placeholder="0" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Valor Tarjeta Adulto ($)</label>
-                <input type="number" name="valor_tarjeta_adulto" value={form.valor_tarjeta_adulto} onChange={handleChange} className={inputCls} placeholder="0" min="0" />
+                <input type="text" inputMode="numeric" value={displays.valor_tarjeta_adulto} onChange={e => handleNumericChange("valor_tarjeta_adulto", e.target.value)} className={inputCls} placeholder="0" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Valor Tarjeta Adolescente ($)</label>
-                <input type="number" name="valor_tarjeta_adolescente" value={form.valor_tarjeta_adolescente} onChange={handleChange} className={inputCls} placeholder="0" min="0" />
+                <input type="text" inputMode="numeric" value={displays.valor_tarjeta_adolescente} onChange={e => handleNumericChange("valor_tarjeta_adolescente", e.target.value)} className={inputCls} placeholder="0" />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Valor Tarjeta Niño ($)</label>
-                <input type="number" name="valor_tarjeta_nino" value={form.valor_tarjeta_nino} onChange={handleChange} className={inputCls} placeholder="0" min="0" />
+                <input type="text" inputMode="numeric" value={displays.valor_tarjeta_nino} onChange={e => handleNumericChange("valor_tarjeta_nino", e.target.value)} className={inputCls} placeholder="0" />
               </div>
             </div>
           </section>
@@ -731,23 +920,74 @@ function ContractForm({ leads, initial, onSubmit, onClose }) {
           </section>
 
           {/* Botones */}
-          <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+          <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary"
+              className="w-full rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary sm:w-auto"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto"
             >
               {submitting ? "Guardando..." : isEdit ? "Guardar Cambios" : "Crear Contrato"}
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Diálogo de confirmación de firma ──────────────────────────────────────────
+
+function ConfirmFirmDialog({ proposalId, onConfirm, onCancel, isSubmitting }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 backdrop-blur-sm">
+      <div className="relative w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-lg border border-border bg-card shadow-xl mx-3">
+        {/* Header */}
+        <div className="border-b border-border px-4 py-4 bg-amber-50 dark:bg-amber-950/30 sm:px-6">
+          <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100">⚠️ Confirmar Firma</h3>
+        </div>
+
+        {/* Contenido */}
+        <div className="px-4 py-6 space-y-4 sm:px-6">
+          <p className="text-sm text-card-foreground">
+            Una vez <span className="font-bold">firmado</span>, el contrato <span className="font-bold text-red-600">NO PODRÁ SER EDITADO</span>.
+          </p>
+          <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-md p-4">
+            <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+              ⚠️ Esta acción es irreversible
+            </p>
+            <p className="text-xs text-red-700 dark:text-red-300 mt-2">
+              Si necesitas hacer cambios, deberás crear una nueva versión del contrato.
+            </p>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            ¿Estás seguro de que deseas firmar este contrato?
+          </p>
+        </div>
+
+        {/* Botones */}
+        <div className="flex flex-col-reverse gap-2 border-t border-border px-4 py-4 bg-secondary/20 sm:flex-row sm:items-center sm:justify-end sm:px-6">
+          <button
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="w-full rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isSubmitting}
+            className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors sm:w-auto"
+          >
+            {isSubmitting ? "Firmando..." : "✓ Sí, Firmar Contrato"}
+          </button>
+        </div>
       </div>
     </div>
   )

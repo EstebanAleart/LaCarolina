@@ -133,19 +133,19 @@ export default function TasksView() {
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+          className="flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity sm:w-auto"
         >
           <Plus className="h-4 w-4" /> Nueva Tarea
         </button>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <select value={filterState} onChange={(e) => setFilterState(e.target.value)} className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <select value={filterState} onChange={(e) => setFilterState(e.target.value)} className="w-full sm:w-auto rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring">
           <option value="">Todos los estados</option>
           {TASK_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select value={filterUser} onChange={(e) => setFilterUser(e.target.value)} className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+        <select value={filterUser} onChange={(e) => setFilterUser(e.target.value)} className="w-full sm:w-auto rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring">
           <option value="">Todos los usuarios</option>
           {users.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
         </select>
@@ -166,7 +166,7 @@ export default function TasksView() {
                   "text-muted-foreground"
                 )} />
                 <span className="text-xs font-semibold text-foreground">{state}</span>
-                <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                   {stateTasks.length}
                 </span>
               </div>
@@ -185,7 +185,7 @@ export default function TasksView() {
                       )}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <button onClick={() => handleToggleState(task)} className="mt-0.5 shrink-0">
+                        <button onClick={() => handleToggleState(task)} className="-m-1.5 shrink-0 rounded-md p-2">
                           <Icon className={cn("h-4 w-4",
                             state === "Hecho" ? "text-accent" :
                             state === "En Proceso" ? "text-primary" :
@@ -200,21 +200,21 @@ export default function TasksView() {
                             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{task.descripcion}</p>
                           )}
                         </div>
-                        <button onClick={() => handleDelete(task.id)} className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-destructive transition-colors" aria-label="Eliminar tarea">
+                        <button onClick={() => handleDelete(task.id)} className="-m-1 shrink-0 rounded-md p-2 text-muted-foreground hover:text-destructive transition-colors" aria-label="Eliminar tarea">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", PRIORITY_COLORS[task.prioridad])}>
+                        <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", PRIORITY_COLORS[task.prioridad])}>
                           {task.prioridad}
                         </span>
                         {leadName && (
-                          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
+                          <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
                             {leadName}
                           </span>
                         )}
                       </div>
-                      <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
+                      <div className="mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
                         <span>{userName}</span>
                         {dueDate && (
                           <span className={cn("flex items-center gap-0.5", isOverdue && "text-destructive font-medium")}>
@@ -267,10 +267,10 @@ function TaskForm({ leads, users, onSubmit, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-foreground/20" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg rounded-lg border border-border bg-card p-6 shadow-lg mx-4">
+      <div className="relative z-10 w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-lg border border-border bg-card p-6 shadow-lg mx-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-card-foreground">Nueva Tarea</h3>
-          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-secondary">
+          <button onClick={onClose} className="rounded-md p-2 text-muted-foreground hover:bg-secondary">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -295,7 +295,7 @@ function TaskForm({ leads, users, onSubmit, onClose }) {
               placeholder="Descripcion detallada..."
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-foreground">Lead (opcional)</label>
               <select
@@ -338,9 +338,9 @@ function TaskForm({ leads, users, onSubmit, onClose }) {
               />
             </div>
           </div>
-          <div className="flex items-center justify-end gap-2">
-            <button type="button" onClick={onClose} className="rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors">Cancelar</button>
-            <button type="submit" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity">Crear Tarea</button>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <button type="button" onClick={onClose} className="w-full sm:w-auto rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors">Cancelar</button>
+            <button type="submit" className="w-full sm:w-auto rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity">Crear Tarea</button>
           </div>
         </form>
       </div>

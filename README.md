@@ -14,7 +14,7 @@ Pensado para salones de eventos que necesitan trazabilidad completa: desde el pr
 | UI         | shadcn/ui + Radix UI + Tailwind 3   |
 | Forms      | React Hook Form + Zod               |
 | ORM        | Sequelize 6.37.7                    |
-| Base datos | PostgreSQL (Supabase remoto)        |
+| Base datos | PostgreSQL (Supabase remoto en prod, local en dev) |
 | Auth       | bcryptjs + registro con aprobación admin |
 | Hosting    | Vercel (serverless)                 |
 | Package    | pnpm (node-linker=hoisted)          |
@@ -33,6 +33,37 @@ Pensado para salones de eventos que necesitan trazabilidad completa: desde el pr
 - `sonner` → Toasts/notificaciones
 - `next-themes` → Dark mode
 - `googleapis` → Google Calendar API (service account JWT)
+
+---
+
+## Inicio Rápido
+
+### Desarrollo con Supabase (producción)
+```bash
+pnpm install
+pnpm run dev
+```
+Se conecta a BD remota, útil para testing con datos reales.
+
+### Desarrollo Local
+```bash
+pnpm install
+node run-schema.js        # Crear BD local
+pnpm run dev:local        # Ejecutar con BD local
+```
+BD PostgreSQL completamente aislada, ideal para desarrollo sin afectar producción.
+
+**Para configuración detallada, ver [DEVELOPMENT.md](./DEVELOPMENT.md)**
+
+---
+
+## 📚 Documentación
+
+| Documento | Propósito |
+|-----------|-----------|
+| [GUIA_USUARIO.md](./GUIA_USUARIO.md) | Manual de usuario final (CRM, leads, propuestas, etc.) |
+| [DEVELOPMENT.md](./DEVELOPMENT.md) | Guía de desarrollo local (setup, scripts, BD) |
+| [README.md](./README.md) | Este archivo - info técnica del proyecto |
 
 ---
 

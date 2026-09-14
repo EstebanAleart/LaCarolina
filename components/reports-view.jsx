@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts"
-import { TrendingUp, Users, MessageSquare, DollarSign } from "lucide-react"
+import { TrendingUp, Users, MessageSquare, DollarSign, ChevronDown } from "lucide-react"
 import { fetchLeads, fetchEvents, fetchPayments, fetchAllInteractions, LEAD_STATES } from "@/lib/api"
 
 const TABS = [
@@ -52,12 +52,12 @@ function StatCard({ icon: Icon, label, value, sub, color = "blue" }) {
   }
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3 flex items-center gap-3">
-      <div className={`rounded-full p-2 ${bgMap[color]}`}>
+      <div className={`shrink-0 rounded-full p-2 ${bgMap[color]}`}>
         <Icon className={`h-4 w-4 ${iconMap[color]}`} />
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="text-lg font-bold text-foreground">{value}</p>
+        <p className="text-lg font-bold text-foreground truncate">{value}</p>
         {sub && <p className="text-[10px] text-muted-foreground">{sub}</p>}
       </div>
     </div>
@@ -65,7 +65,10 @@ function StatCard({ icon: Icon, label, value, sub, color = "blue" }) {
 }
 
 // ─── TAB PIPELINE ─────────────────────────────────────────────────────────────
-function PipelineTab({ leads }) {
+function PipelineTab({ leads: leadsTodos }) {
+  // Cartera histórica (cargada ya firmada en la puesta en marcha): fuera de conversión y pipeline.
+  const historicos = leadsTodos.filter((l) => l.es_historico).length
+  const leads = leadsTodos.filter((l) => !l.es_historico)
   const byState = useMemo(() => {
     const map = {}
     LEAD_STATES.forEach((s) => { map[s] = 0 })
@@ -102,7 +105,7 @@ function PipelineTab({ leads }) {
     <div className="flex flex-col gap-6">
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard icon={Users} label="Total leads" value={total} color="blue" />
+        <StatCard icon={Users} label="Total leads" value={total} sub={historicos ? `+ ${historicos} históricos (excluidos)` : undefined} color="blue" />
         <StatCard icon={TrendingUp} label="Tasa conversión" value={`${tasa}%`} sub="contrato o más" color="green" />
         <StatCard icon={Users} label="En pipeline activo" value={leads.filter((l) => !["Perdido", "Post-evento / cerrado"].includes(l.estado_actual)).length} color="purple" />
         <StatCard icon={Users} label="Perdidos" value={perdidos} sub={`${total > 0 ? ((perdidos / total) * 100).toFixed(1) : 0}% del total`} color="red" />
@@ -160,6 +163,7 @@ function PipelineTab({ leads }) {
 
 // ─── TAB FINANZAS ──────────────────────────────────────────────────────────────
 function FinanzasTab({ events, payments }) {
+  const [expandedId, setExpandedId] = useState(null)
   const totalFacturado = useMemo(
     () => events.reduce((s, e) => s + (e.valor_total_evento || 0), 0),
     [events]
@@ -269,7 +273,7 @@ function FinanzasTab({ events, payments }) {
       {/* Tabla estado cobros */}
       <div className="rounded-lg border border-border bg-card p-4">
         <h3 className="text-sm font-semibold text-foreground mb-4">Estado de cobros por evento</h3>
-        <div className="flex gap-6 mb-4">
+        <div className="flex flex-wrap gap-x-6 gap-y-2 mb-4">
           {byEstadoPago.map((s) => (
             <div key={s.name} className="flex items-center gap-2 text-sm">
               <span
@@ -284,7 +288,57 @@ function FinanzasTab({ events, payments }) {
         {events.length === 0 ? (
           <p className="text-xs text-muted-foreground">Sin eventos</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Mobile: cards expandibles */}
+          <div className="flex flex-col gap-2 md:hidden">
+            {events.map((e) => {
+              const isExpanded = expandedId === e.id
+              return (
+                <div key={e.id} className="rounded-lg border border-border bg-background overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(isExpanded ? null : e.id)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-secondary/20 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{e.lead?.nombre || "—"}</p>
+                      <p className="text-xs text-muted-foreground truncate">{e.fecha_confirmada ? e.fecha_confirmada.toString().substring(0, 10) : "—"}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className="rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap"
+                        style={{
+                          backgroundColor: e.estado_pago === "Completo" ? "#d1fae5" : e.estado_pago === "Parcial" ? "#fef3c7" : "#fee2e2",
+                          color: e.estado_pago === "Completo" ? "#065f46" : e.estado_pago === "Parcial" ? "#92400e" : "#991b1b",
+                        }}
+                      >
+                        {e.estado_pago || "Pendiente"}
+                      </span>
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+                    </div>
+                  </button>
+                  {isExpanded && (
+                    <div className="border-t border-border bg-secondary/20 px-3 py-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                      <div className="flex flex-col">
+                        <span className="text-muted-foreground">Fecha</span>
+                        <span className="text-foreground font-medium">{e.fecha_confirmada ? e.fecha_confirmada.toString().substring(0, 10) : "—"}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-muted-foreground">Total</span>
+                        <span className="text-foreground font-semibold">{fmt(e.valor_total_evento)}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-muted-foreground">Estado pago</span>
+                        <span className="text-foreground font-medium">{e.estado_pago || "Pendiente"}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {/* Desktop: tabla */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border">
@@ -316,6 +370,7 @@ function FinanzasTab({ events, payments }) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>
@@ -459,14 +514,14 @@ export default function ReportsView() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-lg border border-border bg-secondary/30 p-1 w-fit">
+      <div className="flex gap-1 rounded-lg border border-border bg-secondary/30 p-1 w-fit max-w-full overflow-x-auto">
         {TABS.map((tab) => {
           const Icon = tab.icon
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-4 py-2.5 text-sm font-medium transition-colors ${
                 activeTab === tab.id
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"

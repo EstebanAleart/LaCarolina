@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
-import { CreditCard, Plus, CheckCircle, XCircle, ChevronDown, ChevronUp, DollarSign, Clock, TrendingUp } from "lucide-react"
+import { CreditCard, Plus, CheckCircle, XCircle, ChevronDown, ChevronUp, DollarSign, Clock, TrendingUp, Search } from "lucide-react"
 import {
   fetchPayments,
   fetchEvents,
@@ -10,6 +10,7 @@ import {
   apiUpdatePayment,
   TIPOS_PAGO,
   METODOS_PAGO,
+  CONCEPTOS_PAGO,
 } from "@/lib/api"
 
 const ESTADO_COLORS = {
@@ -39,7 +40,8 @@ function fmt(n) {
 
 function fmtFecha(f) {
   if (!f) return "—"
-  const d = new Date(f + "T12:00:00")
+  // Acepta "AAAA-MM-DD" (fecha_pago) o ISO completo "AAAA-MM-DDT00:00:00.000Z" (fecha_confirmada)
+  const d = new Date(String(f).substring(0, 10) + "T12:00:00")
   return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
@@ -50,12 +52,17 @@ export default function PaymentsView() {
   const [showForm, setShowForm] = useState(false)
   const [filterEstado, setFilterEstado] = useState("")
   const [filterTipo, setFilterTipo] = useState("")
+  const [filterConcepto, setFilterConcepto] = useState("")
+  const [searchNombre, setSearchNombre] = useState("")
+  const [filterFecha, setFilterFecha] = useState("")
+  const [expandedId, setExpandedId] = useState(null)
 
   const [form, setForm] = useState({
     event_id: "",
     monto: "",
     tipo: "seña",
     metodo_pago: "efectivo",
+    concepto: "Salon",
     fecha_pago: new Date().toISOString().substring(0, 10),
     estado: "pendiente",
     observacion: "",
@@ -79,12 +86,19 @@ export default function PaymentsView() {
   }, [])
 
   const filtered = useMemo(() => {
+    const q = searchNombre.toLowerCase().trim()
     return payments.filter((p) => {
       if (filterEstado && p.estado !== filterEstado) return false
       if (filterTipo && p.tipo !== filterTipo) return false
+      if (filterConcepto && (p.concepto || "") !== filterConcepto) return false
+      if (q) {
+        const nombre = (p.event?.lead?.nombre || p.lead?.nombre || "").toLowerCase()
+        if (!nombre.includes(q)) return false
+      }
+      if (filterFecha && p.fecha_pago?.substring(0, 10) !== filterFecha) return false
       return true
     })
-  }, [payments, filterEstado, filterTipo])
+  }, [payments, filterEstado, filterTipo, filterConcepto, searchNombre, filterFecha])
 
   // Stats globales
   const stats = useMemo(() => {
@@ -108,7 +122,8 @@ export default function PaymentsView() {
   async function handleCreate(e) {
     e.preventDefault()
     if (!form.event_id) { toast.error("Seleccioná un evento"); return }
-    if (!form.monto || Number(form.monto) <= 0) { toast.error("El monto debe ser mayor a 0"); return }
+    const montoRaw = parseInt(String(form.monto).replace(/\./g, "").replace(/[^\d]/g, ""), 10)
+    if (!montoRaw || montoRaw <= 0) { toast.error("El monto debe ser mayor a 0"); return }
 
     // Obtener lead_id del evento seleccionado
     const evt = events.find((ev) => ev.id === form.event_id)
@@ -118,9 +133,10 @@ export default function PaymentsView() {
       await apiCreatePayment({
         event_id: form.event_id,
         lead_id,
-        monto: Number(form.monto),
+        monto: montoRaw,
         tipo: form.tipo,
         metodo_pago: form.metodo_pago,
+        concepto: form.concepto || null,
         fecha_pago: form.fecha_pago,
         estado: form.estado,
         observacion: form.observacion || null,
@@ -132,6 +148,7 @@ export default function PaymentsView() {
         monto: "",
         tipo: "seña",
         metodo_pago: "efectivo",
+        concepto: "Salon",
         fecha_pago: new Date().toISOString().substring(0, 10),
         estado: "pendiente",
         observacion: "",
@@ -186,7 +203,7 @@ export default function PaymentsView() {
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors sm:w-auto"
         >
           <Plus className="h-4 w-4" />
           Registrar pago
@@ -225,11 +242,28 @@ export default function PaymentsView() {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative w-full sm:w-auto">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchNombre}
+            onChange={(e) => setSearchNombre(e.target.value)}
+            placeholder="Buscar persona..."
+            className="rounded-md border border-border bg-card pl-8 pr-3 py-2 text-sm text-foreground w-full sm:w-48 sm:py-1.5"
+          />
+        </div>
+        <input
+          type="date"
+          value={filterFecha}
+          onChange={(e) => setFilterFecha(e.target.value)}
+          className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground sm:w-auto sm:py-1.5"
+          title="Filtrar por fecha de pago"
+        />
         <select
           value={filterEstado}
           onChange={(e) => setFilterEstado(e.target.value)}
-          className="rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground"
+          className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground sm:w-auto sm:py-1.5"
         >
           <option value="">Todos los estados</option>
           <option value="pendiente">Pendiente</option>
@@ -239,17 +273,27 @@ export default function PaymentsView() {
         <select
           value={filterTipo}
           onChange={(e) => setFilterTipo(e.target.value)}
-          className="rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground"
+          className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground sm:w-auto sm:py-1.5"
         >
           <option value="">Todos los tipos</option>
           {TIPOS_PAGO.map((t) => (
             <option key={t} value={t}>{TIPO_LABELS[t] || t}</option>
           ))}
         </select>
-        {(filterEstado || filterTipo) && (
+        <select
+          value={filterConcepto}
+          onChange={(e) => setFilterConcepto(e.target.value)}
+          className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground sm:w-auto sm:py-1.5"
+        >
+          <option value="">Todos los conceptos</option>
+          {CONCEPTOS_PAGO.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        {(filterEstado || filterTipo || filterConcepto || searchNombre || filterFecha) && (
           <button
-            onClick={() => { setFilterEstado(""); setFilterTipo("") }}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => { setFilterEstado(""); setFilterTipo(""); setFilterConcepto(""); setSearchNombre(""); setFilterFecha("") }}
+            className="self-start py-2 text-xs text-muted-foreground hover:text-foreground transition-colors sm:py-0"
           >
             Limpiar filtros
           </button>
@@ -262,13 +306,99 @@ export default function PaymentsView() {
           No hay pagos registrados
         </div>
       ) : (
-        <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <>
+        {/* Mobile: cards expandibles */}
+        <div className="flex flex-col gap-2 md:hidden">
+          {filtered.map((p) => {
+            const leadNombre = p.event?.lead?.nombre || p.lead?.nombre || "—"
+            const tipoEvento = p.event?.lead?.tipo_evento || p.event?.tipo_evento || ""
+            const isExpanded = expandedId === p.id
+            return (
+              <div key={p.id} className="rounded-lg border border-border bg-card overflow-hidden">
+                {/* Header siempre visible */}
+                <button
+                  onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-secondary/20 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground truncate">{leadNombre}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {fmtFecha(p.fecha_pago)}{tipoEvento ? ` · ${tipoEvento}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="text-sm font-semibold text-foreground">{fmt(p.monto)}</span>
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${ESTADO_COLORS[p.estado] || "bg-secondary"}`}>
+                      {p.estado}
+                    </span>
+                  </div>
+                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+                </button>
+                {/* Contenido expandido */}
+                {isExpanded && (
+                  <div className="border-t border-border bg-secondary/10 px-4 py-3 flex flex-col gap-3">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-muted-foreground">Tipo</span>
+                        <span>
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${TIPO_COLORS[p.tipo] || "bg-secondary text-secondary-foreground"}`}>
+                            {TIPO_LABELS[p.tipo] || p.tipo}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-muted-foreground">Método</span>
+                        <span className="text-foreground font-medium capitalize">{p.metodo_pago || "—"}</span>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-muted-foreground">Concepto</span>
+                        <span className="text-foreground font-medium">{p.concepto || "—"}</span>
+                      </div>
+                      {p.observacion && (
+                        <div className="flex flex-col gap-0.5 col-span-2">
+                          <span className="text-muted-foreground">Observación</span>
+                          <span className="text-foreground italic">{p.observacion}</span>
+                        </div>
+                      )}
+                    </div>
+                    {(p.estado === "pendiente" || p.estado === "confirmado") && (
+                      <div className="flex items-center gap-2 pt-1">
+                        {p.estado === "pendiente" && (
+                          <button
+                            onClick={() => handleConfirmar(p)}
+                            title="Confirmar pago"
+                            className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-green-200 bg-green-50 px-3 py-2.5 text-xs font-medium text-green-700 hover:bg-green-100 transition-colors"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            Confirmar
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleAnular(p)}
+                          title="Anular pago"
+                          className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Anular
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Desktop: tabla */}
+        <div className="hidden md:block rounded-lg border border-border bg-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
+              <thead >
                 <tr className="border-b border-border bg-secondary/30">
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Evento / Lead</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Tipo</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Concepto</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Monto</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Método</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Fecha</th>
@@ -296,6 +426,7 @@ export default function PaymentsView() {
                           {TIPO_LABELS[p.tipo] || p.tipo}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-muted-foreground text-sm">{p.concepto || "—"}</td>
                       <td className="px-4 py-3 font-semibold text-foreground">{fmt(p.monto)}</td>
                       <td className="px-4 py-3 text-muted-foreground capitalize">{p.metodo_pago || "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{fmtFecha(p.fecha_pago)}</td>
@@ -342,6 +473,7 @@ export default function PaymentsView() {
             </table>
           </div>
         </div>
+        </>
       )}
 
       {/* Modal: registrar pago */}
@@ -351,7 +483,7 @@ export default function PaymentsView() {
             className="absolute inset-0 bg-foreground/20 backdrop-blur-sm"
             onClick={() => setShowForm(false)}
           />
-          <div className="relative z-10 w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl">
+          <div className="relative z-10 mx-3 max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card p-4 shadow-xl sm:mx-auto sm:p-6">
             <h2 className="mb-4 text-lg font-semibold text-foreground">Registrar pago</h2>
             <form onSubmit={handleCreate} className="flex flex-col gap-4">
               <div>
@@ -371,15 +503,18 @@ export default function PaymentsView() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Monto *</label>
                   <input
-                    type="number"
-                    min="1"
-                    step="any"
+                    type="text"
+                    inputMode="numeric"
                     value={form.monto}
-                    onChange={(e) => setForm((f) => ({ ...f, monto: e.target.value }))}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\./g, "").replace(/[^\d]/g, "")
+                      const num = digits !== "" ? parseInt(digits, 10) : ""
+                      setForm((f) => ({ ...f, monto: digits !== "" ? num.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : "" }))
+                    }}
                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
                     placeholder="0"
                     required
@@ -396,7 +531,7 @@ export default function PaymentsView() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Tipo</label>
                   <select
@@ -406,6 +541,18 @@ export default function PaymentsView() {
                   >
                     {TIPOS_PAGO.map((t) => (
                       <option key={t} value={t}>{TIPO_LABELS[t] || t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Concepto</label>
+                  <select
+                    value={form.concepto}
+                    onChange={(e) => setForm((f) => ({ ...f, concepto: e.target.value }))}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                  >
+                    {CONCEPTOS_PAGO.map((c) => (
+                      <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
                 </div>
@@ -431,7 +578,7 @@ export default function PaymentsView() {
                       key={s}
                       type="button"
                       onClick={() => setForm((f) => ({ ...f, estado: s }))}
-                      className={`flex-1 rounded-md border px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
+                      className={`flex-1 rounded-md border px-3 py-2.5 text-xs font-medium capitalize transition-colors sm:py-1.5 ${
                         form.estado === s
                           ? "border-primary bg-primary text-primary-foreground"
                           : "border-border bg-background text-foreground hover:bg-secondary"
@@ -454,17 +601,17 @@ export default function PaymentsView() {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-1">
+              <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="rounded-md border border-border px-4 py-2 text-sm text-foreground hover:bg-secondary transition-colors"
+                  className="w-full rounded-md border border-border px-4 py-2 text-sm text-foreground hover:bg-secondary transition-colors sm:w-auto"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                  className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors sm:w-auto"
                 >
                   Registrar
                 </button>
