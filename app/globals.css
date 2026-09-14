@@ -58,3 +58,14 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Inputs numéricos sin flechitas: evita cambios accidentales de $1 (ver components/providers/number-input-guard.jsx) */
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

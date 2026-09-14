@@ -9,7 +9,7 @@ import {
   fetchEventServices, fetchServiceTypes, fetchCombos, fetchPaymentsByEvent,
   apiCreateEventService, apiUpdateEventService, apiDeleteEventService,
   apiCreatePayment, apiUpdatePayment,
-  ESTADOS_SERVICIO, TIPOS_PAGO, METODOS_PAGO,
+  ESTADOS_SERVICIO, TIPOS_PAGO, METODOS_PAGO, CONCEPTOS_PAGO,
 } from "@/lib/api"
 
 const COLOR_MAP = {
@@ -201,7 +201,7 @@ function ServiceCard({ svc, event, combos, onChanged }) {
           </div>
         ))}
         {showPay ? (
-          <PaymentForm event={event} serviceId={svc.id} onClose={() => setShowPay(false)} onSaved={() => { setShowPay(false); onChanged() }} />
+          <PaymentForm event={event} serviceId={svc.id} tipoNombre={st.nombre} onClose={() => setShowPay(false)} onSaved={() => { setShowPay(false); onChanged() }} />
         ) : (
           <button onClick={() => setShowPay(true)} className="mt-1.5 flex items-center gap-1 text-xs text-primary hover:underline">
             <DollarSign className="h-3 w-3" /> Registrar pago
@@ -212,8 +212,11 @@ function ServiceCard({ svc, event, combos, onChanged }) {
   )
 }
 
-function PaymentForm({ event, serviceId, onClose, onSaved }) {
-  const [f, setF] = useState({ monto: "", tipo: "pago_parcial", metodo_pago: "efectivo", fecha_pago: new Date().toISOString().substring(0, 10) })
+// Concepto del pago según el servicio: Salón → Salon, Tarjetas → Tarjeta, el resto → Otro.
+const conceptoDe = (n = "") => /sal[oó]n/i.test(n) ? "Salon" : /tarjeta/i.test(n) ? "Tarjeta" : "Otro"
+
+function PaymentForm({ event, serviceId, tipoNombre, onClose, onSaved }) {
+  const [f, setF] = useState({ monto: "", tipo: "pago_parcial", metodo_pago: "efectivo", concepto: conceptoDe(tipoNombre), fecha_pago: new Date().toISOString().substring(0, 10) })
   const [saving, setSaving] = useState(false)
   const ch = (e) => { const { name, value } = e.target; setF(p => ({ ...p, [name]: value })) }
   async function save() {
@@ -221,7 +224,7 @@ function PaymentForm({ event, serviceId, onClose, onSaved }) {
     if (!monto || monto <= 0) { toast.error("Monto inválido"); return }
     setSaving(true)
     try {
-      await apiCreatePayment({ event_id: event.id, service_id: serviceId, lead_id: event.lead_id, monto, tipo: f.tipo, metodo_pago: f.metodo_pago, fecha_pago: f.fecha_pago, estado: "confirmado" })
+      await apiCreatePayment({ event_id: event.id, service_id: serviceId, lead_id: event.lead_id, monto, tipo: f.tipo, metodo_pago: f.metodo_pago, concepto: f.concepto, fecha_pago: f.fecha_pago, estado: "confirmado" })
       toast.success("Pago registrado"); onSaved()
     } catch (err) { toast.error(err.message || "Error") } finally { setSaving(false) }
   }
@@ -230,6 +233,7 @@ function PaymentForm({ event, serviceId, onClose, onSaved }) {
       <input name="monto" type="number" placeholder="Monto" value={f.monto} onChange={ch} className={cn(inp, "w-28")} />
       <select name="tipo" value={f.tipo} onChange={ch} className={inp}>{TIPOS_PAGO.map(t => <option key={t} value={t}>{t}</option>)}</select>
       <select name="metodo_pago" value={f.metodo_pago} onChange={ch} className={inp}>{METODOS_PAGO.map(m => <option key={m} value={m}>{m}</option>)}</select>
+      <select name="concepto" value={f.concepto} onChange={ch} className={inp}>{CONCEPTOS_PAGO.map(c => <option key={c} value={c}>{c}</option>)}</select>
       <input name="fecha_pago" type="date" value={f.fecha_pago} onChange={ch} className={inp} />
       <button onClick={save} disabled={saving} className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50">{saving ? "…" : "Guardar"}</button>
       <button onClick={onClose} className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-secondary">Cancelar</button>
