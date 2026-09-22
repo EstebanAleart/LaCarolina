@@ -75,3 +75,12 @@ $STG = ((Get-Content .env.develop | Where-Object { $_ -match '^DIRECT_URL=' }) -
 & "C:\Program Files\PostgreSQL\18\bin\pg_restore.exe" --no-owner --no-privileges --schema=public -d $STG "backups-local/prod_<fecha>.dump"
 & $PSQL $STG -f "$M\004_leads_historico.sql"     # y las migraciones que prod aún no tenga
 ```
+
+## E15-01 — Pipeline de 4 estados (`005_pipeline_4_estados.sql`)
+Solo datos: remapea `leads.estado_actual` a Lead nuevo / Visita agendada / Visita realizada / Reserva confirmada / Perdido. Idempotente. Ya aplicada en LOCAL.
+**Correr en la base de develop (staging) y en prod ANTES de desplegar la rama**: el código ya no conoce los estados viejos.
+```powershell
+& $PSQL $STG  -f "$M\005_pipeline_4_estados.sql"   # develop/staging
+& $PSQL $PROD -f "$M\005_pipeline_4_estados.sql"   # prod
+& $PSQL $PROD -c "SELECT estado_actual, count(*) FROM leads GROUP BY 1 ORDER BY 2 DESC;"   # esperado: Reserva confirmada 103 · Visita realizada 3 · Lead nuevo 1 · Perdido 1
+```
