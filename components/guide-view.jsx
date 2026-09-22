@@ -147,7 +147,7 @@ const PAGES = [
       "Reportes: embudo de ventas por estado, motivos de pérdida, finanzas (cobrado y pendiente) y comunicaciones.",
     ],
     notas: [
-      "La conversión y el embudo no cuentan los leads históricos (la cartera anterior a la app). El Dashboard indica cuántos quedan afuera y tiene el tilde Incluir históricos para verlos sumados.",
+      "La conversión y el embudo no cuentan los leads históricos (la cartera anterior a la app). El Dashboard tiene tres vistas: Operativo (sin históricos, la de todos los días), Con históricos (todo sumado) e Históricos vs actuales, que muestra lado a lado los números completos de cada grupo: leads, eventos, conversión, perdidos y motivos, valor estimado, facturado, cobrado, saldo, ticket promedio, invitados, días hasta la firma, pipeline, canales, estado de pago, tipo y año de evento.",
       "En el Dashboard, la campanita muestra las próximas alertas y cada tarjeta lleva a la sección de donde sale el dato.",
       "Las listas largas (Leads, Eventos, Contratos, Pagos, Productos) tienen paginado arriba y abajo, con selector de cantidad por página.",
     ],

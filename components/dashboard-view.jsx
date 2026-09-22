@@ -21,6 +21,7 @@ import {
   fetchEvents,
   fetchAllProposals,
   fetchAlerts,
+  fetchPayments,
   LEAD_STATES,
 } from "@/lib/api"
 import {
@@ -70,9 +71,15 @@ function StatCard({ icon: Icon, label, value, sublabel, color, onClick }) {
 }
 
 export default function DashboardView({ onNavigate }) {
-  const [raw, setRaw] = useState(null)              // datos crudos; las métricas se calculan abajo
-  const [incluirHistoricos, setIncluirHistoricos] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [raw, setRaw] = useState(null)              // datos crudos; las métricas se calculan abajo
+  // Vista: "operativo" (sin históricos, por defecto) · "todos" (con históricos) · "historicos" (solo la cartera anterior)
+  const [modo, setModo] = useState("operativo")
+  const MODOS = [
+    { id: "operativo", label: "Operativo" },
+    { id: "todos", label: "Con históricos" },
+    { id: "comparativa", label: "Históricos vs actuales" },
+  ]
+  const [loading, setLoading] = useState(true)
   const [bellOpen, setBellOpen] = useState(false)
   const go = (view) => onNavigate?.(view)
 
@@ -86,81 +93,128 @@ export default function DashboardView({ onNavigate }) {
           fetchEvents(),
           fetchAllProposals(),
           fetchAlerts(),
+          fetchPayments(),
         ])
-        const [leadsTodos, calendar, tasks, events, proposals, alertas] = results.map(r => r.status === 'fulfilled' ? r.value : [])
-        setRaw({ leadsTodos, calendar, tasks, events, proposals, alertas })
+        const [leadsTodos, calendar, tasks, events, proposals, alertas, pagos] = results.map(r => r.status === 'fulfilled' ? r.value : [])
+        setRaw({ leadsTodos, calendar, tasks, events, proposals, alertas, pagos })
       } catch (err) { console.error(err) }
       finally { setLoading(false) }
     }
     loadStats()
   }, [])
 
-  // Métricas (sin históricos por defecto; el toggle los incluye)
-  const stats = useMemo(() => {
-    if (!raw) return null
-        const { leadsTodos, calendar, tasks, events, proposals, alertas } = raw
-
-        // Alertas (≤30 días): próximas para la campanita y saldo por cobrar para la tarjeta
-        const conSaldo = alertas.filter((a) => (a.saldo || 0) > 0)
-        const porCobrar = conSaldo.reduce((acc, a) => acc + a.saldo, 0)
-        const alertas7 = alertas.filter((a) => a.dias <= 7).length
-
-        // Cartera histórica (cargada ya firmada en la puesta en marcha): fuera de conversión y pipeline.
-        const histIds = incluirHistoricos ? new Set() : new Set(leadsTodos.filter((l) => l.es_historico).map((l) => l.id))
-        const leads = leadsTodos.filter((l) => !histIds.has(l.id))
-        const eventsOperativos = events.filter((e) => !histIds.has(e.lead_id))
-
-        const byState = {}
-        LEAD_STATES.forEach((s) => (byState[s] = 0))
-        leads.forEach((l) => {
-          byState[l.estado_actual] = (byState[l.estado_actual] || 0) + 1
-        })
-
-        const pipelineData = LEAD_STATES.map((s) => ({
-          name: s.length > 14 ? s.substring(0, 12) + ".." : s,
-          fullName: s,
-          count: byState[s] || 0,
-          fill: PIPELINE_COLORS[s],
-        }))
-
-        const byChannel = {}
-        leads.forEach((l) => {
-          byChannel[l.canal_origen] = (byChannel[l.canal_origen] || 0) + 1
-        })
-        const channelData = Object.entries(byChannel).map(([name, value]) => ({
-          name,
-          value,
-        }))
-
-        const totalValue = leads.reduce((acc, l) => acc + (l.valor_estimado || 0), 0)
-        const confirmedDates = calendar.filter(
-          (c) => c.estado_fecha === "Confirmada" || c.estado_fecha === "Reservada"
-        ).length
-        const pendingTasks = tasks.filter((t) => t.estado === "Pendiente").length
-        const overdueTasks = tasks.filter(
-          (t) => t.estado === "Pendiente" && t.due_date && new Date(t.due_date) < new Date()
-        ).length
-
-        const conversionRate =
-          leads.length > 0
-            ? Math.round((eventsOperativos.length / leads.length) * 100)
-            : 0
-        return {
-          totalLeads: leadsTodos.length,
-          historicos: histIds.size,
-          totalEvents: events.length,
-          totalValue,
-          confirmedDates,
-          alertas,
-          alertas7,
-          porCobrar,
-          eventosConSaldo: conSaldo.length,
-          conversionRate,
-          pipelineData,
-          channelData,
-          totalProposals: proposals.length,
-        }
-  }, [raw, incluirHistoricos])
+  // Métricas (sin históricos por defecto; el toggle los incluye)
+  const stats = useMemo(() => {
+    if (!raw) return null
+        const { leadsTodos, calendar, tasks, events, proposals, alertas, pagos } = raw
+
+        // Alertas (≤30 días): próximas para la campanita y saldo por cobrar para la tarjeta
+        const conSaldo = alertas.filter((a) => (a.saldo || 0) > 0)
+        const porCobrar = conSaldo.reduce((acc, a) => acc + a.saldo, 0)
+        const alertas7 = alertas.filter((a) => a.dias <= 7).length
+
+        // Cartera histórica (cargada ya firmada en la puesta en marcha): fuera de conversión y pipeline.
+        const histSet = new Set(leadsTodos.filter((l) => l.es_historico).map((l) => l.id))
+        // Leads excluidos de las métricas según la vista
+        const histIds = modo === "todos" ? new Set() : histSet
+        const leads = leadsTodos.filter((l) => !histIds.has(l.id))
+        const eventsOperativos = events.filter((e) => !histIds.has(e.lead_id))
+
+        // Resumen completo de un conjunto de leads (comparativa históricos vs actuales)
+        const hoyISO = new Date().toISOString().substring(0, 10)
+        const cuenta = (arr, key) => { const m = {}; arr.forEach((x) => { const k = key(x) || "—"; m[k] = (m[k] || 0) + 1 }); return Object.entries(m).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value })) }
+        const resumenDe = (set) => {
+          const ids = new Set(set.map((l) => l.id))
+          const evs = events.filter((e) => ids.has(e.lead_id))
+          const evIds = new Set(evs.map((e) => e.id))
+          const pg = (pagos || []).filter((x) => evIds.has(x.event_id) && x.estado === "confirmado")
+          const cobrado = pg.reduce((a, x) => a + (x.tipo === "devolucion" ? -(x.monto || 0) : (x.monto || 0)), 0)
+          const facturado = evs.reduce((a, e) => a + (e.valor_total_evento || 0), 0)
+          const st = {}; LEAD_STATES.forEach((x) => (st[x] = 0)); set.forEach((l) => { st[l.estado_actual] = (st[l.estado_actual] || 0) + 1 })
+          const perdidos = set.filter((l) => l.estado_actual === "Perdido")
+          const firmados = set.filter((l) => l.fecha_firma_contrato && l.created_at)
+          const dias = firmados.map((l) => (new Date(l.fecha_firma_contrato) - new Date(l.created_at)) / 86400000).filter((d) => d >= 0)
+          const conInv = evs.filter((e) => e.invitados_estimados > 0)
+          return {
+            leads: set.length,
+            eventos: evs.length,
+            conversion: set.length ? Math.round((evs.length / set.length) * 100) : 0,
+            perdidos: perdidos.length,
+            valor: set.reduce((a, l) => a + (l.valor_estimado || 0), 0),
+            facturado,
+            cobrado,
+            saldo: facturado - cobrado,
+            ticket: evs.length ? facturado / evs.length : 0,
+            invitadosProm: conInv.length ? Math.round(conInv.reduce((a, e) => a + e.invitados_estimados, 0) / conInv.length) : 0,
+            diasFirma: dias.length ? Math.round(dias.reduce((a, d) => a + d, 0) / dias.length) : null,
+            proximos: evs.filter((e) => String(e.fecha_confirmada || "").substring(0, 10) >= hoyISO).length,
+            realizados: evs.filter((e) => String(e.fecha_confirmada || "").substring(0, 10) < hoyISO).length,
+            pipelineData: LEAD_STATES.map((x) => ({ name: x.length > 14 ? x.substring(0, 12) + ".." : x, fullName: x, count: st[x] || 0, fill: PIPELINE_COLORS[x] })),
+            channelData: cuenta(set, (l) => l.canal_origen),
+            porTipo: cuenta(evs.length ? evs : set, (x) => x.tipo_evento || x.lead?.tipo_evento),
+            porAnio: cuenta(set, (l) => l.anio_evento).sort((a, b) => String(a.name).localeCompare(String(b.name))),
+            estadoPago: cuenta(evs, (e) => e.estado_pago),
+            motivos: cuenta(perdidos, (l) => l.motivo_perdida || "Sin motivo"),
+          }
+        }
+        const comparativa = {
+          historicos: resumenDe(leadsTodos.filter((l) => l.es_historico)),
+          actuales: resumenDe(leadsTodos.filter((l) => !l.es_historico)),
+        }
+
+        const byState = {}
+        LEAD_STATES.forEach((s) => (byState[s] = 0))
+        leads.forEach((l) => {
+          byState[l.estado_actual] = (byState[l.estado_actual] || 0) + 1
+        })
+
+        const pipelineData = LEAD_STATES.map((s) => ({
+          name: s.length > 14 ? s.substring(0, 12) + ".." : s,
+          fullName: s,
+          count: byState[s] || 0,
+          fill: PIPELINE_COLORS[s],
+        }))
+
+        const byChannel = {}
+        leads.forEach((l) => {
+          byChannel[l.canal_origen] = (byChannel[l.canal_origen] || 0) + 1
+        })
+        const channelData = Object.entries(byChannel).map(([name, value]) => ({
+          name,
+          value,
+        }))
+
+        const totalValue = leads.reduce((acc, l) => acc + (l.valor_estimado || 0), 0)
+        const confirmedDates = calendar.filter(
+          (c) => c.estado_fecha === "Confirmada" || c.estado_fecha === "Reservada"
+        ).length
+        const pendingTasks = tasks.filter((t) => t.estado === "Pendiente").length
+        const overdueTasks = tasks.filter(
+          (t) => t.estado === "Pendiente" && t.due_date && new Date(t.due_date) < new Date()
+        ).length
+
+        const conversionRate =
+          leads.length > 0
+            ? Math.round((eventsOperativos.length / leads.length) * 100)
+            : 0
+        return {
+          totalLeads: leadsTodos.length,
+          historicos: histSet.size,
+          modo,
+          comparativa,
+          totalEvents: events.length,
+          totalValue,
+          confirmedDates,
+          alertas,
+          alertas7,
+          porCobrar,
+          eventosConSaldo: conSaldo.length,
+          conversionRate,
+          pipelineData,
+          channelData,
+          totalProposals: proposals.length,
+        }
+  }, [raw, modo])
   const PIE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#f97316", "#06b6d4"]
 
   if (loading || !stats) {
@@ -181,12 +235,8 @@ export default function DashboardView({ onNavigate }) {
           </p>
         </div>
 
-        <div className="flex shrink-0 items-center gap-3">
-          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-            <input type="checkbox" checked={incluirHistoricos} onChange={(e) => setIncluirHistoricos(e.target.checked)} className="h-4 w-4" />
-            Incluir históricos
-          </label>
-        {/* Campanita: resumen de las próximas alertas + "Ver más" a la vista de Alertas */}
+        <div className="flex shrink-0 items-center gap-3">
+        {/* Campanita: resumen de las próximas alertas + "Ver más" a la vista de Alertas */}
         <div className="relative shrink-0">
           <button
             type="button"
@@ -242,6 +292,22 @@ export default function DashboardView({ onNavigate }) {
         </div>
       </div>
 
+      {/* Vistas: operativo (sin históricos) · con históricos · comparativa lado a lado */}
+      <div className="flex gap-1 overflow-x-auto scrollbar-none border-b border-border">
+        {MODOS.map((m) => (
+          <button key={m.id} type="button" onClick={() => setModo(m.id)}
+            className={`shrink-0 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${modo === m.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {modo === "comparativa" ? (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Panel titulo="Históricos" sub="Cartera anterior a la app" r={stats.comparativa.historicos} pie={PIE_COLORS} />
+          <Panel titulo="Leads actuales" sub="Operación desde la app" r={stats.comparativa.actuales} pie={PIE_COLORS} />
+        </div>
+      ) : (<>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon={Users}
@@ -389,6 +455,120 @@ export default function DashboardView({ onNavigate }) {
           </div>
         </div>
       </div>
+      </>)}
+    </div>
+  )
+}
+
+const TT = { backgroundColor: "hsl(0,0%,100%)", border: "1px solid hsl(214,20%,90%)", borderRadius: 8, fontSize: 12 }
+const fmtK = (n) => "$" + Math.round((n || 0) / 1000).toLocaleString("es-AR") + "k"
+
+// Gráfico de barras horizontal genérico (tipo de evento, año, etc.)
+function Barras({ data, color = "#6366f1", height = "h-44" }) {
+  if (!data.length) return <p className="text-sm text-muted-foreground">Sin datos</p>
+  return (
+    <div className={height}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" margin={{ left: 4, right: 24 }}>
+          <XAxis type="number" tick={{ fontSize: 11, fill: "hsl(220,10%,46%)" }} allowDecimals={false} />
+          <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11, fill: "hsl(220,10%,46%)" }} />
+          <Tooltip contentStyle={TT} />
+          <Bar dataKey="value" fill={color} radius={[0, 4, 4, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+// Torta genérica con leyenda
+function Torta({ data, pie }) {
+  if (!data.length) return <p className="text-sm text-muted-foreground">Sin datos</p>
+  return (
+    <>
+      <div className="flex h-44 items-center justify-center">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={data} cx="50%" cy="50%" innerRadius={38} outerRadius={62} paddingAngle={4} dataKey="value">
+              {data.map((entry, i) => <Cell key={i} fill={pie[i % pie.length]} />)}
+            </Pie>
+            <Tooltip contentStyle={TT} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="mt-1 flex flex-wrap justify-center gap-3">
+        {data.map((c, i) => (
+          <div key={c.name} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: pie[i % pie.length] }} />
+            {c.name} ({c.value})
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+// Panel de la comparativa: todos los KPIs + gráficos de un conjunto de leads
+function Panel({ titulo, sub, r, pie }) {
+  const Sec = ({ t, children }) => (
+    <div>
+      <h4 className="mb-2 text-sm font-semibold text-card-foreground">{t}</h4>
+      {children}
+    </div>
+  )
+  return (
+    <div className="flex flex-col gap-5 rounded-lg border border-border bg-card p-4 sm:p-5">
+      <div>
+        <h3 className="text-base font-bold text-card-foreground">{titulo}</h3>
+        <p className="text-xs text-muted-foreground">{sub}</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard icon={Users} label="Leads" value={r.leads} sublabel={`${r.perdidos} perdidos`} color="#3b82f6" />
+        <StatCard icon={CheckCircle2} label="Eventos" value={r.eventos} sublabel={`${r.conversion}% conversión`} color="#10b981" />
+        <StatCard icon={CalendarDays} label="Próximos" value={r.proximos} sublabel={`${r.realizados} realizados`} color="#0ea5e9" />
+        <StatCard icon={Clock} label="Días hasta la firma" value={r.diasFirma ?? "—"} sublabel="promedio desde el alta" color="#8b5cf6" />
+        <StatCard icon={DollarSign} label="Valor estimado" value={fmtK(r.valor)} sublabel="suma de los leads" color="#a855f7" />
+        <StatCard icon={FileText} label="Facturado" value={fmtK(r.facturado)} sublabel={`ticket promedio ${fmtK(r.ticket)}`} color="#f59e0b" />
+        <StatCard icon={TrendingUp} label="Cobrado" value={fmtK(r.cobrado)} sublabel="pagos confirmados" color="#059669" />
+        <StatCard icon={AlertCircle} label="Saldo pendiente" value={fmtK(r.saldo)} sublabel={`${r.invitadosProm} invitados promedio`} color={r.saldo > 0 ? "#ef4444" : "#10b981"} />
+      </div>
+
+      <Sec t="Pipeline">
+        <div className="h-52">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={r.pipelineData} layout="vertical" margin={{ left: 4, right: 24 }}>
+              <XAxis type="number" tick={{ fontSize: 11, fill: "hsl(220,10%,46%)" }} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11, fill: "hsl(220,10%,46%)" }} />
+              <Tooltip formatter={(v, _n, item) => [v, item?.payload?.fullName || "Leads"]} contentStyle={TT} />
+              <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                {r.pipelineData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Sec>
+
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <Sec t="Canales"><Torta data={r.channelData} pie={pie} /></Sec>
+        <Sec t="Estado de pago"><Torta data={r.estadoPago} pie={["#f87171", "#fbbf24", "#34d399", "#94a3b8"]} /></Sec>
+      </div>
+
+      <Sec t="Tipo de evento"><Barras data={r.porTipo} color="#6366f1" /></Sec>
+      <Sec t="Año del evento"><Barras data={r.porAnio} color="#0ea5e9" height="h-32" /></Sec>
+
+      <Sec t="Motivos de pérdida">
+        {r.motivos.length === 0 ? <p className="text-sm text-muted-foreground">Sin leads perdidos</p> : (
+          <div className="flex flex-col gap-1.5">
+            {r.motivos.map((m) => (
+              <div key={m.name} className="flex items-center gap-2 text-xs">
+                <span className="w-5 font-bold text-muted-foreground">{m.value}</span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full bg-red-400" style={{ width: `${(m.value / (r.motivos[0]?.value || 1)) * 100}%` }} /></div>
+                <span className="max-w-[160px] truncate text-muted-foreground">{m.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Sec>
     </div>
   )
 }
