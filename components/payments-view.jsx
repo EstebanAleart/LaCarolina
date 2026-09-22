@@ -12,7 +12,9 @@ import {
   TIPOS_PAGO,
   METODOS_PAGO,
   CONCEPTOS_PAGO,
+  fetchEventById,
 } from "@/lib/api"
+import EventSheet from "./event-sheet"
 
 const ESTADO_COLORS = {
   pendiente: "bg-amber-100 text-amber-800",
@@ -56,7 +58,11 @@ export default function PaymentsView() {
   const [filterConcepto, setFilterConcepto] = useState("")
   const [searchNombre, setSearchNombre] = useState("")
   const [filterFecha, setFilterFecha] = useState("")
-  const [expandedId, setExpandedId] = useState(null)
+  const [expandedId, setExpandedId] = useState(null)
+  const [sheetEvent, setSheetEvent] = useState(null)
+  async function openEvent(id) {
+    try { setSheetEvent(await fetchEventById(id)) } catch (err) { toast.error(err.message || "No se pudo abrir la ficha") }
+  }
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
   useEffect(() => { setPage(1) }, [filterEstado, filterTipo, filterConcepto, searchNombre, filterFecha, pageSize])
@@ -329,7 +335,7 @@ export default function PaymentsView() {
                   className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-secondary/20 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground truncate">{leadNombre}</p>
+                    <span role="link" onClick={(e) => { e.stopPropagation(); if (p.event?.id) openEvent(p.event.id) }} className="block truncate font-medium text-foreground hover:underline">{leadNombre}</span>
                     <p className="text-xs text-muted-foreground truncate">
                       {fmtFecha(p.fecha_pago)}{tipoEvento ? ` · ${tipoEvento}` : ""}
                     </p>
@@ -421,7 +427,7 @@ export default function PaymentsView() {
                   return (
                     <tr key={p.id} className="hover:bg-secondary/20 transition-colors">
                       <td className="px-4 py-3">
-                        <p className="font-medium text-foreground">{leadNombre}</p>
+                        <button type="button" onClick={() => p.event?.id && openEvent(p.event.id)} className="text-left font-medium text-foreground hover:underline">{leadNombre}</button>
                         {tipoEvento && (
                           <p className="text-xs text-muted-foreground">{tipoEvento}</p>
                         )}
@@ -630,6 +636,7 @@ export default function PaymentsView() {
           </div>
         </div>
       )}
+      {sheetEvent && <EventSheet event={sheetEvent} onClose={() => setSheetEvent(null)} />}
     </div>
   )
 }

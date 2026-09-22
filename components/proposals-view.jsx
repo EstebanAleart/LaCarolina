@@ -317,7 +317,7 @@ function ContractCard({ proposal: p, submittingId, onView, onEdit, onStatusUpdat
         )}
         {p.fecha_envio && (
           <p className="text-[10px] text-muted-foreground">
-            Enviada: {new Date(p.fecha_envio).toLocaleDateString("es-AR")}
+            Enviada: {new Date(p.fecha_envio).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
           </p>
         )}
       </div>

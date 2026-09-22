@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   Users,
   CalendarDays,
@@ -70,8 +70,9 @@ function StatCard({ icon: Icon, label, value, sublabel, color, onClick }) {
 }
 
 export default function DashboardView({ onNavigate }) {
-  const [stats, setStats] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [raw, setRaw] = useState(null)              // datos crudos; las métricas se calculan abajo
+  const [incluirHistoricos, setIncluirHistoricos] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [bellOpen, setBellOpen] = useState(false)
   const go = (view) => onNavigate?.(view)
 
@@ -87,74 +88,79 @@ export default function DashboardView({ onNavigate }) {
           fetchAlerts(),
         ])
         const [leadsTodos, calendar, tasks, events, proposals, alertas] = results.map(r => r.status === 'fulfilled' ? r.value : [])
-
-        // Alertas (≤30 días): próximas para la campanita y saldo por cobrar para la tarjeta
-        const conSaldo = alertas.filter((a) => (a.saldo || 0) > 0)
-        const porCobrar = conSaldo.reduce((acc, a) => acc + a.saldo, 0)
-        const alertas7 = alertas.filter((a) => a.dias <= 7).length
-
-        // Cartera histórica (cargada ya firmada en la puesta en marcha): fuera de conversión y pipeline.
-        const histIds = new Set(leadsTodos.filter((l) => l.es_historico).map((l) => l.id))
-        const leads = leadsTodos.filter((l) => !histIds.has(l.id))
-        const eventsOperativos = events.filter((e) => !histIds.has(e.lead_id))
-
-        const byState = {}
-        LEAD_STATES.forEach((s) => (byState[s] = 0))
-        leads.forEach((l) => {
-          byState[l.estado_actual] = (byState[l.estado_actual] || 0) + 1
-        })
-
-        const pipelineData = LEAD_STATES.map((s) => ({
-          name: s.length > 14 ? s.substring(0, 12) + ".." : s,
-          fullName: s,
-          count: byState[s] || 0,
-          fill: PIPELINE_COLORS[s],
-        }))
-
-        const byChannel = {}
-        leads.forEach((l) => {
-          byChannel[l.canal_origen] = (byChannel[l.canal_origen] || 0) + 1
-        })
-        const channelData = Object.entries(byChannel).map(([name, value]) => ({
-          name,
-          value,
-        }))
-
-        const totalValue = leads.reduce((acc, l) => acc + (l.valor_estimado || 0), 0)
-        const confirmedDates = calendar.filter(
-          (c) => c.estado_fecha === "Confirmada" || c.estado_fecha === "Reservada"
-        ).length
-        const pendingTasks = tasks.filter((t) => t.estado === "Pendiente").length
-        const overdueTasks = tasks.filter(
-          (t) => t.estado === "Pendiente" && t.due_date && new Date(t.due_date) < new Date()
-        ).length
-
-        const conversionRate =
-          leads.length > 0
-            ? Math.round((eventsOperativos.length / leads.length) * 100)
-            : 0
-
-        setStats({
-          totalLeads: leadsTodos.length,
-          historicos: histIds.size,
-          totalEvents: events.length,
-          totalValue,
-          confirmedDates,
-          alertas,
-          alertas7,
-          porCobrar,
-          eventosConSaldo: conSaldo.length,
-          conversionRate,
-          pipelineData,
-          channelData,
-          totalProposals: proposals.length,
-        })
+        setRaw({ leadsTodos, calendar, tasks, events, proposals, alertas })
       } catch (err) { console.error(err) }
       finally { setLoading(false) }
     }
     loadStats()
   }, [])
 
+  // Métricas (sin históricos por defecto; el toggle los incluye)
+  const stats = useMemo(() => {
+    if (!raw) return null
+        const { leadsTodos, calendar, tasks, events, proposals, alertas } = raw
+
+        // Alertas (≤30 días): próximas para la campanita y saldo por cobrar para la tarjeta
+        const conSaldo = alertas.filter((a) => (a.saldo || 0) > 0)
+        const porCobrar = conSaldo.reduce((acc, a) => acc + a.saldo, 0)
+        const alertas7 = alertas.filter((a) => a.dias <= 7).length
+
+        // Cartera histórica (cargada ya firmada en la puesta en marcha): fuera de conversión y pipeline.
+        const histIds = incluirHistoricos ? new Set() : new Set(leadsTodos.filter((l) => l.es_historico).map((l) => l.id))
+        const leads = leadsTodos.filter((l) => !histIds.has(l.id))
+        const eventsOperativos = events.filter((e) => !histIds.has(e.lead_id))
+
+        const byState = {}
+        LEAD_STATES.forEach((s) => (byState[s] = 0))
+        leads.forEach((l) => {
+          byState[l.estado_actual] = (byState[l.estado_actual] || 0) + 1
+        })
+
+        const pipelineData = LEAD_STATES.map((s) => ({
+          name: s.length > 14 ? s.substring(0, 12) + ".." : s,
+          fullName: s,
+          count: byState[s] || 0,
+          fill: PIPELINE_COLORS[s],
+        }))
+
+        const byChannel = {}
+        leads.forEach((l) => {
+          byChannel[l.canal_origen] = (byChannel[l.canal_origen] || 0) + 1
+        })
+        const channelData = Object.entries(byChannel).map(([name, value]) => ({
+          name,
+          value,
+        }))
+
+        const totalValue = leads.reduce((acc, l) => acc + (l.valor_estimado || 0), 0)
+        const confirmedDates = calendar.filter(
+          (c) => c.estado_fecha === "Confirmada" || c.estado_fecha === "Reservada"
+        ).length
+        const pendingTasks = tasks.filter((t) => t.estado === "Pendiente").length
+        const overdueTasks = tasks.filter(
+          (t) => t.estado === "Pendiente" && t.due_date && new Date(t.due_date) < new Date()
+        ).length
+
+        const conversionRate =
+          leads.length > 0
+            ? Math.round((eventsOperativos.length / leads.length) * 100)
+            : 0
+        return {
+          totalLeads: leadsTodos.length,
+          historicos: histIds.size,
+          totalEvents: events.length,
+          totalValue,
+          confirmedDates,
+          alertas,
+          alertas7,
+          porCobrar,
+          eventosConSaldo: conSaldo.length,
+          conversionRate,
+          pipelineData,
+          channelData,
+          totalProposals: proposals.length,
+        }
+  }, [raw, incluirHistoricos])
   const PIE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#f97316", "#06b6d4"]
 
   if (loading || !stats) {
@@ -175,7 +181,12 @@ export default function DashboardView({ onNavigate }) {
           </p>
         </div>
 
-        {/* Campanita: resumen de las próximas alertas + "Ver más" a la vista de Alertas */}
+        <div className="flex shrink-0 items-center gap-3">
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+            <input type="checkbox" checked={incluirHistoricos} onChange={(e) => setIncluirHistoricos(e.target.checked)} className="h-4 w-4" />
+            Incluir históricos
+          </label>
+        {/* Campanita: resumen de las próximas alertas + "Ver más" a la vista de Alertas */}
         <div className="relative shrink-0">
           <button
             type="button"
@@ -227,6 +238,7 @@ export default function DashboardView({ onNavigate }) {
               </div>
             </>
           )}
+        </div>
         </div>
       </div>
 

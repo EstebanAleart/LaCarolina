@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 const { Lead, Interaction, Proposal, Visit, Reservation, Event, LeadStatusHistory, CalendarDate, Cliente } = require('@/lib/models/associations');
 const { vincularClienteAlLead } = require('@/lib/clientes');
+const sequelize = require('@/lib/models/index');
 
 // GET /api/leads - Listar todos los leads (con filtros opcionales)
 export async function GET(request) {
@@ -15,7 +16,12 @@ export async function GET(request) {
 
     const leads = await Lead.findAll({
       where,
-      include: [{ association: 'cliente', attributes: ['id', 'nombre', 'telefono', 'email'] }],
+      // C2-02: último contacto = fecha de la última interacción del lead
+      attributes: { include: [[sequelize.literal('(SELECT MAX(i.fecha) FROM interactions i WHERE i.lead_id = "Lead"."id")'), 'ultimo_contacto']] },
+      include: [
+        { association: 'cliente', attributes: ['id', 'nombre', 'telefono', 'email'] },
+        { association: 'responsable', attributes: ['id', 'nombre'] },
+      ],
       order: [['created_at', 'DESC']],
     });
 
