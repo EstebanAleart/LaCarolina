@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-const { Event, Lead, CalendarDate, LeadStatusHistory } = require('@/lib/models/associations');
-const { cerrarEventosVencidos } = require('@/lib/automations');
+const { Event, Lead, CalendarDate, LeadStatusHistory, Task } = require('@/lib/models/associations');
+const { actualizarEstadosEventos } = require('@/lib/automations');
 
-// GET /api/events - Todos los eventos (cierra primero los vencidos → Realizado)
+// GET /api/events - Todos los eventos (acomoda primero los estados por fecha: Próximo / Realizado / Cerrado)
 export async function GET() {
   try {
-    await cerrarEventosVencidos(Event);
+    await actualizarEstadosEventos({ Event, Task });
     const events = await Event.findAll({
       include: [
         { association: 'lead' },
@@ -44,7 +44,7 @@ export async function POST(request) {
       tipo_evento: body.tipo_evento || '',
       invitados_estimados: body.invitados_estimados || 0,
       servicios_contratados: body.servicios_contratados || [],
-      estado_operativo: 'Pendiente',
+      estado_operativo: 'En planificación',
       contrato_url: body.contrato_url || '',
       valor_total_evento: body.valor_total_evento || null,
       estado_pago: body.estado_pago || 'Pendiente',

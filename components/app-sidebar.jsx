@@ -27,7 +27,7 @@ const NAV_ITEMS = [
   { id: "payments", label: "Pagos", icon: CreditCard },
   { id: "stock", label: "Stock", icon: Boxes },
   { id: "alerts", label: "Alertas", icon: Bell },
-  // { id: "tasks", label: "Tareas", icon: CheckSquare },
+  { id: "tasks", label: "Tareas", icon: CheckSquare }, // E15-07: tareas post-evento
   { id: "reports", label: "Reportes", icon: BarChart2 },
   { id: "guide", label: "Guia", icon: BookOpen },
 ]

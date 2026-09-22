@@ -34,15 +34,17 @@ import {
   apiUpdatePayment,
   TIPOS_PAGO,
   METODOS_PAGO,
+  ESTADOS_EVENTO,
 } from "@/lib/api"
 
-const ESTADO_OPERATIVO_OPTIONS = ["Pendiente", "En preparacion", "Listo", "Realizado"]
+// E15-06: estados por fecha (ver lib/api ESTADOS_EVENTO). "Evento realizado" lo pone el sistema al pasar la fecha.
+const ESTADO_OPERATIVO_OPTIONS = ESTADOS_EVENTO
 
 const ESTADO_OP_COLORS = {
-  Pendiente: "bg-amber-100 text-amber-800",
-  "En preparacion": "bg-blue-100 text-blue-800",
-  Listo: "bg-emerald-100 text-emerald-800",
-  Realizado: "bg-green-100 text-green-800",
+  "En planificación":     "bg-amber-100 text-amber-800",
+  "Próximo evento":       "bg-blue-100 text-blue-800",
+  "Evento realizado":     "bg-emerald-100 text-emerald-800",
+  "Post-evento / cerrado": "bg-gray-100 text-gray-700",
 }
 
 const ESTADO_PAGO_COLORS = {
@@ -163,8 +165,8 @@ export default function EventsView() {
     try {
       await apiUpdateEvent(id, { estado_operativo: nuevoEstado })
       await loadData()
-      toast.success(`Estado operativo: ${nuevoEstado}`)
-    } catch (err) { console.error(err); toast.error("Error al actualizar evento") }
+      toast.success(`Estado: ${nuevoEstado}`)
+    } catch (err) { console.error(err); toast.error(err.message || "Error al actualizar evento") }
   }
 
   async function handleUpdateField(id, field, value) {

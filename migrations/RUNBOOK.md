@@ -92,3 +92,12 @@ Agrega `leads.motivo_perdida` (categoría fija) y marca "Otro" en los leads ya p
 & $PSQL $STG  -f "$M\006_leads_motivo_perdida.sql"
 & $PSQL $PROD -f "$M\006_leads_motivo_perdida.sql"
 ```
+
+## E15-06 — Estados del evento por fecha (`007_eventos_estados.sql`)
+Solo datos: remapea `events.estado_operativo` a En planificación / Próximo evento / Evento realizado / Post-evento / cerrado. Idempotente. Ya aplicada en LOCAL.
+**Correr en develop y prod ANTES de desplegar la rama** (el código ya no conoce los estados viejos):
+```powershell
+& $PSQL $STG  -f "$M\007_eventos_estados.sql"
+& $PSQL $PROD -f "$M\007_eventos_estados.sql"
+```
+Variables de entorno opcionales (defaults en código): `EVENTO_PROXIMO_DIAS=30`, `POSTEVENTO_AGRADECIMIENTO_DIAS=1`, `POSTEVENTO_FEEDBACK_DIAS=2`.

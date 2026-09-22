@@ -263,7 +263,7 @@ describe('5. Contrato', () => {
         precio_senia: 150000,
         menu_seleccionado: 'Menú 2',
         minimo_tarjetas: 100,
-        estado_operativo: 'Pendiente',
+        estado_operativo: 'En planificación',
       })
     );
     expect(createdEvent.servicios_contratados).toEqual(['Salón', 'Catering', 'DJ']);

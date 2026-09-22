@@ -105,7 +105,7 @@ describe('PUT proposal → Firmada', () => {
     await PUT(makeRequest({ estado: 'Firmada' }), makeParams('prop-1'));
 
     expect(models.Event.create).toHaveBeenCalledWith(
-      expect.objectContaining({ lead_id: 'lead-1', fecha_confirmada: '2026-06-15', valor_total_evento: 400000, precio_senia: 150000, estado_operativo: 'Pendiente' })
+      expect.objectContaining({ lead_id: 'lead-1', fecha_confirmada: '2026-06-15', valor_total_evento: 400000, precio_senia: 150000, estado_operativo: 'En planificación' })
     );
     expect(models.Payment.create).toHaveBeenCalledWith(expect.objectContaining({ event_id: 'evt-nuevo', tipo: 'seña', monto: 150000, estado: 'confirmado' }));
     expect(calDate.update).toHaveBeenCalledWith({ estado_fecha: 'Confirmada', evento_id: 'evt-nuevo' });

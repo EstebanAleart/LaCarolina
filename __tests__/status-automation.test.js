@@ -93,7 +93,7 @@ describe('PUT /status → Reserva confirmada', () => {
 
     expect(res.status).toBe(200);
     expect(models.Event.create).toHaveBeenCalledWith(
-      expect.objectContaining({ lead_id: 'lead-1', fecha_confirmada: '2026-06-15', valor_total_evento: 400000, servicios_contratados: ['Salón'], estado_operativo: 'Pendiente' })
+      expect.objectContaining({ lead_id: 'lead-1', fecha_confirmada: '2026-06-15', valor_total_evento: 400000, servicios_contratados: ['Salón'], estado_operativo: 'En planificación' })
     );
     expect(models.Payment.create).toHaveBeenCalledWith(
       expect.objectContaining({ event_id: 'evt-1', tipo: 'seña', monto: 150000, estado: 'confirmado', metodo_pago: 'transferencia', fecha_pago: '2026-05-01' })

@@ -69,14 +69,16 @@ const PAGES = [
     icon: Sparkles, title: "4. Eventos y la Ficha del evento",
     intro: "Un evento es una fiesta ya vendida. Se crea solo al confirmarse la reserva y trae los datos del contrato, la seña y la fecha. Acá se organiza la producción y se sigue la plata.",
     steps: [
-      "En Eventos podés ver la lista o el tablero Kanban por estado operativo (Pendiente, En preparación, Listo, Realizado). En el tablero, arrastrar una tarjeta cambia el estado.",
+      "En Eventos podés ver la lista o el tablero Kanban por estado: En planificación, Próximo evento, Evento realizado y Post-evento / cerrado. En el tablero, arrastrar una tarjeta cambia el estado.",
+      "Los cambios por fecha son automáticos: a 30 días de la fiesta el evento pasa a Próximo evento; al día siguiente de la fecha pasa a Evento realizado y se crean las tareas post-evento (verificar saldos y devoluciones, registrar incidencias, mensaje de agradecimiento, pedido de feedback y reseña). Cuando esas tareas se completan, el evento queda Post-evento / cerrado.",
+      "No se puede marcar Evento realizado antes de la fecha: lo hace el sistema.",
       "Tocá un evento para abrir la Ficha del evento: arriba, total contratado, cobrado y saldo; abajo, cada servicio con su propia cuenta.",
       "La seña que cargaste en el lead aparece como el primer pago confirmado del evento.",
       "Desde la ficha se agregan servicios y se registran pagos por servicio.",
     ],
     notas: [
-      "Los eventos con fecha pasada se marcan solos como Realizado.",
       "El estado del evento (organización) es independiente del estado del lead (venta). No se pisan.",
+      "Las tareas post-evento aparecen en la sección Tareas con su fecha límite.",
     ],
   },
   {
@@ -152,7 +154,7 @@ const PAGES = [
       "Marcar Visita realizada crea el borrador del contrato.",
       "Registrar la seña reserva la fecha en el Calendario.",
       "Con seña, fecha reservada y contrato firmado, el lead pasa a Reserva confirmada y se crea el Evento con los datos del contrato, la seña como primer pago y la fecha confirmada.",
-      "Los eventos con fecha pasada pasan a Realizado.",
+      "A 30 días de la fecha, el evento pasa a Próximo evento. Al día siguiente de la fecha pasa a Evento realizado y se crean las tareas post-evento. Al completarlas, queda Post-evento / cerrado.",
       "Al cargar pagos, el estado de pago del evento pasa de Pendiente a Parcial y a Completo.",
       "Al contratar un combo de cotillón, el stock se reserva; al entregarlo, se descuenta.",
     ],
