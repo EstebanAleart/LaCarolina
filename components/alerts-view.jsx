@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import { Bell, CalendarClock, DollarSign, PartyPopper, Phone, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { fetchAlerts } from "@/lib/api"
+import { fetchAlerts, fetchEventById } from "@/lib/api"
+import EventSheet from "./event-sheet"
 import { BUCKETS } from "@/lib/alerts"
 
 const BUCKET_STYLE = {
@@ -19,7 +20,11 @@ const diasTxt = (d) => d < 0 ? `hace ${Math.abs(d)} día(s)` : d === 0 ? "¡HOY!
 
 export default function AlertsView() {
   const [alertas, setAlertas] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
+  const [sheetEvent, setSheetEvent] = useState(null)
+  async function openEvent(id) {
+    try { setSheetEvent(await fetchEventById(id)) } catch (err) { toast.error(err.message || "No se pudo abrir la ficha") }
+  }
 
   useEffect(() => {
     (async () => {
@@ -62,7 +67,7 @@ export default function AlertsView() {
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {items.map(a => (
-                  <div key={a.event_id} className={cn("rounded-lg border p-3", style.ring)}>
+                  <div key={a.event_id} role="button" tabIndex={0} onClick={() => openEvent(a.event_id)} onKeyDown={(e) => { if (e.key === "Enter") openEvent(a.event_id) }} className={cn("cursor-pointer rounded-lg border p-3 transition-shadow hover:shadow-md", style.ring)}>
                     <div className="flex items-center justify-between gap-2">
                       <p className="min-w-0 truncate font-bold text-foreground">{a.cliente}</p>
                       <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-foreground">{diasTxt(a.dias)}</span>
@@ -95,6 +100,7 @@ export default function AlertsView() {
           )
         })
       )}
+      {sheetEvent && <EventSheet event={sheetEvent} onClose={() => setSheetEvent(null)} />}
     </div>
   )
 }

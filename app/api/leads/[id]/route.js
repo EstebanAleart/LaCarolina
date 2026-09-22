@@ -54,6 +54,8 @@ export async function PUT(request, { params }) {
     if (updateData.fecha_visita_salon === '') updateData.fecha_visita_salon = null;
     if (updateData.fecha_firma_contrato === '') updateData.fecha_firma_contrato = null;
     if (updateData.fecha_limite_pago_total === '') updateData.fecha_limite_pago_total = null;
+    if (updateData.proximo_paso_fecha === '') updateData.proximo_paso_fecha = null;
+    if (updateData.managed_by_user_id === '') updateData.managed_by_user_id = null;
 
     // Auto-calcular fecha límite de pago (fecha evento - 30 días)
     if (updateData.fecha_tentativa) {

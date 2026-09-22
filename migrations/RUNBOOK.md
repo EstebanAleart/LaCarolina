@@ -110,3 +110,11 @@ DDL aditivo: tabla `clientes`, `leads.cliente_id`, puente `evento_clientes(event
 & $PSQL $PROD -f "$M\008_clientes.sql"
 & $PSQL $PROD -c "SELECT (SELECT count(*) FROM clientes) clientes, (SELECT count(*) FROM leads WHERE cliente_id IS NULL) leads_sin_cliente, (SELECT count(*) FROM evento_clientes) titulares;"
 ```
+
+## C2-02 — Seguimiento por lead (`009_leads_seguimiento.sql`)
+Aditivo: `leads.proximo_paso` y `leads.proximo_paso_fecha`. Idempotente. Ya aplicada en LOCAL.
+**Correr en develop y prod ANTES de desplegar la rama** (el modelo Lead lee las columnas):
+```powershell
+& $PSQL $STG  -f "$M\009_leads_seguimiento.sql"
+& $PSQL $PROD -f "$M\009_leads_seguimiento.sql"
+```

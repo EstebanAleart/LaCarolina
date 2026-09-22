@@ -211,7 +211,7 @@ export default function TasksView() {
                 {dueDate && (
                   <span className={cn("flex items-center gap-0.5", isOverdue && "text-destructive font-medium")}>
                     {isOverdue && <AlertTriangle className="h-3 w-3" />}
-                    {new Date(dueDate + "T12:00:00").toLocaleDateString("es-AR")}
+                    {new Date(dueDate + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
                   </span>
                 )}
               </div>
@@ -243,7 +243,7 @@ export default function TasksView() {
                   <>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-card-foreground">{t.titulo}</span>
-                      <span className="block truncate text-xs text-muted-foreground">{t.lead?.nombre || ""}{t.due_date ? ` · ${new Date(t.due_date.substring(0, 10) + "T12:00:00").toLocaleDateString("es-AR")}` : ""}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{t.lead?.nombre || ""}{t.due_date ? ` · ${new Date(t.due_date.substring(0, 10) + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}` : ""}</span>
                     </span>
                     <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", PRIORITY_COLORS[t.prioridad])}>{t.prioridad}</span>
                   </>

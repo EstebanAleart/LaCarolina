@@ -5,6 +5,25 @@ const { ESTADOS_EVENTO, crearTareasPostEvento } = require('@/lib/automations');
 
 const fechaISO = (d) => (d ? new Date(d).toISOString().substring(0, 10) : null);
 
+// GET /api/events/:id - Un evento con su lead, sus clientes y su fecha (para abrir la ficha desde
+// Alertas, Calendario y Pagos)
+export async function GET(request, { params }) {
+  try {
+    const { id } = await params;
+    const event = await Event.findByPk(id, {
+      include: [
+        { association: 'lead' },
+        { association: 'calendar_date' },
+        { association: 'clientes', attributes: ['id', 'nombre', 'telefono', 'email'], through: { attributes: ['rol'] } },
+      ],
+    });
+    if (!event) return NextResponse.json({ error: 'Evento no encontrado' }, { status: 404 });
+    return NextResponse.json(event);
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 // PUT /api/events/:id - Actualizar evento
 // E15-06: "Evento realizado" no se puede marcar antes de la fecha del evento (lo hace el sistema al pasar
 // la fecha). "Post-evento / cerrado" solo desde "Evento realizado". Al pasar a realizado se crean las

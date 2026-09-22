@@ -22,7 +22,8 @@ const PAGES = [
     icon: Users, title: "1. Leads: el recorrido de una venta",
     intro: "Un lead es una persona que consultó por un evento. El CRM lo acompaña por cuatro estados hasta que reserva o se pierde. Los estados son: Lead nuevo → Visita agendada → Visita realizada → Reserva confirmada, más Perdido.",
     steps: [
-      "Alta: en CRM Leads tocá Nuevo Lead y cargá nombre, teléfono, tipo de evento, fecha tentativa y por dónde llegó. Si es un cliente anterior que estás pasando al sistema, marcá el tilde naranja Lead histórico: no cuenta como venta nueva.",
+      "Alta: en CRM Leads tocá Nuevo Lead. Si la persona ya es cliente (contrató antes), buscala arriba en \"¿Ya es cliente?\" y elegila: el nuevo lead queda atado a ese cliente y se ve todo su historial. Si es nueva, cargá nombre, teléfono, tipo de evento, fecha tentativa y por dónde llegó; el cliente se crea solo. Si es un cliente anterior que estás pasando al sistema, marcá el tilde naranja Lead histórico: no cuenta como venta nueva.",
+      "Seguimiento: en cada lead cargá el responsable, el próximo paso y su fecha de vencimiento (Editar, sección Seguimiento). En la lista y en el kanban el próximo paso vencido se ve en rojo. El último contacto se toma de la última interacción cargada.",
       "Visita agendada: abrí el lead, tocá Editar y cargá la fecha de visita al salón. El lead cambia solo a Visita agendada y la visita aparece en el Calendario.",
       "Visita realizada: cuando la visita se hizo, cambiá el estado a Visita realizada (botón Cambiar Estado, o arrastrando la tarjeta en la vista Kanban). El sistema crea el borrador del contrato en la sección Contratos.",
       "Seña: cuando el cliente deja la seña, en la ficha del lead tocá Registrar seña y cargá monto, fecha y método. Esto reserva la fecha en el Calendario y deja la seña anotada. La seña puede cargarse antes o en el mismo momento que el contrato.",
@@ -33,7 +34,8 @@ const PAGES = [
     notas: [
       "No se puede marcar Reserva confirmada a mano si falta alguna de las tres condiciones: el sistema lo rechaza e indica qué falta.",
       "Cada vez que hablás con el cliente, anotalo en la pestaña Interacciones de su ficha. Queda el historial y ayuda al seguimiento.",
-      "La vista Kanban muestra una columna por estado. Arrastrar una tarjeta a otra columna cambia el estado. El botón Históricos filtra la cartera anterior.",
+      "La vista Kanban muestra una columna por estado, con 5, 10 o 20 tarjetas por columna y Ver más para el resto. Arrastrar una tarjeta a otra columna cambia el estado; si la soltás en Perdido, te pide el motivo. El botón Históricos filtra la cartera anterior.",
+      "Cliente y lead son cosas distintas: el cliente es la persona (permanente) y cada lead es una consulta. Un cliente puede tener varias fiestas: cada una es un lead nuevo del mismo cliente.",
     ],
   },
   {
@@ -72,13 +74,15 @@ const PAGES = [
       "En Eventos podés ver la lista o el tablero Kanban por estado: En planificación, Próximo evento, Evento realizado y Post-evento / cerrado. En el tablero, arrastrar una tarjeta cambia el estado.",
       "Los cambios por fecha son automáticos: a 30 días de la fiesta el evento pasa a Próximo evento; al día siguiente de la fecha pasa a Evento realizado y se crean las tareas post-evento (verificar saldos y devoluciones, registrar incidencias, mensaje de agradecimiento, pedido de feedback y reseña). Cuando esas tareas se completan, el evento queda Post-evento / cerrado.",
       "No se puede marcar Evento realizado antes de la fecha: lo hace el sistema.",
-      "Tocá un evento para abrir la Ficha del evento: arriba, total contratado, cobrado y saldo; abajo, cada servicio con su propia cuenta.",
+      "Tocá un evento para abrir la Ficha del evento. Arriba siempre se ven total contratado, cobrado y saldo. Abajo hay pestañas: Datos (cliente, contacto, fecha, contrato, observaciones comerciales), Servicios (cada servicio con su cuenta), Producción (estado del evento, preparación de cada servicio y tareas post-evento), Invitados (cantidad y tarjetas), Pagos (todos los pagos y registrar uno nuevo) y Portal (lo que va a ver el cliente, en el Ciclo 3).",
+      "La ficha también se abre desde Alertas (tocando la tarjeta), desde el Calendario (botón Ficha en la fecha) y desde Pagos (tocando el nombre del cliente).",
       "La seña que cargaste en el lead aparece como el primer pago confirmado del evento.",
       "Desde la ficha se agregan servicios y se registran pagos por servicio.",
     ],
     notas: [
       "El estado del evento (organización) es independiente del estado del lead (venta). No se pisan.",
-      "Las tareas post-evento aparecen en la sección Tareas con su fecha límite.",
+      "Las tareas post-evento aparecen en la sección Tareas con su fecha límite, y también en la pestaña Producción de la ficha, donde se tildan al completarlas. Cuando están todas hechas, el evento pasa a Post-evento / cerrado.",
+      "Tareas tiene vista de tablero: arrastrar una tarjeta cambia su estado (Pendiente, En Proceso, Hecho, Cancelado).",
     ],
   },
   {
@@ -143,7 +147,9 @@ const PAGES = [
       "Reportes: embudo de ventas por estado, motivos de pérdida, finanzas (cobrado y pendiente) y comunicaciones.",
     ],
     notas: [
-      "La conversión y el embudo no cuentan los leads históricos (la cartera anterior a la app). El Dashboard indica cuántos quedan afuera.",
+      "La conversión y el embudo no cuentan los leads históricos (la cartera anterior a la app). El Dashboard indica cuántos quedan afuera y tiene el tilde Incluir históricos para verlos sumados.",
+      "En el Dashboard, la campanita muestra las próximas alertas y cada tarjeta lleva a la sección de donde sale el dato.",
+      "Las listas largas (Leads, Eventos, Contratos, Pagos, Productos) tienen paginado arriba y abajo, con selector de cantidad por página.",
     ],
   },
   {

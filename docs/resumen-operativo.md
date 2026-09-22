@@ -20,11 +20,17 @@ Hay dos mundos: **la venta** (CRM Leads: desde que alguien consulta hasta que re
 
 El orden de la seña y el contrato no importa: el sistema chequea las tres condiciones cada vez que se cumple una. Si alguien intenta marcar Reserva confirmada a mano y falta algo, el sistema lo rechaza y dice qué falta. La ficha del lead muestra el cuadro **Reserva** con las tres condiciones tildadas.
 
+## Clientes y seguimiento
+
+- **Cliente y lead son cosas distintas.** El cliente es la persona o empresa, permanente. Cada consulta es un lead. Un cliente con dos fiestas tiene dos leads. Al cargar un lead, si la persona ya es cliente se la elige arriba del formulario; si no, se crea sola con los datos de contacto.
+- **Seguimiento por lead:** responsable, próximo paso y fecha de vencimiento. Se cargan desde Editar. En la lista y en el tablero, un próximo paso vencido se ve en rojo. El último contacto sale de la última interacción.
+
 ## La organización del evento
 
 - El evento aparece en **Eventos** con los datos del contrato, la fecha, los servicios y la seña ya cobrada.
-- **Ficha del evento**: total contratado, cobrado y saldo, y cada servicio con su propia cuenta. Ahí se agregan servicios y se cargan pagos.
-- **Estado operativo** del evento: Pendiente, En preparación, Listo, Realizado. Se cambia desde la ficha o arrastrando en el Kanban de Eventos. Los eventos con fecha pasada pasan solos a Realizado.
+- **Ficha del evento**: arriba total contratado, cobrado y saldo; abajo pestañas Datos, Servicios, Producción, Invitados, Pagos y Portal. Se abre desde Eventos, desde Alertas, desde el Calendario y desde Pagos.
+- **Estado del evento**: En planificación → Próximo evento (a 30 días, solo) → Evento realizado (al día siguiente de la fecha, solo; no se puede marcar antes) → Post-evento / cerrado (cuando se completan las tareas post-evento). Se cambia arrastrando en el tablero de Eventos o desde la pestaña Producción.
+- **Tareas post-evento**: al pasar a Evento realizado se crean solas: verificar saldos, verificar devoluciones, registrar incidencias, mensaje de agradecimiento al día siguiente, pedido de feedback y reseña a los dos días. Se tildan en la ficha o en Tareas.
 - **Alertas**: eventos de los próximos 30 días con servicios, combo y saldo. En el Dashboard, la campanita muestra un resumen.
 
 ## Reglas fijas

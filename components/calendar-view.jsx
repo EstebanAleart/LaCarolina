@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import EventSheet from "./event-sheet"
 import {
   fetchCalendarDates,
   apiSetCalendarDate,
@@ -18,6 +19,7 @@ import {
   fetchEvents,
   fetchEventServices,
   CALENDAR_STATES,
+  fetchEventById,
 } from "@/lib/api"
 
 // Color del badge de cotillón según combo
@@ -65,7 +67,11 @@ export default function CalendarView() {
   const today = new Date()
   const [currentYear, setCurrentYear] = useState(today.getFullYear())
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
-  const [selectedDate, setSelectedDate] = useState(null)
+  const [selectedDate, setSelectedDate] = useState(null)
+  const [sheetEvent, setSheetEvent] = useState(null) // ficha del evento abierta desde una fecha
+  async function openEvent(id) {
+    try { setSheetEvent(await fetchEventById(id)) } catch (err) { toast.error(err.message || "No se pudo abrir la ficha") }
+  }
   const [showForm, setShowForm] = useState(false)
   const [calendarDatesRaw, setCalendarDatesRaw] = useState([])
   const [leads, setLeads] = useState([])
@@ -295,9 +301,12 @@ export default function CalendarView() {
       </div>
 
       {/* Date Form Modal */}
+      {sheetEvent && <EventSheet event={sheetEvent} onClose={() => setSheetEvent(null)} />}
+
       {showForm && selectedDate && (
         <DateFormModal
           date={selectedDate}
+          onOpenEvent={openEvent}
           existingEntries={calendarDates[selectedDate] || []}
           leads={leads}
           tentativeLeads={(tentativeMap[selectedDate] || []).filter(l => !(calendarDates[selectedDate] || []).some(e => e.lead_id === l.id))}
@@ -309,7 +318,7 @@ export default function CalendarView() {
   )
 }
 
-function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onClose, onSave }) {
+function DateFormModal({ date, onOpenEvent, existingEntries, leads, tentativeLeads = [], onClose, onSave }) {
   const [editingEntry, setEditingEntry] = useState(null)
   const [formOpen, setFormOpen] = useState(existingEntries.length === 0)
   const [estado, setEstado] = useState("Bloqueada")
@@ -444,8 +453,13 @@ function DateFormModal({ date, existingEntries, leads, tentativeLeads = [], onCl
                       {entry.nota && <span className="text-[10px] truncate opacity-75">{entry.nota}</span>}
                     </div>
                     <div className="flex items-center gap-1 ml-2 shrink-0">
-                      <button type="button" onClick={() => startEdit(entry)} className="rounded px-2.5 py-2 text-xs bg-white/40 hover:bg-white/70 transition-colors">
-                        Editar
+                      {entry.evento_id && (
+                        <button type="button" onClick={() => onOpenEvent?.(entry.evento_id)} className="rounded px-2.5 py-2 text-xs bg-white/40 hover:bg-white/70 transition-colors">
+                          Ficha
+                        </button>
+                      )}
+                      <button type="button" onClick={() => startEdit(entry)} className="rounded px-2.5 py-2 text-xs bg-white/40 hover:bg-white/70 transition-colors">
+                        Editar
                       </button>
                       <button type="button" onClick={() => handleDelete(entry)} className="rounded px-2.5 py-2 text-xs bg-red-100 text-red-700 hover:bg-red-200 transition-colors">
                         Eliminar

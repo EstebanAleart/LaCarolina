@@ -50,7 +50,11 @@ const STATE_COLORS = {
   "Perdido":            "bg-red-100 text-red-800",
 }
 
-function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
+// C2-02: próximo paso vencido (solo para leads en curso)
+const pasoVencido = (l) => !!l.proximo_paso_fecha && String(l.proximo_paso_fecha).substring(0, 10) < new Date().toISOString().substring(0, 10) && !["Reserva confirmada", "Perdido"].includes(l.estado_actual)
+const fmtD = (d) => d ? new Date(String(d).substring(0, 10) + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }) : ""
+
+function LeadForm({ onSubmit, onCancel, initial, calendarDates = [], users = [] }) {
   const [form, setForm] = useState(() => {
     if (initial) {
       return {
@@ -62,7 +66,10 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
         valor_estimado:      initial.valor_estimado      || 0,
         invitados_estimados: initial.invitados_estimados || "",
         anio_evento:         initial.anio_evento         || new Date().getFullYear(),
-        notas:               initial.notas               || "",
+        notas:               initial.notas               || "",
+        managed_by_user_id:  initial.managed_by_user_id  || "",
+        proximo_paso:        initial.proximo_paso        || "",
+        proximo_paso_fecha:  initial.proximo_paso_fecha  ? String(initial.proximo_paso_fecha).substring(0, 10) : "",
       }
     }
     return {
@@ -78,8 +85,11 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
       anio_evento: new Date().getFullYear(),
       valor_estimado: 0,
       invitados_estimados: "",
-      notas: "",
-      es_historico: false,
+      notas: "",
+      es_historico: false,
+      managed_by_user_id: "",
+      proximo_paso: "",
+      proximo_paso_fecha: "",
     }
   })
 
@@ -158,7 +168,10 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
         invitados_estimados: form.invitados_estimados === '' ? null : parseInt(String(form.invitados_estimados).replace(/\./g, ""), 10) || null,
         notas:               form.notas,
         es_historico:        !!form.es_historico,
-        cliente_id:          clienteSel?.id || null,
+        cliente_id:          clienteSel?.id || null,
+        managed_by_user_id:  form.managed_by_user_id || null,
+        proximo_paso:        form.proximo_paso || null,
+        proximo_paso_fecha:  form.proximo_paso_fecha || null,
       })
     } finally { setSubmitting(false) }
   }
@@ -328,7 +341,29 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
         </div>
       )}
 
-      <div className="flex flex-col gap-1.5">
+      {/* Seguimiento (C2-02): responsable, próximo paso y su vencimiento */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Seguimiento</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Responsable</label>
+            <select name="managed_by_user_id" value={form.managed_by_user_id || ""} onChange={handleChange} className={inputCls}>
+              <option value="">Sin asignar</option>
+              {users.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Próximo paso</label>
+            <input name="proximo_paso" value={form.proximo_paso || ""} onChange={handleChange} className={inputCls} placeholder="Ej: llamar para confirmar la visita" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Vence</label>
+            <input name="proximo_paso_fecha" type="date" value={form.proximo_paso_fecha || ""} onChange={handleChange} className={inputCls} />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
         <label className={labelCls}>Notas</label>
         <textarea name="notas" value={form.notas} onChange={handleChange} rows={3} className={`${inputCls} resize-none`} placeholder="Notas adicionales..." />
       </div>
@@ -495,25 +530,25 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
             {lead.fecha_tentativa && (
               <div className="text-muted-foreground">
                 <span className="font-medium text-card-foreground">Fecha evento:</span>{" "}
-                {new Date(lead.fecha_tentativa).toLocaleDateString("es-AR")}
+                {new Date(lead.fecha_tentativa).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
               </div>
             )}
             {lead.fecha_visita_salon && (
               <div className="text-muted-foreground">
                 <span className="font-medium text-card-foreground">Visita salon:</span>{" "}
-                {new Date(lead.fecha_visita_salon).toLocaleDateString("es-AR")}
+                {new Date(lead.fecha_visita_salon).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
               </div>
             )}
             {lead.fecha_firma_contrato && (
               <div className="text-muted-foreground">
                 <span className="font-medium text-card-foreground">Firma contrato:</span>{" "}
-                {new Date(lead.fecha_firma_contrato).toLocaleDateString("es-AR")}
+                {new Date(lead.fecha_firma_contrato).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
               </div>
             )}
             {lead.fecha_limite_pago_total && (
               <div className="text-muted-foreground">
                 <span className="font-medium text-card-foreground">Limite pago:</span>{" "}
-                {new Date(lead.fecha_limite_pago_total).toLocaleDateString("es-AR")}
+                {new Date(lead.fecha_limite_pago_total).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
               </div>
             )}
             {lead.estado_actual === "Perdido" && lead.motivo_perdida && (
@@ -521,6 +556,13 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
                 <span className="font-medium">Motivo de pérdida:</span> {lead.motivo_perdida}
               </div>
             )}
+            {(lead.managed_by_user_id || interactions.length > 0 || lead.proximo_paso) && (
+              <div className="col-span-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+                <span><span className="font-medium text-card-foreground">Responsable:</span> {lead.managed_by_user_id ? getUserName(lead.managed_by_user_id) : "Sin asignar"}</span>
+                {interactions[0] && <span><span className="font-medium text-card-foreground">Último contacto:</span> {fmtD(interactions[0].fecha)}</span>}
+                {lead.proximo_paso && <span className={pasoVencido(lead) ? "text-red-700 font-medium" : ""}><span className="font-medium text-card-foreground">Próximo paso:</span> {lead.proximo_paso}{lead.proximo_paso_fecha ? ` · vence ${fmtD(lead.proximo_paso_fecha)}` : ""}{pasoVencido(lead) ? " (vencido)" : ""}</span>}
+              </div>
+            )}
             {leadFull?.cliente && (
               <div className="col-span-2 flex flex-wrap items-center gap-2 text-muted-foreground">
                 <span className="font-medium text-card-foreground">Cliente:</span> {leadFull.cliente.nombre}
@@ -659,7 +701,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
                   </div>
                   <div className="flex-1 pb-3">
                     <div className="text-xs text-muted-foreground">
-                      {new Date(item.date).toLocaleDateString("es-AR")}
+                      {new Date(item.date).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}
                     </div>
                     {item.type === "status" && (
                       <p className="text-card-foreground">
@@ -761,7 +803,7 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
                             {direction === "OUT" ? "→ Saliente" : "← Entrante"}
                           </span>
                         )}
-                        <span className="text-xs text-muted-foreground">{new Date(i.fecha).toLocaleDateString("es-AR")}</span>
+                        <span className="text-xs text-muted-foreground">{new Date(i.fecha).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{i.descripcion}</p>
                     </div>
@@ -812,6 +854,7 @@ export default function LeadsView() {
   const [viewMode, setViewMode] = useState("table")
   const [expandedLeadIds, setExpandedLeadIds] = useState(new Set())
   const [calendarDates, setCalendarDates] = useState([])
+  const [users, setUsers] = useState([])
   const [soloHistoricos, setSoloHistoricos] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(5) // 5 por defecto: en móvil es lo cómodo
@@ -834,9 +877,10 @@ export default function LeadsView() {
 
   async function loadLeads() {
     try {
-      const [data, calDates] = await Promise.all([fetchLeads(), fetchCalendarDates()])
-      setLeads(data)
-      setCalendarDates(calDates)
+      const [data, calDates, usrs] = await Promise.all([fetchLeads(), fetchCalendarDates(), fetchUsers().catch(() => [])])
+      setLeads(data)
+      setCalendarDates(calDates)
+      setUsers(usrs)
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
   }
@@ -1045,6 +1089,7 @@ export default function LeadsView() {
               {editLead ? "Editar Lead" : "Nuevo Lead"}
             </h3>
             <LeadForm
+              users={users}
               initial={editLead || undefined}
               onSubmit={editLead ? handleUpdate : handleCreate}
               onCancel={() => { setShowForm(false); setEditLead(null) }}
@@ -1080,7 +1125,8 @@ export default function LeadsView() {
                         {lead.es_historico && <span title="Lead histórico" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[11px] font-bold text-white">H</span>}
                         <span className="truncate">{lead.nombre}</span>
                       </p>
-                      <p className="text-xs text-muted-foreground truncate">{lead.tipo_evento || "Sin tipo"}{lead.canal_origen ? ` · ${lead.canal_origen}` : ""}</p>
+                      <p className="text-xs text-muted-foreground truncate">{lead.tipo_evento || "Sin tipo"}{lead.canal_origen ? ` · ${lead.canal_origen}` : ""}</p>
+                      {lead.proximo_paso && <p className={cn("text-xs truncate", pasoVencido(lead) ? "text-red-700 font-medium" : "text-muted-foreground")}>→ {lead.proximo_paso}{lead.proximo_paso_fecha ? ` · ${fmtD(lead.proximo_paso_fecha)}` : ""}</p>}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap", STATE_COLORS[lead.estado_actual])}>
@@ -1150,7 +1196,8 @@ export default function LeadsView() {
                 <tr className="border-b border-border bg-secondary">
                   <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground">Nombre</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground hidden md:table-cell">Tipo</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground hidden lg:table-cell">Canal</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground hidden lg:table-cell">Canal</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground hidden lg:table-cell">Próximo paso</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-secondary-foreground">Estado</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-secondary-foreground hidden lg:table-cell">Seña</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-secondary-foreground">Acciones</th>
@@ -1174,7 +1221,12 @@ export default function LeadsView() {
                       </button>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">{lead.tipo_evento}</td>
-                    <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{lead.canal_origen}</td>
+                    <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">{lead.canal_origen}</td>
+                    <td className="px-4 py-3 hidden lg:table-cell">
+                      {lead.proximo_paso
+                        ? <span className={cn("text-xs", pasoVencido(lead) ? "text-red-700 font-medium" : "text-muted-foreground")}>{lead.proximo_paso}{lead.proximo_paso_fecha ? ` · ${fmtD(lead.proximo_paso_fecha)}` : ""}</span>
+                        : <span className="text-xs text-muted-foreground">—</span>}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={cn("inline-block rounded-full px-2.5 py-0.5 text-xs font-medium", STATE_COLORS[lead.estado_actual])}>
                         {lead.estado_actual}
@@ -1228,7 +1280,8 @@ export default function LeadsView() {
                 {lead.es_historico && <span title="Lead histórico" className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">H</span>}
                 {lead.nombre}
               </p>
-              <p className="text-xs text-muted-foreground mt-0.5">{lead.tipo_evento}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{lead.tipo_evento}</p>
+              {lead.proximo_paso && <p className={cn("text-xs mt-0.5 truncate", pasoVencido(lead) ? "text-red-700 font-medium" : "text-muted-foreground")}>→ {lead.proximo_paso}{lead.proximo_paso_fecha ? ` · ${fmtD(lead.proximo_paso_fecha)}` : ""}</p>}
               <p className="text-xs font-semibold text-primary mt-1">${(lead.valor_estimado || 0).toLocaleString()}</p>
             </div>
           )}
