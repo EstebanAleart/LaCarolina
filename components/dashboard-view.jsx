@@ -23,7 +23,6 @@ import {
   fetchAlerts,
   fetchPayments,
   LEAD_STATES,
-  MOTIVOS_PERDIDA,
 } from "@/lib/api"
 import {
   BarChart,
@@ -121,48 +120,48 @@ export default function DashboardView({ onNavigate }) {
         const leads = leadsTodos.filter((l) => !histIds.has(l.id))
         const eventsOperativos = events.filter((e) => !histIds.has(e.lead_id))
 
-        // Resumen completo de un conjunto de leads (comparativa históricos vs actuales)
-        const hoyISO = new Date().toISOString().substring(0, 10)
-        const cuenta = (arr, key) => { const m = {}; arr.forEach((x) => { const k = key(x) || "—"; m[k] = (m[k] || 0) + 1 }); return Object.entries(m).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value })) }
-        const resumenDe = (set) => {
-          const ids = new Set(set.map((l) => l.id))
-          const evs = events.filter((e) => ids.has(e.lead_id))
-          const evIds = new Set(evs.map((e) => e.id))
-          const pg = (pagos || []).filter((x) => evIds.has(x.event_id) && x.estado === "confirmado")
-          const cobrado = pg.reduce((a, x) => a + (x.tipo === "devolucion" ? -(x.monto || 0) : (x.monto || 0)), 0)
-          const facturado = evs.reduce((a, e) => a + (e.valor_total_evento || 0), 0)
-          const st = {}; LEAD_STATES.forEach((x) => (st[x] = 0)); set.forEach((l) => { st[l.estado_actual] = (st[l.estado_actual] || 0) + 1 })
-          const perdidos = set.filter((l) => l.estado_actual === "Perdido")
-          const firmados = set.filter((l) => l.fecha_firma_contrato && l.created_at)
-          const dias = firmados.map((l) => (new Date(l.fecha_firma_contrato) - new Date(l.created_at)) / 86400000).filter((d) => d >= 0)
-          const conInv = evs.filter((e) => e.invitados_estimados > 0)
-          return {
-            leads: set.length,
-            eventos: evs.length,
-            conversion: set.length ? Math.round((evs.length / set.length) * 100) : 0,
-            perdidos: perdidos.length,
-            valor: set.reduce((a, l) => a + (l.valor_estimado || 0), 0),
-            facturado,
-            cobrado,
-            saldo: facturado - cobrado,
-            ticket: evs.length ? facturado / evs.length : 0,
-            invitadosProm: conInv.length ? Math.round(conInv.reduce((a, e) => a + e.invitados_estimados, 0) / conInv.length) : 0,
-            diasFirma: dias.length ? Math.round(dias.reduce((a, d) => a + d, 0) / dias.length) : null,
-            proximos: evs.filter((e) => String(e.fecha_confirmada || "").substring(0, 10) >= hoyISO).length,
-            realizados: evs.filter((e) => String(e.fecha_confirmada || "").substring(0, 10) < hoyISO).length,
-            pipelineData: LEAD_STATES.map((x) => ({ name: x.length > 14 ? x.substring(0, 12) + ".." : x, fullName: x, count: st[x] || 0, fill: PIPELINE_COLORS[x] })),
-            channelData: cuenta(set, (l) => l.canal_origen),
-            porTipo: cuenta(evs.length ? evs : set, (x) => x.tipo_evento || x.lead?.tipo_evento),
-            porAnio: cuenta(set, (l) => l.anio_evento).sort((a, b) => String(a.name).localeCompare(String(b.name))),
-            estadoPago: cuenta(evs, (e) => e.estado_pago),
-            motivos: cuenta(perdidos, (l) => l.motivo_perdida || "Sin motivo"),
-          }
-        }
-        const comparativa = {
-          historicos: resumenDe(leadsTodos.filter((l) => l.es_historico)),
-          actuales: resumenDe(leadsTodos.filter((l) => !l.es_historico)),
-        }
-
+        // Resumen completo de un conjunto de leads (comparativa históricos vs actuales)
+        const hoyISO = new Date().toISOString().substring(0, 10)
+        const cuenta = (arr, key) => { const m = {}; arr.forEach((x) => { const k = key(x) || "—"; m[k] = (m[k] || 0) + 1 }); return Object.entries(m).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value })) }
+        const resumenDe = (set) => {
+          const ids = new Set(set.map((l) => l.id))
+          const evs = events.filter((e) => ids.has(e.lead_id))
+          const evIds = new Set(evs.map((e) => e.id))
+          const pg = (pagos || []).filter((x) => evIds.has(x.event_id) && x.estado === "confirmado")
+          const cobrado = pg.reduce((a, x) => a + (x.tipo === "devolucion" ? -(x.monto || 0) : (x.monto || 0)), 0)
+          const facturado = evs.reduce((a, e) => a + (e.valor_total_evento || 0), 0)
+          const st = {}; LEAD_STATES.forEach((x) => (st[x] = 0)); set.forEach((l) => { st[l.estado_actual] = (st[l.estado_actual] || 0) + 1 })
+          const perdidos = set.filter((l) => l.estado_actual === "Perdido")
+          const firmados = set.filter((l) => l.fecha_firma_contrato && l.created_at)
+          const dias = firmados.map((l) => (new Date(l.fecha_firma_contrato) - new Date(l.created_at)) / 86400000).filter((d) => d >= 0)
+          const conInv = evs.filter((e) => e.invitados_estimados > 0)
+          return {
+            leads: set.length,
+            eventos: evs.length,
+            conversion: set.length ? Math.round((evs.length / set.length) * 100) : 0,
+            perdidos: perdidos.length,
+            valor: set.reduce((a, l) => a + (l.valor_estimado || 0), 0),
+            facturado,
+            cobrado,
+            saldo: facturado - cobrado,
+            ticket: evs.length ? facturado / evs.length : 0,
+            invitadosProm: conInv.length ? Math.round(conInv.reduce((a, e) => a + e.invitados_estimados, 0) / conInv.length) : 0,
+            diasFirma: dias.length ? Math.round(dias.reduce((a, d) => a + d, 0) / dias.length) : null,
+            proximos: evs.filter((e) => String(e.fecha_confirmada || "").substring(0, 10) >= hoyISO).length,
+            realizados: evs.filter((e) => String(e.fecha_confirmada || "").substring(0, 10) < hoyISO).length,
+            pipelineData: LEAD_STATES.map((x) => ({ name: x.length > 14 ? x.substring(0, 12) + ".." : x, fullName: x, count: st[x] || 0, fill: PIPELINE_COLORS[x] })),
+            channelData: cuenta(set, (l) => l.canal_origen),
+            porTipo: cuenta(evs.length ? evs : set, (x) => x.tipo_evento || x.lead?.tipo_evento),
+            porAnio: cuenta(set, (l) => l.anio_evento).sort((a, b) => String(a.name).localeCompare(String(b.name))),
+            estadoPago: cuenta(evs, (e) => e.estado_pago),
+            motivos: cuenta(perdidos, (l) => l.motivo_perdida || "Sin motivo"),
+          }
+        }
+        const comparativa = {
+          historicos: resumenDe(leadsTodos.filter((l) => l.es_historico)),
+          actuales: resumenDe(leadsTodos.filter((l) => !l.es_historico)),
+        }
+
         const byState = {}
         LEAD_STATES.forEach((s) => (byState[s] = 0))
         leads.forEach((l) => {
@@ -237,10 +236,6 @@ export default function DashboardView({ onNavigate }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
-          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-            <input type="checkbox" checked={modo === "todos"} onChange={(e) => setModo(e.target.checked ? "todos" : "operativo")} className="h-4 w-4" />
-            Incluir históricos
-          </label>
         {/* Campanita: resumen de las próximas alertas + "Ver más" a la vista de Alertas */}
         <div className="relative shrink-0">
           <button
@@ -297,22 +292,22 @@ export default function DashboardView({ onNavigate }) {
         </div>
       </div>
 
-      {/* Vistas: operativo (sin históricos) · con históricos · comparativa lado a lado */}
-      <div className="flex gap-1 overflow-x-auto scrollbar-none border-b border-border">
-        {MODOS.map((m) => (
-          <button key={m.id} type="button" onClick={() => setModo(m.id)}
-            className={`shrink-0 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${modo === m.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-            {m.label}
-          </button>
-        ))}
-      </div>
-
-      {modo === "comparativa" ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <Panel titulo="Históricos" sub="Cartera anterior a la app" r={stats.comparativa.historicos} pie={PIE_COLORS} />
-          <Panel titulo="Leads actuales" sub="Operación desde la app" r={stats.comparativa.actuales} pie={PIE_COLORS} />
-        </div>
-      ) : (<>
+      {/* Vistas: operativo (sin históricos) · con históricos · comparativa lado a lado */}
+      <div className="flex gap-1 overflow-x-auto scrollbar-none border-b border-border">
+        {MODOS.map((m) => (
+          <button key={m.id} type="button" onClick={() => setModo(m.id)}
+            className={`shrink-0 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${modo === m.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {modo === "comparativa" ? (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Panel titulo="Históricos" sub="Cartera anterior a la app" r={stats.comparativa.historicos} pie={PIE_COLORS} />
+          <Panel titulo="Leads actuales" sub="Operación desde la app" r={stats.comparativa.actuales} pie={PIE_COLORS} />
+        </div>
+      ) : (<>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon={Users}
