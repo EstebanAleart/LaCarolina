@@ -19,6 +19,8 @@ import {
 import EventSheet from "./event-sheet"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import KanbanBoard from "@/components/kanban/board"
+import KanbanColumnModal from "@/components/kanban/column-modal"
 import {
   fetchEvents,
   apiUpdateEvent,
@@ -87,6 +89,9 @@ export default function EventsView() {
   const [searchNombre, setSearchNombre] = useState("")
   const [filterFecha, setFilterFecha] = useState("")
   const [expandedId, setExpandedId] = useState(null)
+  const [viewMode, setViewMode] = useState("list")      // "list" (cards/tabla) | "kanban" por estado operativo
+  const [kanbanSize, setKanbanSize] = useState(5)       // tarjetas por columna (5/10/20)
+  const [kanbanModal, setKanbanModal] = useState(null)  // columna abierta con "Ver más"
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(5) // 5 por defecto: en móvil es lo cómodo
   useEffect(() => { setPage(1) }, [filterEstado, searchNombre, filterFecha, pageSize])
@@ -245,6 +250,12 @@ export default function EventsView() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">{filtered.length} evento{filtered.length !== 1 ? "s" : ""}</span>
+          <button
+            onClick={() => setViewMode(viewMode === "list" ? "kanban" : "list")}
+            className="rounded-md border border-border bg-card px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+          >
+            {viewMode === "list" ? "Vista Kanban" : "Vista Lista"}
+          </button>
         </div>
       </div>
 
@@ -294,8 +305,71 @@ export default function EventsView() {
         </div>
       )}
 
-      {paginacion}
+      {/* Kanban por estado operativo: arrastrar una tarjeta cambia el estado */}
+      {viewMode === "kanban" && (() => {
+        const fechaCorta = (e) => e.fecha_confirmada ? new Date(String(e.fecha_confirmada).substring(0, 10) + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" }) : "Sin fecha"
+        const cols = ESTADO_OPERATIVO_OPTIONS.map((estado) => ({
+          key: estado,
+          title: estado,
+          items: filtered
+            .filter((e) => e.estado_operativo === estado)
+            .sort((a, b) => String(a.fecha_confirmada || "").localeCompare(String(b.fecha_confirmada || ""))),
+        }))
+        return (
+          <>
+            <KanbanBoard
+              size={kanbanSize}
+              onSizeChange={setKanbanSize}
+              getId={(e) => e.id}
+              emptyText="Sin eventos"
+              columns={cols}
+              onMove={(id, estado) => handleUpdateEstado(id, estado)}
+              onMore={(c) => setKanbanModal(c.key)}
+              renderCard={(evt) => (
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSheetEvent(evt)}
+                  onKeyDown={(e) => { if (e.key === "Enter") setSheetEvent(evt) }}
+                  className="w-full rounded-md border border-border bg-card p-3 text-left hover:shadow-md transition-shadow"
+                >
+                  <p className="text-sm font-medium text-card-foreground">{evt.lead?.nombre || "Sin lead"}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{fechaCorta(evt)} · {evt.lead?.tipo_evento || evt.tipo_evento || "—"}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    {evt.estado_pago && (
+                      <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", ESTADO_PAGO_COLORS[evt.estado_pago] || "bg-gray-100 text-gray-700")}>Pago: {evt.estado_pago}</span>
+                    )}
+                    {evt.invitados_estimados > 0 && <span className="text-[11px] text-muted-foreground">{evt.invitados_estimados} inv.</span>}
+                  </div>
+                </div>
+              )}
+            />
+            {kanbanModal && (
+              <KanbanColumnModal
+                title={kanbanModal}
+                items={cols.find((c) => c.key === kanbanModal)?.items || []}
+                getId={(e) => e.id}
+                matches={(e, q) => (e.lead?.nombre || "").toLowerCase().includes(q) || (e.lead?.tipo_evento || e.tipo_evento || "").toLowerCase().includes(q)}
+                onClose={() => setKanbanModal(null)}
+                onOpen={(evt) => { setKanbanModal(null); setSheetEvent(evt) }}
+                renderRow={(evt) => (
+                  <>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-card-foreground">{evt.lead?.nombre || "Sin lead"}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{fechaCorta(evt)} · {evt.lead?.tipo_evento || evt.tipo_evento || "—"}</span>
+                    </span>
+                    {evt.estado_pago && <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", ESTADO_PAGO_COLORS[evt.estado_pago] || "bg-gray-100 text-gray-700")}>{evt.estado_pago}</span>}
+                  </>
+                )}
+              />
+            )}
+          </>
+        )
+      })()}
 
+      {viewMode === "list" && paginacion}
+
+      {viewMode === "list" && (
       <div className="flex flex-col gap-3">
         {pageEvents.map((evt) => {
           const isExpanded = expandedId === evt.id
@@ -777,8 +851,9 @@ export default function EventsView() {
           )
         })}
       </div>
+      )}
 
-      {paginacion}
+      {viewMode === "list" && paginacion}
 
       {sheetEvent && <EventSheet event={sheetEvent} onClose={() => { setSheetEvent(null); loadData() }} />}
     </div>
