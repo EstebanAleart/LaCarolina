@@ -49,7 +49,7 @@ export default function KanbanBoard({ columns, renderCard, getId, onMove, onMore
       </div>
 
       <div
-        className="flex gap-3 overflow-x-auto pb-4 items-stretch cursor-grab active:cursor-grabbing select-none"
+        className="flex gap-3 overflow-x-auto scrollbar-none pb-4 items-stretch cursor-grab active:cursor-grabbing select-none"
         onPointerDown={onDown}
         onPointerMove={onMoveBoard}
         onPointerUp={onUp}
@@ -79,7 +79,8 @@ export default function KanbanBoard({ columns, renderCard, getId, onMove, onMore
                 <span className="text-xs font-semibold text-foreground">{c.title}</span>
                 <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1 text-[10px] font-bold text-primary">{c.items.length}</span>
               </div>
-              <div className="flex flex-col gap-2 overflow-y-auto p-2" style={{ height: `${size * CARD_REM + 1}rem` }}>
+              {/* Sin scroll interno: la columna mide lo que miden sus tarjetas (todas parejas por items-stretch) */}
+              <div className="flex flex-1 flex-col gap-2 p-2" style={{ minHeight: `${Math.min(size, 5) * CARD_REM + 1}rem` }}>
                 {visible.map((item) => (
                   <div
                     key={getId(item)}

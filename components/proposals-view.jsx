@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react"
 import { Plus, X, Send, Check, XCircle, FileText, Eye, Pencil, Trash2, Printer, PenLine, Search } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import Paginacion from "@/components/ui/paginacion"
 import {
   fetchAllProposals,
   fetchLeads,
@@ -63,6 +64,9 @@ export default function ProposalsView() {
   const [printingProposal, setPrintingProposal] = useState(null)
   const [submittingId, setSubmittingId] = useState(null)
   const [confirmingFirmId, setConfirmingFirmId] = useState(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(6) // contratos: de a 6
+  useEffect(() => { setPage(1) }, [filterStatus, searchNombre, filterFecha, pageSize])
 
    const filteredProposals = useMemo(() => {
     let result = proposals
@@ -79,6 +83,8 @@ export default function ProposalsView() {
     }
     return result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   }, [proposals, filterStatus, searchNombre, filterFecha])
+  const pageProposals = filteredProposals.slice((page - 1) * pageSize, page * pageSize)
+  const paginacion = <Paginacion total={filteredProposals.length} page={page} pageSize={pageSize} sizes={[6, 12, 24]} onPage={setPage} onSize={setPageSize} />
 
   async function loadData() {
     try {
@@ -207,6 +213,8 @@ export default function ProposalsView() {
         </div>
       </div>
 
+      {paginacion}
+
       {/* Grid de tarjetas */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {filteredProposals.length === 0 && (
@@ -215,7 +223,7 @@ export default function ProposalsView() {
             <p className="text-sm">No hay contratos</p>
           </div>
         )}
-        {filteredProposals.map(p => (
+        {pageProposals.map(p => (
           <ContractCard
             key={p.id}
             proposal={p}
@@ -227,6 +235,8 @@ export default function ProposalsView() {
           />
         ))}
       </div>
+
+      {paginacion}
 
       {showForm && (
         <ContractForm leads={leads} onSubmit={handleCreate} onClose={() => setShowForm(false)} />

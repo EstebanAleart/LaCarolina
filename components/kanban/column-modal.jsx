@@ -39,7 +39,7 @@ export default function KanbanColumnModal({ title, items, onClose, onOpen, getId
             {[5, 10, 20].map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-none">
           {rows.length === 0 && <p className="px-4 py-8 text-center text-sm text-muted-foreground">Sin resultados</p>}
           {rows.map((it, i) => (
             <button
