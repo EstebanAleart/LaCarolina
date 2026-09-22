@@ -141,7 +141,7 @@ describe('PUT /status → Perdido', () => {
     expect(models.LeadStatusHistory.create).not.toHaveBeenCalled();
   });
 
-  test('con motivo: registra historial con el motivo', async () => {
+  test('con motivo de la lista: historial con el motivo y motivo_perdida en el lead (reporteable)', async () => {
     const lead = mockLead();
     models.Lead.findByPk.mockResolvedValue(lead);
 
@@ -150,7 +150,39 @@ describe('PUT /status → Perdido', () => {
     expect(models.LeadStatusHistory.create).toHaveBeenCalledWith(
       expect.objectContaining({ estado_nuevo: 'Perdido', motivo: 'Eligió otro salón' })
     );
-    expect(lead.update).toHaveBeenCalledWith(expect.objectContaining({ estado_actual: 'Perdido' }));
+    expect(lead.update).toHaveBeenCalledWith(
+      expect.objectContaining({ estado_actual: 'Perdido', motivo_perdida: 'Eligió otro salón' })
+    );
+  });
+
+  test('motivo fuera de la lista → 400', async () => {
+    models.Lead.findByPk.mockResolvedValue(mockLead());
+    const res = await PUT(makeRequest({ estado: 'Perdido', motivo: 'no me gustó' }), makeParams('lead-1'));
+    expect(res.status).toBe(400);
+    expect(models.LeadStatusHistory.create).not.toHaveBeenCalled();
+  });
+
+  test('"Otro" sin descripción → 400; con descripción guarda "Otro: ..." en el historial', async () => {
+    const lead = mockLead();
+    models.Lead.findByPk.mockResolvedValue(lead);
+
+    const sin = await PUT(makeRequest({ estado: 'Perdido', motivo: 'Otro', detalle: '  ' }), makeParams('lead-1'));
+    expect(sin.status).toBe(400);
+
+    await PUT(makeRequest({ estado: 'Perdido', motivo: 'Otro', detalle: 'Se mudan a otra ciudad' }), makeParams('lead-1'));
+    expect(models.LeadStatusHistory.create).toHaveBeenCalledWith(
+      expect.objectContaining({ estado_nuevo: 'Perdido', motivo: 'Otro: Se mudan a otra ciudad' })
+    );
+    expect(lead.update).toHaveBeenCalledWith(expect.objectContaining({ motivo_perdida: 'Otro' }));
+  });
+
+  test('al salir de Perdido se limpia motivo_perdida', async () => {
+    const lead = mockLead({ estado_actual: 'Perdido', motivo_perdida: 'Precio' });
+    models.Lead.findByPk.mockResolvedValue(lead);
+
+    await PUT(makeRequest({ estado: 'Visita agendada' }), makeParams('lead-1'));
+
+    expect(lead.update).toHaveBeenCalledWith(expect.objectContaining({ estado_actual: 'Visita agendada', motivo_perdida: null }));
   });
 });
 

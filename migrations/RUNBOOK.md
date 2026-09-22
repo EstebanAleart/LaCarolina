@@ -84,3 +84,11 @@ Solo datos: remapea `leads.estado_actual` a Lead nuevo / Visita agendada / Visit
 & $PSQL $PROD -f "$M\005_pipeline_4_estados.sql"   # prod
 & $PSQL $PROD -c "SELECT estado_actual, count(*) FROM leads GROUP BY 1 ORDER BY 2 DESC;"   # esperado: Reserva confirmada 103 · Visita realizada 3 · Lead nuevo 1 · Perdido 1
 ```
+
+## E15-02 — Motivo de pérdida (`006_leads_motivo_perdida.sql`)
+Agrega `leads.motivo_perdida` (categoría fija) y marca "Otro" en los leads ya perdidos. Aditivo e idempotente. Ya aplicada en LOCAL.
+**Correr en develop y prod ANTES de desplegar la rama** (el modelo Lead lee la columna):
+```powershell
+& $PSQL $STG  -f "$M\006_leads_motivo_perdida.sql"
+& $PSQL $PROD -f "$M\006_leads_motivo_perdida.sql"
+```

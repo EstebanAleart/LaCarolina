@@ -89,10 +89,9 @@ function PipelineTab({ leads: leadsTodos }) {
     leads
       .filter((l) => l.estado_actual === "Perdido")
       .forEach((l) => {
-        const m = l.notas || "Sin motivo"
+        const m = l.motivo_perdida || "Sin motivo" // E15-02: categoría fija elegida al perder
         map[m] = (map[m] || 0) + 1
       })
-    // Intentar extraer motivo de historial si está disponible (normalmente no viene en lista)
     return Object.entries(map)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)

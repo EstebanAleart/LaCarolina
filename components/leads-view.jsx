@@ -33,6 +33,7 @@ import {
   CANALES,
   TIPOS_EVENTO,
   TIPOS_CLIENTE,
+  MOTIVOS_PERDIDA,
 } from "@/lib/api"
 
 const STATE_COLORS = {
@@ -297,7 +298,8 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
   const [users, setUsers] = useState([])
   const [tab, setTab] = useState("timeline")
   const [showStatusChange, setShowStatusChange] = useState(false)
-  const [lostMotivo, setLostMotivo] = useState("")
+  const [lostMotivo, setLostMotivo] = useState("")   // categoría (MOTIVOS_PERDIDA)
+  const [lostDetalle, setLostDetalle] = useState("") // descripción libre cuando es "Otro"
   const [selectedStatus, setSelectedStatus] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [intForm, setIntForm] = useState({ canal: "WhatsApp", direction: "OUT", descripcion: "" })
@@ -328,16 +330,21 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
 
   async function handleStatusChange() {
     if (!selectedStatus || submitting) return
-    if (selectedStatus === "Perdido" && !lostMotivo.trim()) {
-      toast.warning("Motivo obligatorio para marcar como Perdido")
+    if (selectedStatus === "Perdido" && !lostMotivo) {
+      toast.warning("Elegí el motivo para marcar como Perdido")
+      return
+    }
+    if (selectedStatus === "Perdido" && lostMotivo === "Otro" && !lostDetalle.trim()) {
+      toast.warning("Describí el motivo")
       return
     }
     setSubmitting(true)
     try {
-      await apiChangeLeadStatus(lead.id, selectedStatus, lostMotivo || null, null)
+      await apiChangeLeadStatus(lead.id, selectedStatus, lostMotivo || null, null, lostMotivo === "Otro" ? lostDetalle.trim() : null)
       setShowStatusChange(false)
       setSelectedStatus("")
       setLostMotivo("")
+      setLostDetalle("")
       await loadDetail()
       onRefresh()
       toast.success(`Estado cambiado a "${selectedStatus}"`)
@@ -438,6 +445,11 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
                 {new Date(lead.fecha_limite_pago_total).toLocaleDateString("es-AR")}
               </div>
             )}
+            {lead.estado_actual === "Perdido" && lead.motivo_perdida && (
+              <div className="col-span-2 flex items-center gap-2 text-red-700">
+                <span className="font-medium">Motivo de pérdida:</span> {lead.motivo_perdida}
+              </div>
+            )}
           </div>
 
           {/* Status change */}
@@ -462,12 +474,24 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
                   ))}
                 </select>
                 {selectedStatus === "Perdido" && (
-                  <input
-                    value={lostMotivo}
-                    onChange={(e) => setLostMotivo(e.target.value)}
-                    placeholder="Motivo (obligatorio)"
-                    className="rounded-md border border-input bg-card px-3 py-1.5 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
+                  <>
+                    <select
+                      value={lostMotivo}
+                      onChange={(e) => setLostMotivo(e.target.value)}
+                      className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="">Motivo de pérdida (obligatorio)...</option>
+                      {MOTIVOS_PERDIDA.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                    {lostMotivo === "Otro" && (
+                      <input
+                        value={lostDetalle}
+                        onChange={(e) => setLostDetalle(e.target.value)}
+                        placeholder="Describí el motivo (obligatorio)"
+                        className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    )}
+                  </>
                 )}
                 <div className="flex gap-2">
                   <button onClick={handleStatusChange} disabled={submitting} className="flex-1 rounded-md bg-primary px-3 py-2.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed sm:flex-none sm:py-1.5">{submitting ? "Guardando..." : "Confirmar"}</button>
