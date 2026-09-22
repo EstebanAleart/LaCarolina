@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
-const { Event, Lead, CalendarDate, LeadStatusHistory } = require('@/lib/models/associations');
-const { cerrarEventosVencidos } = require('@/lib/automations');
+const { Event, Lead, CalendarDate, LeadStatusHistory, Task, EventoCliente } = require('@/lib/models/associations');
+const { actualizarEstadosEventos } = require('@/lib/automations');
+const { vincularTitularAlEvento } = require('@/lib/clientes');
 
-// GET /api/events - Todos los eventos (cierra primero los vencidos → Realizado)
+// GET /api/events - Todos los eventos (acomoda primero los estados por fecha: Próximo / Realizado / Cerrado)
 export async function GET() {
   try {
-    await cerrarEventosVencidos(Event);
+    await actualizarEstadosEventos({ Event, Task });
     const events = await Event.findAll({
       include: [
         { association: 'lead' },
         { association: 'calendar_date' },
+        { association: 'clientes', attributes: ['id', 'nombre', 'telefono', 'email'], through: { attributes: ['rol'] } },
       ],
       order: [['created_at', 'DESC']],
     });
@@ -44,7 +46,7 @@ export async function POST(request) {
       tipo_evento: body.tipo_evento || '',
       invitados_estimados: body.invitados_estimados || 0,
       servicios_contratados: body.servicios_contratados || [],
-      estado_operativo: 'Pendiente',
+      estado_operativo: 'En planificación',
       contrato_url: body.contrato_url || '',
       valor_total_evento: body.valor_total_evento || null,
       estado_pago: body.estado_pago || 'Pendiente',
@@ -79,22 +81,24 @@ export async function POST(request) {
       }
     }
 
-    // Automatización: cambiar estado del lead a "Cliente activo"
+    // Automatización (E15-01): un evento creado = reserva concretada → lead "Reserva confirmada"
     const lead = await Lead.findByPk(body.lead_id);
-    if (lead) {
+    if (lead && lead.estado_actual !== 'Reserva confirmada') {
       await LeadStatusHistory.create({
         lead_id: body.lead_id,
         estado_anterior: lead.estado_actual,
-        estado_nuevo: 'Cliente activo',
-        motivo: null,
+        estado_nuevo: 'Reserva confirmada',
+        motivo: 'Evento creado',
         changed_by_user_id: body.user_id || null,
       });
 
       await lead.update({
-        estado_actual: 'Cliente activo',
+        estado_actual: 'Reserva confirmada',
         updated_at: new Date(),
       });
     }
+    // E15-08: el cliente del lead queda como titular del evento
+    if (lead) await vincularTitularAlEvento(EventoCliente, event, lead.cliente_id);
 
     return NextResponse.json(event, { status: 201 });
   } catch (error) {

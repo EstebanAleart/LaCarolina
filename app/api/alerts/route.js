@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
-const { Event, Lead, EventService, ServiceType, Combo, Payment } = require('@/lib/models/associations');
+const { Event, Lead, EventService, ServiceType, Combo, Payment, Task } = require('@/lib/models/associations');
 const { diasHasta, bucketDe, hoyISO } = require('@/lib/alerts');
-const { cerrarEventosVencidos } = require('@/lib/automations');
+const { actualizarEstadosEventos, ESTADOS_EVENTO } = require('@/lib/automations');
 const { resumenEvento, cobradoDe } = require('@/lib/services');
 
 // GET /api/alerts — eventos próximos (≤30 días) o recién vencidos, con servicios, combo y saldo.
 export async function GET() {
   try {
     const hoy = hoyISO();
-    await cerrarEventosVencidos(Event, hoy);
+    await actualizarEstadosEventos({ Event, Task }, hoy);
     const events = await Event.findAll({
       include: [
         { model: Lead, as: 'lead', attributes: ['id', 'nombre', 'telefono'] },
@@ -26,7 +26,7 @@ export async function GET() {
 
     const alertas = [];
     for (const ev of events) {
-      if (ev.estado_operativo === 'Realizado' || ev.estado_operativo === 'Cancelado') continue;
+      if ([ESTADOS_EVENTO.REALIZADO, ESTADOS_EVENTO.CERRADO, 'Cancelado'].includes(ev.estado_operativo)) continue;
       const dias = diasHasta(ev.fecha_confirmada, hoy);
       if (dias == null || dias > 30 || dias < -30) continue;
       const bucket = bucketDe(dias);

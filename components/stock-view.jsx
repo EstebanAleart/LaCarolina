@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Package, Plus, X, AlertTriangle, ArrowDownUp, Boxes, Pencil, ChevronDown } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import Paginacion from "@/components/ui/paginacion"
 import {
   fetchProducts, apiCreateProduct, apiUpdateProduct, apiCreateStockMovement,
   fetchCombos, TIPOS_MOVIMIENTO_STOCK,
@@ -105,6 +106,11 @@ export default function StockView() {
 
 function ProductsTable({ products, onMov, onEdit }) {
   const [expandedIds, setExpandedIds] = useState(() => new Set())
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
+  useEffect(() => { setPage(1) }, [products.length, pageSize])
+  const pageProducts = products.slice((page - 1) * pageSize, page * pageSize)
+  const paginacion = <Paginacion total={products.length} page={page} pageSize={pageSize} onPage={setPage} onSize={setPageSize} />
   function toggleExpand(id) {
     setExpandedIds(prev => {
       const next = new Set(prev)
@@ -116,9 +122,11 @@ function ProductsTable({ products, onMov, onEdit }) {
   if (!products.length) return <p className="text-sm text-muted-foreground">No hay productos. Cargá uno o aplicá el seed de combos.</p>
   return (
     <>
+    {paginacion}
+
     {/* Mobile: cards expandibles */}
     <div className="flex flex-col gap-2 md:hidden">
-      {products.map(p => {
+      {pageProducts.map(p => {
         const isExpanded = expandedIds.has(p.id)
         return (
           <div key={p.id} className={cn("rounded-md border border-border bg-card overflow-hidden", p.bajo_minimo && "bg-red-50")}>
@@ -182,7 +190,7 @@ function ProductsTable({ products, onMov, onEdit }) {
           </tr>
         </thead>
         <tbody>
-          {products.map(p => (
+          {pageProducts.map(p => (
             <tr key={p.id} className={cn("border-t border-border", p.bajo_minimo && "bg-red-50")}>
               <td className="px-3 py-2 font-medium text-foreground">
                 {p.bajo_minimo && <AlertTriangle className="inline h-3.5 w-3.5 text-red-600 mr-1" />}
@@ -212,6 +220,7 @@ function ProductsTable({ products, onMov, onEdit }) {
         </tbody>
       </table>
     </div>
+    {paginacion}
     </>
   )
 }

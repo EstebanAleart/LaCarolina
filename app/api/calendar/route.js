@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createGoogleEvent, updateGoogleEvent, deleteGoogleEvent } from '@/lib/googleCalendar';
 const { Op } = require('sequelize');
 const { CalendarDate, Lead, LeadStatusHistory, Reservation, Event, Proposal } = require('@/lib/models/associations');
+const { confirmarReservaSiCorresponde } = require('@/lib/reserva');
 
 // GET /api/calendar - Todas las fechas del calendario
 export async function GET() {
@@ -83,24 +84,10 @@ export async function POST(request) {
     if (finalLeadId && (finalEstado === 'Reservada' || finalEstado === 'Confirmada')) {
       const lead = await Lead.findByPk(finalLeadId);
       if (lead) {
-        const nuevoEstadoLead = finalEstado === 'Reservada' ? 'Reserva tomada' : 'Contrato firmado';
-
-        if (lead.estado_actual !== nuevoEstadoLead) {
-          await LeadStatusHistory.create({
-            lead_id: lead.id,
-            estado_anterior: lead.estado_actual,
-            estado_nuevo: nuevoEstadoLead,
-            motivo: `Fecha ${finalEstado.toLowerCase()} desde calendario`,
-            changed_by_user_id: null,
-          });
-
-          await lead.update({
-            estado_actual: nuevoEstadoLead,
-            fecha_tentativa: null,
-            updated_at: new Date(),
-          });
-        } else if (lead.fecha_tentativa) {
-          // Mismo estado pero limpiar tentativa si existe
+        // E15-03: reservar/confirmar la fecha desde el calendario NO cambia el estado del lead por sí solo.
+        // La confirmación (seña + fecha + contrato) la decide lib/reserva al final de este handler.
+        // Se limpia la fecha tentativa: la fecha real ahora vive en el calendario.
+        if (lead.fecha_tentativa) {
           await lead.update({ fecha_tentativa: null, updated_at: new Date() });
         }
 
@@ -116,39 +103,7 @@ export async function POST(request) {
           }
         }
 
-        // Auto-crear Event si no existe para este lead
-        if (finalEstado === 'Confirmada') {
-          const existingEvt = await Event.findOne({ where: { lead_id: lead.id } });
-          if (!existingEvt) {
-            // Buscar la última propuesta aceptada para copiar datos del contrato
-            const contrato = await Proposal.findOne({
-              where: { lead_id: lead.id, estado: 'Firmada' },
-              order: [['created_at', 'DESC']],
-            });
-            const serviciosBase = contrato?.servicios_base || [];
-            const adicionalesElegidos = (contrato?.adicionales || [])
-              .filter(a => a.opcion_elegida !== null && a.opcion_elegida !== undefined)
-              .map(a => a.nombre);
-            const evt = await Event.create({
-              lead_id: lead.id,
-              fecha_confirmada: body.fecha,
-              tipo_evento: contrato?.tipo_evento || lead.tipo_evento || '',
-              invitados_estimados: contrato?.invitados_estimados || lead.invitados_estimados || 0,
-              servicios_contratados: [...serviciosBase, ...adicionalesElegidos],
-              estado_operativo: 'Pendiente',
-              estado_pago: 'Pendiente',
-              modalidad_actualizacion_precios: contrato?.modalidad_actualizacion_precios || null,
-              valor_total_evento: contrato?.valor_total_evento || lead.valor_estimado || null,
-              menu_seleccionado: contrato?.menu_seleccionado || null,
-              minimo_tarjetas: contrato?.minimo_tarjetas || null,
-              valor_tarjeta_adulto: contrato?.valor_tarjeta_adulto || null,
-              valor_tarjeta_adolescente: contrato?.valor_tarjeta_adolescente || null,
-              valor_tarjeta_nino: contrato?.valor_tarjeta_nino || null,
-            });
-            // Asociar evento_id al CalendarDate
-            await result.update({ evento_id: evt.id });
-          }
-        }
+        // E15-04: el Evento ya no se crea desde el calendario; lo crea lib/reserva al confirmar.
 
         // Auto-crear propuesta solo si no existe ninguna (estado inicial: Creada)
         // El estado del contrato se gestiona exclusivamente desde la sección Contratos
@@ -164,6 +119,11 @@ export async function POST(request) {
           });
         }
       }
+    }
+
+    // E15-03: si con esta fecha el lead ya tiene seña + fecha + contrato firmado → Reserva confirmada + Evento
+    if (finalLeadId && (finalEstado === 'Reservada' || finalEstado === 'Confirmada')) {
+      await confirmarReservaSiCorresponde(finalLeadId);
     }
 
     // === Google Calendar Sync ===

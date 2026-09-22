@@ -75,3 +75,38 @@ $STG = ((Get-Content .env.develop | Where-Object { $_ -match '^DIRECT_URL=' }) -
 & "C:\Program Files\PostgreSQL\18\bin\pg_restore.exe" --no-owner --no-privileges --schema=public -d $STG "backups-local/prod_<fecha>.dump"
 & $PSQL $STG -f "$M\004_leads_historico.sql"     # y las migraciones que prod aún no tenga
 ```
+
+## E15-01 — Pipeline de 4 estados (`005_pipeline_4_estados.sql`)
+Solo datos: remapea `leads.estado_actual` a Lead nuevo / Visita agendada / Visita realizada / Reserva confirmada / Perdido. Idempotente. Ya aplicada en LOCAL.
+**Correr en la base de develop (staging) y en prod ANTES de desplegar la rama**: el código ya no conoce los estados viejos.
+```powershell
+& $PSQL $STG  -f "$M\005_pipeline_4_estados.sql"   # develop/staging
+& $PSQL $PROD -f "$M\005_pipeline_4_estados.sql"   # prod
+& $PSQL $PROD -c "SELECT estado_actual, count(*) FROM leads GROUP BY 1 ORDER BY 2 DESC;"   # esperado: Reserva confirmada 103 · Visita realizada 3 · Lead nuevo 1 · Perdido 1
+```
+
+## E15-02 — Motivo de pérdida (`006_leads_motivo_perdida.sql`)
+Agrega `leads.motivo_perdida` (categoría fija) y marca "Otro" en los leads ya perdidos. Aditivo e idempotente. Ya aplicada en LOCAL.
+**Correr en develop y prod ANTES de desplegar la rama** (el modelo Lead lee la columna):
+```powershell
+& $PSQL $STG  -f "$M\006_leads_motivo_perdida.sql"
+& $PSQL $PROD -f "$M\006_leads_motivo_perdida.sql"
+```
+
+## E15-06 — Estados del evento por fecha (`007_eventos_estados.sql`)
+Solo datos: remapea `events.estado_operativo` a En planificación / Próximo evento / Evento realizado / Post-evento / cerrado. Idempotente. Ya aplicada en LOCAL.
+**Correr en develop y prod ANTES de desplegar la rama** (el código ya no conoce los estados viejos):
+```powershell
+& $PSQL $STG  -f "$M\007_eventos_estados.sql"
+& $PSQL $PROD -f "$M\007_eventos_estados.sql"
+```
+Variables de entorno opcionales (defaults en código): `EVENTO_PROXIMO_DIAS=30`, `POSTEVENTO_AGRADECIMIENTO_DIAS=1`, `POSTEVENTO_FEEDBACK_DIAS=2`.
+
+## E15-08 — Clientes (`008_clientes.sql`)
+DDL aditivo: tabla `clientes`, `leads.cliente_id`, puente `evento_clientes(evento_id, cliente_id, rol)`. Backfill conservador: un cliente por lead, deduplicando por teléfono (solo dígitos) o email; los duplicados que queden (mismo nombre, otro teléfono) se revisan a mano. Idempotente. Ya aplicada en LOCAL.
+**Correr en develop y prod ANTES de desplegar la rama** (el modelo Lead lee `cliente_id` y las rutas usan `clientes`):
+```powershell
+& $PSQL $STG  -f "$M\008_clientes.sql"
+& $PSQL $PROD -f "$M\008_clientes.sql"
+& $PSQL $PROD -c "SELECT (SELECT count(*) FROM clientes) clientes, (SELECT count(*) FROM leads WHERE cliente_id IS NULL) leads_sin_cliente, (SELECT count(*) FROM evento_clientes) titulares;"
+```

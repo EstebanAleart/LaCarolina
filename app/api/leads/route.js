@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-const { Lead, Interaction, Proposal, Visit, Reservation, Event, LeadStatusHistory, CalendarDate } = require('@/lib/models/associations');
+const { Lead, Interaction, Proposal, Visit, Reservation, Event, LeadStatusHistory, CalendarDate, Cliente } = require('@/lib/models/associations');
+const { vincularClienteAlLead } = require('@/lib/clientes');
 
 // GET /api/leads - Listar todos los leads (con filtros opcionales)
 export async function GET(request) {
@@ -14,6 +15,7 @@ export async function GET(request) {
 
     const leads = await Lead.findAll({
       where,
+      include: [{ association: 'cliente', attributes: ['id', 'nombre', 'telefono', 'email'] }],
       order: [['created_at', 'DESC']],
     });
 
@@ -53,6 +55,9 @@ export async function POST(request) {
       notas: body.notas || '',
       es_historico: !!body.es_historico,
     });
+
+    // E15-08: todo lead queda atado a un cliente (elegido, existente por teléfono/email, o nuevo)
+    await vincularClienteAlLead(Cliente, lead, { cliente_id: body.cliente_id || null });
 
     // Sync: si se estableció fecha_visita_salon, crear CalendarDate como "Visita" para este lead
     if (body.fecha_visita_salon) {

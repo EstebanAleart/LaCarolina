@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
+import Paginacion from "@/components/ui/paginacion"
 import { CreditCard, Plus, CheckCircle, XCircle, ChevronDown, ChevronUp, DollarSign, Clock, TrendingUp, Search } from "lucide-react"
 import {
   fetchPayments,
@@ -56,6 +57,9 @@ export default function PaymentsView() {
   const [searchNombre, setSearchNombre] = useState("")
   const [filterFecha, setFilterFecha] = useState("")
   const [expandedId, setExpandedId] = useState(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
+  useEffect(() => { setPage(1) }, [filterEstado, filterTipo, filterConcepto, searchNombre, filterFecha, pageSize])
 
   const [form, setForm] = useState({
     event_id: "",
@@ -99,6 +103,8 @@ export default function PaymentsView() {
       return true
     })
   }, [payments, filterEstado, filterTipo, filterConcepto, searchNombre, filterFecha])
+  const pagePayments = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const paginacion = <Paginacion total={filtered.length} page={page} pageSize={pageSize} onPage={setPage} onSize={setPageSize} />
 
   // Stats globales
   const stats = useMemo(() => {
@@ -307,9 +313,11 @@ export default function PaymentsView() {
         </div>
       ) : (
         <>
+        {paginacion}
+
         {/* Mobile: cards expandibles */}
         <div className="flex flex-col gap-2 md:hidden">
-          {filtered.map((p) => {
+          {pagePayments.map((p) => {
             const leadNombre = p.event?.lead?.nombre || p.lead?.nombre || "—"
             const tipoEvento = p.event?.lead?.tipo_evento || p.event?.tipo_evento || ""
             const isExpanded = expandedId === p.id
@@ -407,7 +415,7 @@ export default function PaymentsView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.map((p) => {
+                {pagePayments.map((p) => {
                   const leadNombre = p.event?.lead?.nombre || p.lead?.nombre || "—"
                   const tipoEvento = p.event?.lead?.tipo_evento || p.event?.tipo_evento || ""
                   return (
@@ -473,6 +481,8 @@ export default function PaymentsView() {
             </table>
           </div>
         </div>
+
+        {paginacion}
         </>
       )}
 

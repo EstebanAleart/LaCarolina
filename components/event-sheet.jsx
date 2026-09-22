@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { X, Plus, Trash2, DollarSign, Link2 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import MoneyInput from "@/components/ui/money-input"
 import { resumenEvento, cobradoDe } from "@/lib/services"
 import {
   fetchEventServices, fetchServiceTypes, fetchCombos, fetchPaymentsByEvent,
@@ -177,7 +178,7 @@ function ServiceCard({ svc, event, combos, onChanged }) {
       <div className="grid grid-cols-2 gap-2 px-3 py-2 text-sm sm:grid-cols-3">
         <label className="col-span-2 flex flex-col gap-0.5 sm:col-span-1">
           <span className="text-[11px] text-muted-foreground">Total contratado</span>
-          <input type="number" defaultValue={total} onBlur={(e) => { const v = Number(e.target.value) || 0; if (v !== total) setField("total_contratado", v) }} className={inp} />
+          <MoneyInput value={total} onCommit={(v) => { const n = v || 0; if (n !== total) setField("total_contratado", n) }} className={inp} />
         </label>
         <div className="flex flex-col gap-0.5">
           <span className="text-[11px] text-muted-foreground">Cobrado</span>
@@ -230,7 +231,7 @@ function PaymentForm({ event, serviceId, tipoNombre, onClose, onSaved }) {
   }
   return (
     <div className="mt-2 flex flex-col gap-2 rounded-md bg-secondary/40 p-2 sm:flex-row sm:flex-wrap sm:items-end">
-      <input name="monto" type="number" placeholder="Monto" value={f.monto} onChange={ch} className={cn(inp, "w-full sm:w-28")} />
+      <MoneyInput placeholder="Monto" value={f.monto} onChange={(n) => setF(p => ({ ...p, monto: n ?? "" }))} className={cn(inp, "w-full sm:w-28")} />
       <select name="tipo" value={f.tipo} onChange={ch} className={cn(inp, "w-full sm:w-auto")}>{TIPOS_PAGO.map(t => <option key={t} value={t}>{t}</option>)}</select>
       <select name="metodo_pago" value={f.metodo_pago} onChange={ch} className={cn(inp, "w-full sm:w-auto")}>{METODOS_PAGO.map(m => <option key={m} value={m}>{m}</option>)}</select>
       <select name="concepto" value={f.concepto} onChange={ch} className={cn(inp, "w-full sm:w-auto")}>{CONCEPTOS_PAGO.map(c => <option key={c} value={c}>{c}</option>)}</select>
@@ -268,7 +269,7 @@ function AddServiceRow({ event, tipos, combos, onClose, onSaved }) {
           {combos.map(c => <option key={c.id} value={c.id}>{c.nombre} ({fmt(c.precio)})</option>)}
         </select>
       )}
-      <input type="number" placeholder="Total $" value={f.total_contratado} onChange={(e) => setF(p => ({ ...p, total_contratado: e.target.value }))} className={cn(inp, "w-full sm:w-28")} />
+      <MoneyInput placeholder="Total $" value={f.total_contratado} onChange={(n) => setF(p => ({ ...p, total_contratado: n ?? "" }))} className={cn(inp, "w-full sm:w-28")} />
       <button onClick={save} disabled={saving} className="w-full rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground disabled:opacity-50 sm:w-auto sm:py-1">{saving ? "…" : "Agregar"}</button>
       <button onClick={onClose} className="w-full rounded-md px-2 py-2 text-xs text-muted-foreground hover:bg-secondary sm:w-auto sm:py-1">Cancelar</button>
     </div>

@@ -80,9 +80,7 @@ function PipelineTab({ leads: leadsTodos }) {
 
   const total = leads.length
   const perdidos = leads.filter((l) => l.estado_actual === "Perdido").length
-  const clientesActivos = leads.filter((l) =>
-    ["Contrato firmado", "Cliente activo", "Evento realizado", "Post-evento / cerrado"].includes(l.estado_actual)
-  ).length
+  const clientesActivos = leads.filter((l) => l.estado_actual === "Reserva confirmada").length
   const tasa = total > 0 ? ((clientesActivos / total) * 100).toFixed(1) : "0"
 
   // Motivos de pérdida agrupados
@@ -91,10 +89,9 @@ function PipelineTab({ leads: leadsTodos }) {
     leads
       .filter((l) => l.estado_actual === "Perdido")
       .forEach((l) => {
-        const m = l.notas || "Sin motivo"
+        const m = l.motivo_perdida || "Sin motivo" // E15-02: categoría fija elegida al perder
         map[m] = (map[m] || 0) + 1
       })
-    // Intentar extraer motivo de historial si está disponible (normalmente no viene en lista)
     return Object.entries(map)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
@@ -106,8 +103,8 @@ function PipelineTab({ leads: leadsTodos }) {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard icon={Users} label="Total leads" value={total} sub={historicos ? `+ ${historicos} históricos (excluidos)` : undefined} color="blue" />
-        <StatCard icon={TrendingUp} label="Tasa conversión" value={`${tasa}%`} sub="contrato o más" color="green" />
-        <StatCard icon={Users} label="En pipeline activo" value={leads.filter((l) => !["Perdido", "Post-evento / cerrado"].includes(l.estado_actual)).length} color="purple" />
+        <StatCard icon={TrendingUp} label="Tasa conversión" value={`${tasa}%`} sub="reserva confirmada" color="green" />
+        <StatCard icon={Users} label="En pipeline activo" value={leads.filter((l) => !["Perdido", "Reserva confirmada"].includes(l.estado_actual)).length} color="purple" />
         <StatCard icon={Users} label="Perdidos" value={perdidos} sub={`${total > 0 ? ((perdidos / total) * 100).toFixed(1) : 0}% del total`} color="red" />
       </div>
 

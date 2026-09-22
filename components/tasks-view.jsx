@@ -12,6 +12,8 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import KanbanBoard from "@/components/kanban/board"
+import KanbanColumnModal from "@/components/kanban/column-modal"
 import {
   fetchTasks,
   apiCreateTask,
@@ -44,6 +46,8 @@ export default function TasksView() {
   const [showForm, setShowForm] = useState(false)
   const [filterState, setFilterState] = useState("")
   const [filterUser, setFilterUser] = useState("")
+  const [kanbanSize, setKanbanSize] = useState(5)      // tarjetas por columna (5/10/20)
+  const [kanbanModal, setKanbanModal] = useState(null) // columna abierta con "Ver más"
 
   async function loadData() {
     try {
@@ -99,6 +103,17 @@ export default function TasksView() {
     } catch (err) { console.error(err); toast.error("Error al actualizar tarea") }
   }
 
+  // Kanban: soltar una tarjeta en otra columna cambia el estado
+  async function handleMoveTask(id, estado) {
+    const task = tasks.find((t) => t.id === id)
+    if (!task || task.estado === estado) return
+    try {
+      await apiUpdateTask(id, { estado })
+      await loadData()
+      toast.success(`${task.titulo}: ${estado}`)
+    } catch (err) { console.error(err); toast.error(err.message || "Error al actualizar tarea") }
+  }
+
   async function handleDelete(id) {
     try {
       await apiDeleteTask(id)
@@ -151,89 +166,93 @@ export default function TasksView() {
         </select>
       </div>
 
-      {/* Kanban columns */}
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {TASK_STATES.map((state) => {
-          const Icon = STATE_ICONS[state]
-          const stateTasks = grouped[state] || []
+      {/* Tablero compartido: arrastre entre columnas, 5/10/20 por columna, "Ver más" en modal */}
+      {(() => {
+        const renderTaskCard = (task) => {
+          const Icon = STATE_ICONS[task.estado] || STATE_ICONS.Pendiente
+          const dueDate = task.due_date ? task.due_date.substring(0, 10) : null
+          const isOverdue = dueDate && new Date(dueDate) < new Date() && task.estado === "Pendiente"
+          const leadName = task.lead?.nombre || null
+          const userName = task.assigned_user?.nombre || "---"
           return (
-            <div key={state} className="flex w-72 shrink-0 flex-col rounded-lg border border-border bg-secondary/30">
-              <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
-                <Icon className={cn("h-4 w-4",
-                  state === "Hecho" ? "text-accent" :
-                  state === "En Proceso" ? "text-primary" :
-                  state === "Cancelado" ? "text-destructive" :
-                  "text-muted-foreground"
-                )} />
-                <span className="text-xs font-semibold text-foreground">{state}</span>
-                <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                  {stateTasks.length}
-                </span>
+            <div className={cn("rounded-md border bg-card p-3 transition-shadow hover:shadow-md", isOverdue ? "border-destructive" : "border-border")}>
+              <div className="flex items-start justify-between gap-2">
+                <button onClick={() => handleToggleState(task)} className="-m-1.5 shrink-0 rounded-md p-2" title="Avanzar estado">
+                  <Icon className={cn("h-4 w-4",
+                    task.estado === "Hecho" ? "text-accent" :
+                    task.estado === "En Proceso" ? "text-primary" :
+                    "text-muted-foreground"
+                  )} />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className={cn("text-sm font-medium text-card-foreground", task.estado === "Hecho" && "line-through opacity-60")}>
+                    {task.titulo}
+                  </p>
+                  {task.descripcion && (
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{task.descripcion}</p>
+                  )}
+                </div>
+                <button onClick={() => handleDelete(task.id)} className="-m-1 shrink-0 rounded-md p-2 text-muted-foreground hover:text-destructive transition-colors" aria-label="Eliminar tarea">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <div className="flex flex-col gap-2 p-2 max-h-[60vh] overflow-y-auto">
-                {stateTasks.map((task) => {
-                  const dueDate = task.due_date ? task.due_date.substring(0, 10) : null
-                  const isOverdue = dueDate && new Date(dueDate) < new Date() && task.estado === "Pendiente"
-                  const leadName = task.lead?.nombre || null
-                  const userName = task.assigned_user?.nombre || "---"
-                  return (
-                    <div
-                      key={task.id}
-                      className={cn(
-                        "rounded-md border bg-card p-3 transition-shadow hover:shadow-md",
-                        isOverdue ? "border-destructive" : "border-border"
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <button onClick={() => handleToggleState(task)} className="-m-1.5 shrink-0 rounded-md p-2">
-                          <Icon className={cn("h-4 w-4",
-                            state === "Hecho" ? "text-accent" :
-                            state === "En Proceso" ? "text-primary" :
-                            "text-muted-foreground"
-                          )} />
-                        </button>
-                        <div className="flex-1 min-w-0">
-                          <p className={cn("text-sm font-medium text-card-foreground", task.estado === "Hecho" && "line-through opacity-60")}>
-                            {task.titulo}
-                          </p>
-                          {task.descripcion && (
-                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{task.descripcion}</p>
-                          )}
-                        </div>
-                        <button onClick={() => handleDelete(task.id)} className="-m-1 shrink-0 rounded-md p-2 text-muted-foreground hover:text-destructive transition-colors" aria-label="Eliminar tarea">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", PRIORITY_COLORS[task.prioridad])}>
-                          {task.prioridad}
-                        </span>
-                        {leadName && (
-                          <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
-                            {leadName}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{userName}</span>
-                        {dueDate && (
-                          <span className={cn("flex items-center gap-0.5", isOverdue && "text-destructive font-medium")}>
-                            {isOverdue && <AlertTriangle className="h-3 w-3" />}
-                            {new Date(dueDate + "T12:00:00").toLocaleDateString("es-AR")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-                {stateTasks.length === 0 && (
-                  <p className="text-center text-xs text-muted-foreground py-4">Sin tareas</p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", PRIORITY_COLORS[task.prioridad])}>
+                  {task.prioridad}
+                </span>
+                {leadName && (
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+                    {leadName}
+                  </span>
+                )}
+              </div>
+              <div className="mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
+                <span>{userName}</span>
+                {dueDate && (
+                  <span className={cn("flex items-center gap-0.5", isOverdue && "text-destructive font-medium")}>
+                    {isOverdue && <AlertTriangle className="h-3 w-3" />}
+                    {new Date(dueDate + "T12:00:00").toLocaleDateString("es-AR")}
+                  </span>
                 )}
               </div>
             </div>
           )
-        })}
-      </div>
+        }
+        const cols = TASK_STATES.map((state) => ({ key: state, title: state, items: grouped[state] || [] }))
+        return (
+          <>
+            <KanbanBoard
+              size={kanbanSize}
+              onSizeChange={setKanbanSize}
+              getId={(t) => t.id}
+              emptyText="Sin tareas"
+              columns={cols}
+              onMove={handleMoveTask}
+              onMore={(c) => setKanbanModal(c.key)}
+              renderCard={renderTaskCard}
+            />
+            {kanbanModal && (
+              <KanbanColumnModal
+                title={kanbanModal}
+                items={cols.find((c) => c.key === kanbanModal)?.items || []}
+                getId={(t) => t.id}
+                matches={(t, q) => (t.titulo || "").toLowerCase().includes(q) || (t.lead?.nombre || "").toLowerCase().includes(q)}
+                onClose={() => setKanbanModal(null)}
+                onOpen={() => {}}
+                renderRow={(t) => (
+                  <>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-card-foreground">{t.titulo}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{t.lead?.nombre || ""}{t.due_date ? ` · ${new Date(t.due_date.substring(0, 10) + "T12:00:00").toLocaleDateString("es-AR")}` : ""}</span>
+                    </span>
+                    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", PRIORITY_COLORS[t.prioridad])}>{t.prioridad}</span>
+                  </>
+                )}
+              />
+            )}
+          </>
+        )
+      })()}
 
       {/* Create Task Form */}
       {showForm && (

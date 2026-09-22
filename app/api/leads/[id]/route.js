@@ -16,6 +16,7 @@ export async function GET(request, { params }) {
         { association: 'status_history', order: [['changed_at', 'DESC']] },
         { association: 'reservation' },
         { association: 'event' },
+        { association: 'cliente' },
       ],
     });
 
@@ -23,7 +24,14 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 });
     }
 
-    return NextResponse.json(lead);
+    // Fecha del evento en el calendario (Reservada/Confirmada a nombre del lead): la ficha la usa
+    // para mostrar qué falta para confirmar la reserva (E15-03).
+    const calendar_date = await CalendarDate.findOne({
+      where: { lead_id: id, estado_fecha: ['Reservada', 'Confirmada'] },
+      order: [['fecha', 'ASC']],
+    });
+
+    return NextResponse.json({ ...lead.toJSON(), calendar_date });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -59,19 +67,16 @@ export async function PUT(request, { params }) {
       updated_at: new Date(),
     });
 
-    // Auto-avanzar estado a "Esperando visita" si se agrega fecha_visita_salon
-    if (updateData.fecha_visita_salon) {
-      const ESTADOS_PREVIOS_VISITA = ['Lead nuevo', 'Contactado'];
-      if (ESTADOS_PREVIOS_VISITA.includes(lead.estado_actual)) {
-        await LeadStatusHistory.create({
-          lead_id: lead.id,
-          estado_anterior: lead.estado_actual,
-          estado_nuevo: 'Esperando visita',
-          motivo: 'Fecha de visita al salón agendada',
-          changed_by_user_id: null,
-        });
-        await lead.update({ estado_actual: 'Esperando visita', updated_at: new Date() });
-      }
+    // Auto-avanzar a "Visita agendada" si se agrega fecha_visita_salon y el lead es nuevo
+    if (updateData.fecha_visita_salon && lead.estado_actual === 'Lead nuevo') {
+      await LeadStatusHistory.create({
+        lead_id: lead.id,
+        estado_anterior: lead.estado_actual,
+        estado_nuevo: 'Visita agendada',
+        motivo: 'Fecha de visita al salón agendada',
+        changed_by_user_id: null,
+      });
+      await lead.update({ estado_actual: 'Visita agendada', updated_at: new Date() });
     }
 
     // Sync: si se estableció fecha_visita_salon, crear/actualizar CalendarDate como "Visita"

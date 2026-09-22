@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import {
   Plus,
   Search,
@@ -19,6 +19,8 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import KanbanBoard from "@/components/kanban/board"
+import KanbanColumnModal from "@/components/kanban/column-modal"
 import {
   fetchLeads,
   apiCreateLead,
@@ -33,24 +35,19 @@ import {
   CANALES,
   TIPOS_EVENTO,
   TIPOS_CLIENTE,
+  MOTIVOS_PERDIDA,
+  METODOS_PAGO,
+  apiRegistrarSenia,
+  fetchClientes,
 } from "@/lib/api"
+import MoneyInput from "@/components/ui/money-input"
 
 const STATE_COLORS = {
-  "Lead nuevo":                "bg-slate-100 text-slate-700",
-  "Contactado":                "bg-blue-100 text-blue-800",
-  "Esperando visita":          "bg-sky-100 text-sky-800",
-  "Visita al salón realizada": "bg-cyan-100 text-cyan-800",
-  "Enviar propuesta":          "bg-purple-100 text-purple-800",
-  "Propuesta enviada":         "bg-violet-100 text-violet-800",
-  "Propuesta Aceptada":        "bg-lime-100 text-lime-800",
-  "Propuesta Rechazada":       "bg-rose-100 text-rose-800",
-  "Esperando Reserva":         "bg-orange-100 text-orange-800",
-  "Reserva tomada":            "bg-amber-100 text-amber-800",
-  "Contrato firmado":          "bg-emerald-100 text-emerald-800",
-  "Cliente activo":            "bg-green-100 text-green-800",
-  "Evento realizado":          "bg-teal-100 text-teal-800",
-  "Post-evento / cerrado":     "bg-gray-100 text-gray-600",
-  "Perdido":                   "bg-red-100 text-red-800",
+  "Lead nuevo":         "bg-slate-100 text-slate-700",
+  "Visita agendada":    "bg-sky-100 text-sky-800",
+  "Visita realizada":   "bg-cyan-100 text-cyan-800",
+  "Reserva confirmada": "bg-emerald-100 text-emerald-800",
+  "Perdido":            "bg-red-100 text-red-800",
 }
 
 function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
@@ -94,6 +91,16 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
   )
   const [submitting, setSubmitting] = useState(false)
   const [fechaOcupadaWarning, setFechaOcupadaWarning] = useState("")
+  // E15-08: cliente existente (segunda fiesta) o nuevo desde los datos de contacto
+  const [clienteQ, setClienteQ] = useState("")
+  const [clienteOpts, setClienteOpts] = useState([])
+  const [clienteSel, setClienteSel] = useState(initial?.cliente || null)
+  useEffect(() => {
+    const q = clienteQ.trim()
+    if (q.length < 2) { setClienteOpts([]); return }
+    const t = setTimeout(() => { fetchClientes(q).then(setClienteOpts).catch(() => setClienteOpts([])) }, 250)
+    return () => clearTimeout(t)
+  }, [clienteQ])
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -151,6 +158,7 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
         invitados_estimados: form.invitados_estimados === '' ? null : parseInt(String(form.invitados_estimados).replace(/\./g, ""), 10) || null,
         notas:               form.notas,
         es_historico:        !!form.es_historico,
+        cliente_id:          clienteSel?.id || null,
       })
     } finally { setSubmitting(false) }
   }
@@ -177,6 +185,37 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
           <span className="block text-xs text-orange-700/80">No es un lead nuevo: es un cliente previo que se ingresa al sistema. No cuenta para conversión ni pipeline.</span>
         </span>
       </label>
+
+      {/* Cliente existente (E15-08): si ya es cliente, elegilo y el lead queda atado a él */}
+      {!initial && (
+        <div className="rounded-lg border border-border bg-secondary/40 p-3">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">¿Ya es cliente?</p>
+          {clienteSel ? (
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-card-foreground">{clienteSel.nombre}{clienteSel.telefono ? ` · ${clienteSel.telefono}` : ""}</span>
+              <button type="button" onClick={() => setClienteSel(null)} className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-secondary">Quitar</button>
+            </div>
+          ) : (
+            <div className="relative">
+              <input value={clienteQ} onChange={(e) => setClienteQ(e.target.value)} placeholder="Buscar por nombre, teléfono o mail..." className={`w-full ${inputCls}`} />
+              {clienteOpts.length > 0 && (
+                <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto scrollbar-none rounded-md border border-border bg-card shadow-lg">
+                  {clienteOpts.map((c) => (
+                    <li key={c.id}>
+                      <button type="button" onClick={() => { setClienteSel(c); setClienteQ(""); setClienteOpts([]); setForm((f) => ({ ...f, nombre: f.nombre || c.nombre, telefono: f.telefono || c.telefono || "", email: f.email || c.email || "" })) }}
+                        className="flex w-full flex-col px-3 py-2 text-left hover:bg-secondary">
+                        <span className="text-sm text-card-foreground">{c.nombre}</span>
+                        <span className="text-xs text-muted-foreground">{[c.telefono, c.email].filter(Boolean).join(" · ")}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">Si no lo encontrás, seguí cargando: el cliente se crea solo con los datos de contacto.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Datos de contacto */}
       <div>
@@ -266,8 +305,8 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
         </div>
       </div>
 
-      {/* Segunda instancia — solo al editar, desde "Visita al salón realizada" en adelante */}
-      {initial && LEAD_STATES.indexOf(initial.estado_actual) >= LEAD_STATES.indexOf("Visita al salón realizada") && (
+      {/* Segunda instancia — solo al editar, desde "Visita realizada" en adelante */}
+      {initial && LEAD_STATES.indexOf(initial.estado_actual) >= LEAD_STATES.indexOf("Visita realizada") && (
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Segunda instancia</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -307,10 +346,13 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
   const [users, setUsers] = useState([])
   const [tab, setTab] = useState("timeline")
   const [showStatusChange, setShowStatusChange] = useState(false)
-  const [lostMotivo, setLostMotivo] = useState("")
+  const [lostMotivo, setLostMotivo] = useState("")   // categoría (MOTIVOS_PERDIDA)
+  const [lostDetalle, setLostDetalle] = useState("") // descripción libre cuando es "Otro"
   const [selectedStatus, setSelectedStatus] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [intForm, setIntForm] = useState({ canal: "WhatsApp", direction: "OUT", descripcion: "" })
+  const [showSenia, setShowSenia] = useState(false)
+  const [seniaForm, setSeniaForm] = useState({ monto: "", fecha_pago: new Date().toISOString().substring(0, 10), metodo_pago: "efectivo" })
 
   const loadDetail = useCallback(async () => {
     try {
@@ -331,6 +373,27 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
   const proposals = leadFull?.proposals || []
   const history = leadFull?.status_history || []
 
+  // Condiciones para "Reserva confirmada" (E15-03): seña registrada, fecha reservada, contrato firmado
+  const reservation = leadFull?.reservation
+  const seniaOk = reservation?.estado === "Pagada" && Number(reservation?.monto_senia) > 0
+  const fechaOk = !!leadFull?.calendar_date
+  const contratoOk = proposals.some((p) => p.estado === "Firmada")
+  const inputSm = "rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+
+  async function handleRegistrarSenia() {
+    const monto = Number(seniaForm.monto)
+    if (!monto || monto <= 0) { toast.warning("Ingresá el monto de la seña"); return }
+    setSubmitting(true)
+    try {
+      const r = await apiRegistrarSenia(lead.id, { monto, fecha_pago: seniaForm.fecha_pago, metodo_pago: seniaForm.metodo_pago })
+      setShowSenia(false)
+      toast.success(r.confirmada ? "Seña registrada. Reserva confirmada y evento creado." : `Seña registrada. Falta: ${r.faltantes.join(", ")}`)
+      await loadDetail()
+      onRefresh()
+    } catch (err) { console.error(err); toast.error(err.message || "No se pudo registrar la seña") }
+    finally { setSubmitting(false) }
+  }
+
   function getUserName(uid) {
     const u = users.find((u) => u.id === uid)
     return u ? u.nombre : "Sistema"
@@ -338,16 +401,21 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
 
   async function handleStatusChange() {
     if (!selectedStatus || submitting) return
-    if (selectedStatus === "Perdido" && !lostMotivo.trim()) {
-      toast.warning("Motivo obligatorio para marcar como Perdido")
+    if (selectedStatus === "Perdido" && !lostMotivo) {
+      toast.warning("Elegí el motivo para marcar como Perdido")
+      return
+    }
+    if (selectedStatus === "Perdido" && lostMotivo === "Otro" && !lostDetalle.trim()) {
+      toast.warning("Describí el motivo")
       return
     }
     setSubmitting(true)
     try {
-      await apiChangeLeadStatus(lead.id, selectedStatus, lostMotivo || null, null)
+      await apiChangeLeadStatus(lead.id, selectedStatus, lostMotivo || null, null, lostMotivo === "Otro" ? lostDetalle.trim() : null)
       setShowStatusChange(false)
       setSelectedStatus("")
       setLostMotivo("")
+      setLostDetalle("")
       await loadDetail()
       onRefresh()
       toast.success(`Estado cambiado a "${selectedStatus}"`)
@@ -448,7 +516,63 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
                 {new Date(lead.fecha_limite_pago_total).toLocaleDateString("es-AR")}
               </div>
             )}
+            {lead.estado_actual === "Perdido" && lead.motivo_perdida && (
+              <div className="col-span-2 flex items-center gap-2 text-red-700">
+                <span className="font-medium">Motivo de pérdida:</span> {lead.motivo_perdida}
+              </div>
+            )}
+            {leadFull?.cliente && (
+              <div className="col-span-2 flex flex-wrap items-center gap-2 text-muted-foreground">
+                <span className="font-medium text-card-foreground">Cliente:</span> {leadFull.cliente.nombre}
+                {leadFull.cliente.telefono && <span>· {leadFull.cliente.telefono}</span>}
+                {leadFull.cliente.email && <span>· {leadFull.cliente.email}</span>}
+              </div>
+            )}
           </div>
+
+          {/* Reserva: qué falta para confirmar + registrar seña (E15-03) */}
+          {lead.estado_actual !== "Perdido" && (
+            <div className="mb-4 rounded-md border border-border bg-secondary/40 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reserva</p>
+              <ul className="flex flex-col gap-1 text-sm">
+                {[
+                  ["Seña registrada", seniaOk, seniaOk ? `${Number(reservation.monto_senia).toLocaleString("es-AR")} · ${String(reservation.fecha_pago || "").substring(0, 10)}` : null],
+                  ["Fecha reservada en el calendario", fechaOk, fechaOk ? `${String(leadFull.calendar_date.fecha).substring(0, 10)} · ${leadFull.calendar_date.estado_fecha}` : null],
+                  ["Contrato firmado", contratoOk, null],
+                ].map(([label, ok, detail]) => (
+                  <li key={label} className="flex flex-wrap items-center gap-2">
+                    <span className={cn("inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", ok ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground")}>{ok ? "✓" : "·"}</span>
+                    <span className={ok ? "text-card-foreground" : "text-muted-foreground"}>{label}</span>
+                    {detail && <span className="text-xs text-muted-foreground">— {detail}</span>}
+                  </li>
+                ))}
+              </ul>
+              {lead.estado_actual === "Reserva confirmada" ? (
+                <p className="mt-2 text-xs font-medium text-emerald-700">Reserva confirmada. El evento está en la sección Eventos.</p>
+              ) : !seniaOk ? (
+                !showSenia ? (
+                  <button onClick={() => setShowSenia(true)} className="mt-3 w-full rounded-md border border-primary px-3 py-2.5 text-xs font-medium text-primary hover:bg-primary/10">Registrar seña</button>
+                ) : (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <MoneyInput value={seniaForm.monto} onChange={(n) => setSeniaForm((f) => ({ ...f, monto: n ?? "" }))} placeholder="Monto de la seña" className={inputSm} />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="date" value={seniaForm.fecha_pago} onChange={(e) => setSeniaForm((f) => ({ ...f, fecha_pago: e.target.value }))} className={inputSm} />
+                      <select value={seniaForm.metodo_pago} onChange={(e) => setSeniaForm((f) => ({ ...f, metodo_pago: e.target.value }))} className={inputSm}>
+                        {METODOS_PAGO.map((m) => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+                    {!lead.fecha_tentativa && !fechaOk && <p className="text-xs text-red-700">Cargá la fecha tentativa del evento (Editar) antes de registrar la seña.</p>}
+                    <div className="flex gap-2">
+                      <button onClick={handleRegistrarSenia} disabled={submitting} className="flex-1 rounded-md bg-primary px-3 py-2.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">Guardar seña</button>
+                      <button onClick={() => setShowSenia(false)} className="flex-1 rounded-md border border-border bg-card px-3 py-2.5 text-xs font-medium text-foreground hover:bg-secondary">Cancelar</button>
+                    </div>
+                  </div>
+                )
+              ) : (
+                <p className="mt-2 text-xs text-muted-foreground">Cuando se cumplan las tres, el lead pasa solo a "Reserva confirmada" y se crea el evento.</p>
+              )}
+            </div>
+          )}
 
           {/* Status change */}
           <div className="mb-4">
@@ -472,12 +596,24 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
                   ))}
                 </select>
                 {selectedStatus === "Perdido" && (
-                  <input
-                    value={lostMotivo}
-                    onChange={(e) => setLostMotivo(e.target.value)}
-                    placeholder="Motivo (obligatorio)"
-                    className="rounded-md border border-input bg-card px-3 py-1.5 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
+                  <>
+                    <select
+                      value={lostMotivo}
+                      onChange={(e) => setLostMotivo(e.target.value)}
+                      className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="">Motivo de pérdida (obligatorio)...</option>
+                      {MOTIVOS_PERDIDA.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                    {lostMotivo === "Otro" && (
+                      <input
+                        value={lostDetalle}
+                        onChange={(e) => setLostDetalle(e.target.value)}
+                        placeholder="Describí el motivo (obligatorio)"
+                        className="rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    )}
+                  </>
                 )}
                 <div className="flex gap-2">
                   <button onClick={handleStatusChange} disabled={submitting} className="flex-1 rounded-md bg-primary px-3 py-2.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed sm:flex-none sm:py-1.5">{submitting ? "Guardando..." : "Confirmar"}</button>
@@ -663,73 +799,6 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
   )
 }
 
-// Modal "Ver más" del kanban: listado completo de una columna con búsqueda y paginado 10/20
-function KanbanColumnModal({ state, leads, onClose, onOpenLead }) {
-  const [q, setQ] = useState("")
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(5)
-  useEffect(() => { setPage(1) }, [q, pageSize])
-  const list = useMemo(() => {
-    const s = q.toLowerCase().trim()
-    if (!s) return leads
-    return leads.filter((l) => l.nombre.toLowerCase().includes(s) || (l.tipo_evento || "").toLowerCase().includes(s))
-  }, [leads, q])
-  const totalPages = Math.max(1, Math.ceil(list.length / pageSize))
-  const rows = list.slice((page - 1) * pageSize, page * pageSize)
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-foreground/20" onClick={onClose} />
-      <div className="relative z-10 mx-3 flex max-h-[90dvh] w-full max-w-lg flex-col rounded-lg border border-border bg-card shadow-lg">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h3 className="text-base font-bold text-card-foreground">
-            {state} <span className="font-normal text-muted-foreground">— {leads.length}</span>
-          </h3>
-          <button onClick={onClose} className="rounded-md p-2 text-muted-foreground hover:bg-secondary" aria-label="Cerrar">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="flex items-center gap-2 border-b border-border px-4 py-2">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar..."
-            className="min-w-0 flex-1 rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="rounded-md border border-input bg-card px-2 py-2 text-xs text-card-foreground">
-            {[5, 10, 20].map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {rows.length === 0 && <p className="px-4 py-8 text-center text-sm text-muted-foreground">Sin resultados</p>}
-          {rows.map((lead, i) => (
-            <button
-              key={lead.id}
-              onClick={() => onOpenLead(lead)}
-              className="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left hover:bg-muted/50 last:border-0"
-            >
-              <span className="w-6 shrink-0 text-xs text-muted-foreground">{(page - 1) * pageSize + i + 1}</span>
-              {lead.es_historico && <span title="Lead histórico" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[11px] font-bold text-white">H</span>}
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-card-foreground">{lead.nombre}</span>
-                <span className="block truncate text-xs text-muted-foreground">{lead.tipo_evento}{lead.canal_origen ? ` · ${lead.canal_origen}` : ""}</span>
-              </span>
-              <span className="shrink-0 text-xs font-semibold text-primary">${(lead.valor_estimado || 0).toLocaleString()}</span>
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2 text-xs text-muted-foreground">
-          <span>{list.length ? `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, list.length)} de ${list.length}` : "0 de 0"}</span>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="rounded-md border border-border px-3 py-2 font-medium text-foreground hover:bg-secondary disabled:opacity-40">Anterior</button>
-            <span>{page}/{totalPages}</span>
-            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="rounded-md border border-border px-3 py-2 font-medium text-foreground hover:bg-secondary disabled:opacity-40">Siguiente</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export default function LeadsView() {
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
@@ -747,9 +816,9 @@ export default function LeadsView() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(5) // 5 por defecto: en móvil es lo cómodo
   // Kanban: 5 visibles por columna, "Ver más" expande la columna; en móvil una columna por vez (pestañas)
-  const KANBAN_VISIBLE = 5
+  const [kanbanSize, setKanbanSize] = useState(5)   // tarjetas por columna (5/10/20)
   const [kanbanModal, setKanbanModal] = useState(null) // estado (columna) abierto con "Ver más"
-  const kanbanDrag = useRef(null) // arrastre del tablero con el mouse (en touch scrollea nativo)
+  const [pendingLost, setPendingLost] = useState(null) // lead soltado en "Perdido": pide motivo
 
   // Cualquier cambio de filtro o de tamaño de página vuelve a la página 1
   useEffect(() => { setPage(1) }, [search, filterYear, filterState, filterChannel, soloHistoricos, pageSize])
@@ -776,6 +845,30 @@ export default function LeadsView() {
 
   async function handleRefresh() {
     await loadLeads()
+  }
+
+  // Kanban: soltar una tarjeta en otra columna cambia el estado. "Perdido" pide el motivo antes.
+  async function handleKanbanMove(id, estado) {
+    const lead = leads.find((l) => l.id === id)
+    if (!lead || lead.estado_actual === estado) return
+    if (estado === "Perdido") { setPendingLost({ lead, motivo: "", detalle: "" }); return }
+    try {
+      await apiChangeLeadStatus(id, estado, null, null)
+      toast.success(`${lead.nombre}: ${estado}`)
+      await loadLeads()
+    } catch (err) { console.error(err); toast.error(err.message || "No se pudo cambiar el estado") }
+  }
+
+  async function confirmPendingLost() {
+    const p = pendingLost
+    if (!p?.motivo) { toast.warning("Elegí el motivo"); return }
+    if (p.motivo === "Otro" && !p.detalle.trim()) { toast.warning("Describí el motivo"); return }
+    try {
+      await apiChangeLeadStatus(p.lead.id, "Perdido", p.motivo, null, p.motivo === "Otro" ? p.detalle.trim() : null)
+      toast.success(`${p.lead.nombre}: Perdido`)
+      setPendingLost(null)
+      await loadLeads()
+    } catch (err) { console.error(err); toast.error(err.message || "No se pudo marcar como Perdido") }
   }
 
   const filteredLeads = useMemo(() => {
@@ -1113,74 +1206,34 @@ export default function LeadsView() {
         </>
       )}
 
-      {/* Kanban View: 5 visibles por columna + contador + "Ver más" (modal). Columnas en todos los tamaños;
-          en touch scrollea nativo hacia los lados y arriba/abajo, con mouse se arrastra manteniendo apretado. */}
-      {viewMode === "kanban" && (() => {
-        const card = (lead) => (
-          <button
-            key={lead.id}
-            onClick={() => setDetailLead(lead)}
-            className="w-full rounded-md border border-border bg-card p-3 text-left hover:shadow-md transition-shadow"
-          >
-            <p className="flex items-center gap-1.5 text-sm font-medium text-card-foreground">
-              {lead.es_historico && <span title="Lead histórico" className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">H</span>}
-              {lead.nombre}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">{lead.tipo_evento}</p>
-            <p className="text-xs font-semibold text-primary mt-1">${(lead.valor_estimado || 0).toLocaleString()}</p>
-          </button>
-        )
-        // Arrastre con mouse: mueve el tablero a los lados y el contenido principal arriba/abajo
-        const onDown = (e) => {
-          if (e.pointerType !== "mouse" || e.button !== 0) return
-          const main = e.currentTarget.closest("main")
-          kanbanDrag.current = { x: e.clientX, y: e.clientY, left: e.currentTarget.scrollLeft, top: main ? main.scrollTop : 0, main, moved: false }
-        }
-        const onMove = (e) => {
-          const d = kanbanDrag.current
-          if (!d) return
-          const dx = e.clientX - d.x, dy = e.clientY - d.y
-          if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true
-          e.currentTarget.scrollLeft = d.left - dx
-          if (d.main) d.main.scrollTop = d.top - dy
-        }
-        const onUp = () => { const d = kanbanDrag.current; if (d) setTimeout(() => { kanbanDrag.current = null }, 0) }
-        const onClickCapture = (e) => { if (kanbanDrag.current?.moved) { e.stopPropagation(); e.preventDefault() } }
-        return (
-          <div
-            className="flex gap-3 overflow-x-auto pb-4 items-stretch cursor-grab active:cursor-grabbing select-none"
-            onPointerDown={onDown}
-            onPointerMove={onMove}
-            onPointerUp={onUp}
-            onPointerLeave={onUp}
-            onPointerCancel={onUp}
-            onClickCapture={onClickCapture}
-          >
-            {kanbanCols.map((c) => {
-              const visible = c.leads.slice(0, KANBAN_VISIBLE)
-              const hidden = c.leads.length - visible.length
-              return (
-                <div key={c.state} className="flex w-64 shrink-0 flex-col rounded-lg border border-border bg-secondary/50">
-                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
-                    <span className="text-xs font-semibold text-foreground">{c.state}</span>
-                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1 text-[10px] font-bold text-primary">{c.leads.length}</span>
-                  </div>
-                  {/* Altura fija de 5 tarjetas, tenga 1 o 3 */}
-                  <div className="flex min-h-[29.5rem] flex-col gap-2 p-2">
-                    {visible.map(card)}
-                    {c.leads.length === 0 && <p className="text-center text-xs text-muted-foreground py-4">Sin leads</p>}
-                    {hidden > 0 && (
-                      <button onClick={() => setKanbanModal(c.state)} className="mt-auto rounded-md py-2.5 text-xs font-medium text-primary hover:bg-primary/10">
-                        Ver {hidden} más →
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )
-      })()}
+      {/* Kanban View: tablero compartido (arrastre entre columnas, 5/10/20 por columna, "Ver más" en modal) */}
+      {viewMode === "kanban" && (
+        <KanbanBoard
+          size={kanbanSize}
+          onSizeChange={setKanbanSize}
+          getId={(l) => l.id}
+          emptyText="Sin leads"
+          columns={kanbanCols.map((c) => ({ key: c.state, title: c.state, items: c.leads }))}
+          onMove={handleKanbanMove}
+          onMore={(c) => setKanbanModal(c.key)}
+          renderCard={(lead) => (
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setDetailLead(lead)}
+              onKeyDown={(e) => { if (e.key === "Enter") setDetailLead(lead) }}
+              className="w-full rounded-md border border-border bg-card p-3 text-left hover:shadow-md transition-shadow"
+            >
+              <p className="flex items-center gap-1.5 text-sm font-medium text-card-foreground">
+                {lead.es_historico && <span title="Lead histórico" className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">H</span>}
+                {lead.nombre}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">{lead.tipo_evento}</p>
+              <p className="text-xs font-semibold text-primary mt-1">${(lead.valor_estimado || 0).toLocaleString()}</p>
+            </div>
+          )}
+        />
+      )}
 
       {/* Detail Slideout */}
       {detailLead && (
@@ -1190,11 +1243,54 @@ export default function LeadsView() {
       {/* Kanban: "Ver más" de una columna */}
       {kanbanModal && (
         <KanbanColumnModal
-          state={kanbanModal}
-          leads={kanbanCols.find((c) => c.state === kanbanModal)?.leads || []}
+          title={kanbanModal}
+          items={kanbanCols.find((c) => c.state === kanbanModal)?.leads || []}
+          getId={(l) => l.id}
+          matches={(l, q) => l.nombre.toLowerCase().includes(q) || (l.tipo_evento || "").toLowerCase().includes(q)}
           onClose={() => setKanbanModal(null)}
-          onOpenLead={(lead) => setDetailLead(lead)}
+          onOpen={(lead) => setDetailLead(lead)}
+          renderRow={(lead) => (
+            <>
+              {lead.es_historico && <span title="Lead histórico" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[11px] font-bold text-white">H</span>}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-card-foreground">{lead.nombre}</span>
+                <span className="block truncate text-xs text-muted-foreground">{lead.tipo_evento}{lead.canal_origen ? ` · ${lead.canal_origen}` : ""}</span>
+              </span>
+              <span className="shrink-0 text-xs font-semibold text-primary">${(lead.valor_estimado || 0).toLocaleString()}</span>
+            </>
+          )}
         />
+      )}
+
+      {/* Kanban: tarjeta soltada en "Perdido" → motivo obligatorio */}
+      {pendingLost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-foreground/20" onClick={() => setPendingLost(null)} />
+          <div className="relative z-10 mx-3 w-full max-w-sm rounded-lg border border-border bg-card p-4 shadow-lg">
+            <h3 className="text-base font-bold text-card-foreground">Marcar como Perdido</h3>
+            <p className="mt-0.5 text-sm text-muted-foreground">{pendingLost.lead.nombre}</p>
+            <select
+              value={pendingLost.motivo}
+              onChange={(e) => setPendingLost((p) => ({ ...p, motivo: e.target.value }))}
+              className="mt-3 w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Motivo de pérdida (obligatorio)...</option>
+              {MOTIVOS_PERDIDA.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+            {pendingLost.motivo === "Otro" && (
+              <input
+                value={pendingLost.detalle}
+                onChange={(e) => setPendingLost((p) => ({ ...p, detalle: e.target.value }))}
+                placeholder="Describí el motivo (obligatorio)"
+                className="mt-2 w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            )}
+            <div className="mt-4 flex gap-2">
+              <button onClick={confirmPendingLost} className="flex-1 rounded-md bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90">Confirmar</button>
+              <button onClick={() => setPendingLost(null)} className="flex-1 rounded-md border border-border bg-card px-3 py-2.5 text-sm font-medium text-foreground hover:bg-secondary">Cancelar</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
