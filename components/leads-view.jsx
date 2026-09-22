@@ -36,7 +36,10 @@ import {
   TIPOS_EVENTO,
   TIPOS_CLIENTE,
   MOTIVOS_PERDIDA,
+  METODOS_PAGO,
+  apiRegistrarSenia,
 } from "@/lib/api"
+import MoneyInput from "@/components/ui/money-input"
 
 const STATE_COLORS = {
   "Lead nuevo":         "bg-slate-100 text-slate-700",
@@ -305,6 +308,8 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
   const [selectedStatus, setSelectedStatus] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [intForm, setIntForm] = useState({ canal: "WhatsApp", direction: "OUT", descripcion: "" })
+  const [showSenia, setShowSenia] = useState(false)
+  const [seniaForm, setSeniaForm] = useState({ monto: "", fecha_pago: new Date().toISOString().substring(0, 10), metodo_pago: "efectivo" })
 
   const loadDetail = useCallback(async () => {
     try {
@@ -324,6 +329,27 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
   const visits = leadFull?.visits || []
   const proposals = leadFull?.proposals || []
   const history = leadFull?.status_history || []
+
+  // Condiciones para "Reserva confirmada" (E15-03): seña registrada, fecha reservada, contrato firmado
+  const reservation = leadFull?.reservation
+  const seniaOk = reservation?.estado === "Pagada" && Number(reservation?.monto_senia) > 0
+  const fechaOk = !!leadFull?.calendar_date
+  const contratoOk = proposals.some((p) => p.estado === "Firmada")
+  const inputSm = "rounded-md border border-input bg-card px-3 py-2 text-sm text-card-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+
+  async function handleRegistrarSenia() {
+    const monto = Number(seniaForm.monto)
+    if (!monto || monto <= 0) { toast.warning("Ingresá el monto de la seña"); return }
+    setSubmitting(true)
+    try {
+      const r = await apiRegistrarSenia(lead.id, { monto, fecha_pago: seniaForm.fecha_pago, metodo_pago: seniaForm.metodo_pago })
+      setShowSenia(false)
+      toast.success(r.confirmada ? "Seña registrada. Reserva confirmada y evento creado." : `Seña registrada. Falta: ${r.faltantes.join(", ")}`)
+      await loadDetail()
+      onRefresh()
+    } catch (err) { console.error(err); toast.error(err.message || "No se pudo registrar la seña") }
+    finally { setSubmitting(false) }
+  }
 
   function getUserName(uid) {
     const u = users.find((u) => u.id === uid)
@@ -453,6 +479,50 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
               </div>
             )}
           </div>
+
+          {/* Reserva: qué falta para confirmar + registrar seña (E15-03) */}
+          {lead.estado_actual !== "Perdido" && (
+            <div className="mb-4 rounded-md border border-border bg-secondary/40 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reserva</p>
+              <ul className="flex flex-col gap-1 text-sm">
+                {[
+                  ["Seña registrada", seniaOk, seniaOk ? `${Number(reservation.monto_senia).toLocaleString("es-AR")} · ${String(reservation.fecha_pago || "").substring(0, 10)}` : null],
+                  ["Fecha reservada en el calendario", fechaOk, fechaOk ? `${String(leadFull.calendar_date.fecha).substring(0, 10)} · ${leadFull.calendar_date.estado_fecha}` : null],
+                  ["Contrato firmado", contratoOk, null],
+                ].map(([label, ok, detail]) => (
+                  <li key={label} className="flex flex-wrap items-center gap-2">
+                    <span className={cn("inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold", ok ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground")}>{ok ? "✓" : "·"}</span>
+                    <span className={ok ? "text-card-foreground" : "text-muted-foreground"}>{label}</span>
+                    {detail && <span className="text-xs text-muted-foreground">— {detail}</span>}
+                  </li>
+                ))}
+              </ul>
+              {lead.estado_actual === "Reserva confirmada" ? (
+                <p className="mt-2 text-xs font-medium text-emerald-700">Reserva confirmada. El evento está en la sección Eventos.</p>
+              ) : !seniaOk ? (
+                !showSenia ? (
+                  <button onClick={() => setShowSenia(true)} className="mt-3 w-full rounded-md border border-primary px-3 py-2.5 text-xs font-medium text-primary hover:bg-primary/10">Registrar seña</button>
+                ) : (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <MoneyInput value={seniaForm.monto} onChange={(n) => setSeniaForm((f) => ({ ...f, monto: n ?? "" }))} placeholder="Monto de la seña" className={inputSm} />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="date" value={seniaForm.fecha_pago} onChange={(e) => setSeniaForm((f) => ({ ...f, fecha_pago: e.target.value }))} className={inputSm} />
+                      <select value={seniaForm.metodo_pago} onChange={(e) => setSeniaForm((f) => ({ ...f, metodo_pago: e.target.value }))} className={inputSm}>
+                        {METODOS_PAGO.map((m) => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+                    {!lead.fecha_tentativa && !fechaOk && <p className="text-xs text-red-700">Cargá la fecha tentativa del evento (Editar) antes de registrar la seña.</p>}
+                    <div className="flex gap-2">
+                      <button onClick={handleRegistrarSenia} disabled={submitting} className="flex-1 rounded-md bg-primary px-3 py-2.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">Guardar seña</button>
+                      <button onClick={() => setShowSenia(false)} className="flex-1 rounded-md border border-border bg-card px-3 py-2.5 text-xs font-medium text-foreground hover:bg-secondary">Cancelar</button>
+                    </div>
+                  </div>
+                )
+              ) : (
+                <p className="mt-2 text-xs text-muted-foreground">Cuando se cumplan las tres, el lead pasa solo a "Reserva confirmada" y se crea el evento.</p>
+              )}
+            </div>
+          )}
 
           {/* Status change */}
           <div className="mb-4">

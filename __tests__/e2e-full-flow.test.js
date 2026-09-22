@@ -2,7 +2,7 @@
  * Test End-to-End — Flujo completo de un lead.
  *
  * Recorre todos los módulos y automatizaciones en el orden real de uso:
- *   Lead nuevo → Visita agendada → Visita realizada → Reserva confirmada (seña)
+ *   Lead nuevo → Visita agendada → Visita realizada → seña registrada + contrato firmado → Reserva confirmada
  *   → Contrato Enviada/Aprobada/Firmada (no mueve el lead) → Event creado → Pagos → Anulación
  *
  * Cada test valida el estado resultante del objeto compartido, simulando
@@ -14,6 +14,7 @@ jest.mock('@/lib/models/associations', () => require('./__mocks__/models'));
 const { POST: POST_INTERACTION } = require('../app/api/leads/[id]/interactions/route');
 const { PUT: PUT_STATUS }        = require('../app/api/leads/[id]/status/route');
 const { PUT: PUT_LEAD }          = require('../app/api/leads/[id]/route');
+const { POST: POST_SENIA }       = require('../app/api/leads/[id]/senia/route');
 const { PUT: PUT_PROPOSAL }      = require('../app/api/proposals/[id]/route');
 const { POST: POST_PAYMENT }     = require('../app/api/payments/route');
 const { PUT: PUT_PAYMENT }       = require('../app/api/payments/[id]/route');
@@ -159,33 +160,54 @@ describe('3. Estado "Visita realizada"', () => {
   });
 });
 
-// ─── 4. Reserva confirmada (seña) → fecha Reservada ──────────────────────────
+// ─── 4. Seña registrada desde la ficha del lead (E15-03) ─────────────────────
 
-describe('4. Estado "Reserva confirmada" (seña tomada)', () => {
-  test('reserva la fecha tentativa: CalendarDate "Reservada" + Reservation, sin crear Event', async () => {
+const calDateE2E = {
+  id: 'cal-e2e', fecha: '2026-09-20', estado_fecha: 'Reservada', evento_id: null,
+  update: jest.fn().mockImplementation(function (d) { Object.assign(calDateE2E, d); return Promise.resolve(calDateE2E); }),
+};
+const reservationE2E = {
+  id: 'res-e2e', lead_id: 'lead-e2e', calendar_date_id: 'cal-e2e', estado: 'Pendiente', monto_senia: 0,
+  update: jest.fn().mockImplementation(function (d) { Object.assign(reservationE2E, d); return Promise.resolve(reservationE2E); }),
+};
+
+describe('4. Registrar seña (POST /api/leads/:id/senia)', () => {
+  test('reserva la fecha tentativa en el calendario, guarda la seña como Pagada y, sin contrato firmado, NO confirma', async () => {
     lead.estado_actual = 'Visita realizada';
     models.Lead.findByPk.mockResolvedValue(lead);
-    models.LeadStatusHistory.create.mockResolvedValue({});
-    models.CalendarDate.findOne.mockResolvedValue(null);
-    models.CalendarDate.create.mockResolvedValue({ id: 'cal-e2e' });
-    models.Reservation.findOne.mockResolvedValue(null);
-    models.Reservation.create.mockResolvedValue({});
-    models.Proposal.findOne.mockResolvedValue(proposal);
+    // 1ª: fecha Reservada/Confirmada del lead → no hay · 2ª: ocupada por otro → no · 3ª: propia en esa fecha → no
+    models.CalendarDate.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(calDateE2E); // después (lib/reserva) ya existe
+    models.CalendarDate.create.mockResolvedValue(calDateE2E);
+    models.Reservation.findOne.mockResolvedValueOnce(null).mockResolvedValue(reservationE2E);
+    models.Reservation.create.mockImplementation(async (d) => { Object.assign(reservationE2E, d); return reservationE2E; });
+    models.Proposal.findOne.mockResolvedValue(null); // contrato todavía no firmado
 
-    await PUT_STATUS(makeReq({ estado: 'Reserva confirmada' }), makeParams('lead-e2e'));
+    const res = await POST_SENIA(makeReq({ monto: 150000, fecha_pago: '2026-09-01', metodo_pago: 'transferencia' }), makeParams('lead-e2e'));
+    const body = await res.json();
 
-    expect(lead.estado_actual).toBe('Reserva confirmada');
+    expect(res.status).toBe(201);
     expect(models.CalendarDate.create).toHaveBeenCalledWith(
       expect.objectContaining({ fecha: '2026-09-20', estado_fecha: 'Reservada', lead_id: 'lead-e2e' })
     );
-    expect(models.Reservation.create).toHaveBeenCalledWith(
-      expect.objectContaining({ lead_id: 'lead-e2e', calendar_date_id: 'cal-e2e' })
-    );
+    expect(reservationE2E.estado).toBe('Pagada');
+    expect(reservationE2E.monto_senia).toBe(150000);
+    expect(body.confirmada).toBe(false);
+    expect(body.faltantes).toEqual(['contrato firmado']);
+    expect(lead.estado_actual).toBe('Visita realizada');
     expect(models.Event.create).not.toHaveBeenCalled();
+  });
+
+  test('sin monto → 400', async () => {
+    const res = await POST_SENIA(makeReq({ monto: 0 }), makeParams('lead-e2e'));
+    expect(res.status).toBe(400);
   });
 });
 
-// ─── 5. Contrato: Enviada/Aprobada no tocan el lead; Firmada crea el Event ───
+// ─── 5. Contrato: Enviada/Aprobada no tocan el lead; Firmada completa las 3 condiciones ─
 
 describe('5. Contrato', () => {
   test('Enviada: setea fecha_envio y NO toca el lead', async () => {
@@ -195,7 +217,7 @@ describe('5. Contrato', () => {
 
     expect(proposal.estado).toBe('Enviada');
     expect(proposal.fecha_envio).toBeInstanceOf(Date);
-    expect(lead.estado_actual).toBe('Reserva confirmada');
+    expect(lead.estado_actual).toBe('Visita realizada');
     expect(models.LeadStatusHistory.create).not.toHaveBeenCalled();
   });
 
@@ -205,60 +227,55 @@ describe('5. Contrato', () => {
     await PUT_PROPOSAL(makeReq({ estado: 'Aprobada' }), makeParams('prop-e2e'));
 
     expect(proposal.estado).toBe('Aprobada');
-    expect(lead.estado_actual).toBe('Reserva confirmada');
+    expect(lead.estado_actual).toBe('Visita realizada');
     expect(models.Event.findOne).not.toHaveBeenCalled();
     expect(models.Event.create).not.toHaveBeenCalled();
   });
 
-  describe('Firmada', () => {
-    const existingCal = {
-      id: 'cal-e2e', estado_fecha: 'Reservada', evento_id: null,
-      update: jest.fn().mockImplementation(function (d) { Object.assign(existingCal, d); return Promise.resolve(existingCal); }),
-    };
+  test('Firmada con seña y fecha ya reservadas → Reserva confirmada + Evento con contrato, seña como pago y fecha Confirmada', async () => {
+    lead.estado_actual = 'Visita realizada';
+    Object.assign(reservationE2E, { estado: 'Pagada', monto_senia: 150000, fecha_pago: '2026-09-01', metodo_pago: 'transferencia' });
+    Object.assign(calDateE2E, { estado_fecha: 'Reservada', evento_id: null });
+    models.Proposal.findByPk.mockResolvedValue(proposal);
+    models.Lead.findByPk.mockResolvedValue(lead);
+    models.Event.findOne.mockResolvedValue(null);
+    models.Event.create.mockImplementation(async (data) => { Object.assign(createdEvent, data); return createdEvent; });
+    models.Reservation.findOne.mockResolvedValue(reservationE2E);
+    models.CalendarDate.findOne.mockResolvedValue(calDateE2E);
+    models.Proposal.findOne.mockResolvedValue(proposal);
+    models.Payment.findOne.mockResolvedValue(null);
+    models.Payment.create.mockResolvedValue(createdPayment);
+    models.LeadStatusHistory.create.mockResolvedValue({});
 
-    beforeEach(async () => {
-      models.Proposal.findByPk.mockResolvedValue(proposal);
-      models.Lead.findByPk.mockResolvedValue(lead);
-      models.Event.findOne.mockResolvedValue(null);
-      models.Event.create.mockImplementation(async (data) => { Object.assign(createdEvent, data); return createdEvent; });
-      models.CalendarDate.findOne.mockResolvedValue(existingCal);
-      await PUT_PROPOSAL(makeReq({ estado: 'Firmada' }), makeParams('prop-e2e'));
-    });
+    await PUT_PROPOSAL(makeReq({ estado: 'Firmada' }), makeParams('prop-e2e'));
 
-    test('el lead sigue en "Reserva confirmada": el contrato no mueve el estado', () => {
-      expect(lead.estado_actual).toBe('Reserva confirmada');
-      expect(models.LeadStatusHistory.create).not.toHaveBeenCalled();
-    });
-
-    test('auto-setea fecha_firma_contrato en el lead', () => {
-      expect(lead.fecha_firma_contrato).toBeInstanceOf(Date);
-    });
-
-    test('crea Event con datos completos del contrato', () => {
-      expect(models.Event.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          lead_id: 'lead-e2e',
-          fecha_confirmada: '2026-09-20',
-          valor_total_evento: 500000,
-          precio_senia: 150000,
-          menu_seleccionado: 'Menú 2',
-          minimo_tarjetas: 100,
-          estado_operativo: 'Pendiente',
-          estado_pago: 'Pendiente',
-        })
-      );
-    });
-
-    test('servicios_contratados combina servicios_base + adicionales elegidos', () => {
-      expect(createdEvent.servicios_contratados).toEqual(['Salón', 'Catering', 'DJ']);
-    });
-
-    test('la fecha Reservada pasa a "Confirmada" con el evento asociado, sin duplicarla', () => {
-      expect(existingCal.update).toHaveBeenCalledWith(
-        expect.objectContaining({ estado_fecha: 'Confirmada', evento_id: 'evt-e2e' })
-      );
-      expect(models.CalendarDate.create).not.toHaveBeenCalled();
-    });
+    // fecha de firma
+    expect(lead.fecha_firma_contrato).toBeInstanceOf(Date);
+    // lead confirmado con historial
+    expect(lead.estado_actual).toBe('Reserva confirmada');
+    expect(models.LeadStatusHistory.create).toHaveBeenCalledWith(expect.objectContaining({ estado_nuevo: 'Reserva confirmada' }));
+    // Evento con los datos del contrato
+    expect(models.Event.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lead_id: 'lead-e2e',
+        fecha_confirmada: '2026-09-20',
+        valor_total_evento: 500000,
+        precio_senia: 150000,
+        menu_seleccionado: 'Menú 2',
+        minimo_tarjetas: 100,
+        estado_operativo: 'Pendiente',
+      })
+    );
+    expect(createdEvent.servicios_contratados).toEqual(['Salón', 'Catering', 'DJ']);
+    // seña como primer pago confirmado → Parcial
+    expect(models.Payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ event_id: 'evt-e2e', tipo: 'seña', monto: 150000, estado: 'confirmado' })
+    );
+    expect(createdEvent.estado_pago).toBe('Parcial');
+    // fecha Confirmada ligada al evento, sin duplicar
+    expect(calDateE2E.estado_fecha).toBe('Confirmada');
+    expect(calDateE2E.evento_id).toBe('evt-e2e');
+    expect(models.CalendarDate.create).not.toHaveBeenCalled();
   });
 });
 

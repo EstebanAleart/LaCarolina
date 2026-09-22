@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { MOTIVOS_PERDIDA } from '@/lib/api';
-const { Lead, LeadStatusHistory, Proposal, CalendarDate, Reservation } = require('@/lib/models/associations');
+const { Lead, LeadStatusHistory, Proposal } = require('@/lib/models/associations');
+const { confirmarReservaSiCorresponde } = require('@/lib/reserva');
 
 // PUT /api/leads/:id/status - Cambiar estado del lead con historial
 export async function PUT(request, { params }) {
@@ -27,6 +28,16 @@ export async function PUT(request, { params }) {
       }
     }
 
+    // E15-03 / E15-04: "Reserva confirmada" solo con seña registrada + fecha reservada + contrato firmado.
+    // Si se cumple, lib/reserva registra el cambio y crea el Evento; si no, se rechaza diciendo qué falta.
+    if (estado === 'Reserva confirmada') {
+      const r = await confirmarReservaSiCorresponde(id, { user_id: user_id || null });
+      if (!r.confirmada) {
+        return NextResponse.json({ error: `Para confirmar la reserva falta: ${r.faltantes.join(', ')}` }, { status: 400 });
+      }
+      return NextResponse.json(await Lead.findByPk(id));
+    }
+
     const estadoAnterior = lead.estado_actual;
     const motivoHistorial = estado === 'Perdido' && motivo === 'Otro' ? `Otro: ${detalle.trim()}` : (motivo || null);
 
@@ -46,30 +57,9 @@ export async function PUT(request, { params }) {
       updated_at: new Date(),
     });
 
-    // E15-01: "Reserva confirmada" = la seña está tomada. Si el lead tiene fecha tentativa y esa fecha
-    // todavía no está en el calendario para este lead, se reserva (Reservada + Reservation).
-    // El Event y la fecha "Confirmada" los crea el contrato al firmarse (sección Contratos).
-    if (estado === 'Reserva confirmada' && lead.fecha_tentativa) {
-      const fechaEvento = new Date(lead.fecha_tentativa).toISOString().substring(0, 10);
-      let calDate = await CalendarDate.findOne({ where: { fecha: fechaEvento, lead_id: id } });
-      if (!calDate) {
-        calDate = await CalendarDate.create({
-          fecha: fechaEvento,
-          estado_fecha: 'Reservada',
-          fuente: 'CRM',
-          lead_id: id,
-          evento_id: null,
-        });
-      }
-      const existingRes = await Reservation.findOne({ where: { lead_id: id } });
-      if (!existingRes) {
-        await Reservation.create({ lead_id: id, calendar_date_id: calDate.id, estado: 'Pendiente' });
-      }
-    }
-
     // Auto-crear propuesta si no existe, para que Contratos tenga con qué trabajar.
     // El estado del contrato se gestiona exclusivamente desde la sección Contratos.
-    const PROPOSAL_STATES = ['Visita realizada', 'Reserva confirmada'];
+    const PROPOSAL_STATES = ['Visita realizada'];
     if (PROPOSAL_STATES.includes(estado)) {
       const existingProposal = await Proposal.findOne({ where: { lead_id: id } });
       if (!existingProposal) {

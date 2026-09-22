@@ -1,10 +1,10 @@
 /**
  * Tests para PUT /api/proposals/:id
- * E15-01: el estado del contrato NO mueve el estado del lead. Al firmar: fecha de firma,
- * Event con los datos del contrato y fecha "Confirmada" en el calendario.
+ * E15-03 / E15-04: el estado del contrato no mueve el lead por sí solo. Al firmar se registra la fecha
+ * de firma; si además hay seña registrada y fecha reservada, lib/reserva pasa el lead a
+ * "Reserva confirmada" y crea el Evento con los datos del contrato.
  */
 
-// Mocks antes de importar el route
 jest.mock('@/lib/models/associations', () => require('./__mocks__/models'));
 
 const { PUT } = require('../app/api/proposals/[id]/route');
@@ -53,115 +53,86 @@ function mockLead(overrides = {}) {
     nombre: 'Test Lead',
     valor_estimado: 400000,
     ...overrides,
-    update: jest.fn().mockResolvedValue(true),
+    update: jest.fn().mockImplementation(function (data) {
+      Object.assign(obj, data);
+      return Promise.resolve(obj);
+    }),
   };
   return obj;
 }
+
+const seniaPagada = { id: 'res-1', estado: 'Pagada', monto_senia: 150000, fecha_pago: '2026-05-01', metodo_pago: 'efectivo' };
+const fechaReservada = () => ({ id: 'cal-1', fecha: '2026-06-15', estado_fecha: 'Reservada', evento_id: null, update: jest.fn().mockResolvedValue(true) });
 
 beforeEach(() => {
   jest.clearAllMocks();
 });
 
-// ─── Firmada → Event + fecha Confirmada, sin tocar el estado del lead ────────
-
 describe('PUT proposal → Firmada', () => {
-  test('NO cambia el estado del lead y setea fecha_firma_contrato', async () => {
+  test('setea fecha_firma_contrato; sin seña ni fecha NO crea Evento ni cambia el lead', async () => {
     const proposal = mockProposal({ estado: 'Aprobada' });
     const lead = mockLead();
     models.Proposal.findByPk.mockResolvedValue(proposal);
     models.Lead.findByPk.mockResolvedValue(lead);
     models.Event.findOne.mockResolvedValue(null);
-    models.Event.create.mockResolvedValue({ id: 'evt-1' });
+    models.Reservation.findOne.mockResolvedValue(null);
     models.CalendarDate.findOne.mockResolvedValue(null);
-    models.CalendarDate.create.mockResolvedValue({});
+    models.Proposal.findOne.mockResolvedValue(proposal);
 
     await PUT(makeRequest({ estado: 'Firmada' }), makeParams('prop-1'));
 
+    expect(lead.fecha_firma_contrato).toBeInstanceOf(Date);
+    expect(lead.estado_actual).toBe('Visita realizada');
     expect(models.LeadStatusHistory.create).not.toHaveBeenCalled();
-    expect(lead.update).not.toHaveBeenCalledWith(expect.objectContaining({ estado_actual: expect.anything() }));
-    expect(lead.update).toHaveBeenCalledWith(expect.objectContaining({ fecha_firma_contrato: expect.any(Date) }));
-  });
-
-  test('NO crea Event duplicado si ya existe', async () => {
-    const proposal = mockProposal({ estado: 'Aprobada' });
-    const lead = mockLead();
-    const existingEvent = { id: 'evt-existente', update: jest.fn().mockResolvedValue(true) };
-    models.Proposal.findByPk.mockResolvedValue(proposal);
-    models.Lead.findByPk.mockResolvedValue(lead);
-    models.Event.findOne.mockResolvedValue(existingEvent);
-    models.CalendarDate.findOne.mockResolvedValue(null);
-    models.CalendarDate.create.mockResolvedValue({});
-
-    await PUT(makeRequest({ estado: 'Firmada' }), makeParams('prop-1'));
-
     expect(models.Event.create).not.toHaveBeenCalled();
-    expect(existingEvent.update).toHaveBeenCalled();
   });
 
-  test('crea Event si no existe y hay fecha_tentativa', async () => {
-    const proposal = mockProposal({ estado: 'Aprobada' });
-    const lead = mockLead({ fecha_tentativa: '2026-06-15' });
+  test('con seña y fecha reservada: crea el Evento con los datos del contrato, la seña como pago y el lead pasa a Reserva confirmada', async () => {
+    const proposal = mockProposal({ estado: 'Aprobada', precio_senia: 150000 });
+    const lead = mockLead();
+    const calDate = fechaReservada();
+    const evt = { id: 'evt-nuevo', valor_total_evento: 400000, update: jest.fn().mockResolvedValue(true) };
     models.Proposal.findByPk.mockResolvedValue(proposal);
     models.Lead.findByPk.mockResolvedValue(lead);
     models.Event.findOne.mockResolvedValue(null);
-    models.Event.create.mockResolvedValue({ id: 'evt-nuevo' });
-    models.CalendarDate.findOne.mockResolvedValue(null);
-    models.CalendarDate.create.mockResolvedValue({});
+    models.Reservation.findOne.mockResolvedValue(seniaPagada);
+    models.CalendarDate.findOne.mockResolvedValue(calDate);
+    models.Proposal.findOne.mockResolvedValue(proposal);
+    models.Event.create.mockResolvedValue(evt);
+    models.Payment.findOne.mockResolvedValue(null);
+    models.Payment.create.mockResolvedValue({});
 
     await PUT(makeRequest({ estado: 'Firmada' }), makeParams('prop-1'));
 
     expect(models.Event.create).toHaveBeenCalledWith(
-      expect.objectContaining({ lead_id: 'lead-1', estado_operativo: 'Pendiente' })
+      expect.objectContaining({ lead_id: 'lead-1', fecha_confirmada: '2026-06-15', valor_total_evento: 400000, precio_senia: 150000, estado_operativo: 'Pendiente' })
     );
+    expect(models.Payment.create).toHaveBeenCalledWith(expect.objectContaining({ event_id: 'evt-nuevo', tipo: 'seña', monto: 150000, estado: 'confirmado' }));
+    expect(calDate.update).toHaveBeenCalledWith({ estado_fecha: 'Confirmada', evento_id: 'evt-nuevo' });
+    expect(lead.estado_actual).toBe('Reserva confirmada');
+    expect(models.LeadStatusHistory.create).toHaveBeenCalledWith(expect.objectContaining({ estado_nuevo: 'Reserva confirmada' }));
   });
 
-  test('NO crea Event si no hay fecha_tentativa', async () => {
-    const proposal = mockProposal({ estado: 'Aprobada' });
-    const lead = mockLead({ fecha_tentativa: null });
+  test('si el Evento ya existe: sincroniza los datos del contrato y NO lo duplica', async () => {
+    const adicionales = [{ nombre: 'DJ', opciones: [{ descripcion: 'DJ', precio: 20000 }], opcion_elegida: 0 }];
+    const proposal = mockProposal({ estado: 'Aprobada', precio_senia: 150000, adicionales });
+    const lead = mockLead({ estado_actual: 'Reserva confirmada' });
+    const existingEvent = { id: 'evt-1', valor_total_evento: 400000, update: jest.fn().mockResolvedValue(true) };
     models.Proposal.findByPk.mockResolvedValue(proposal);
     models.Lead.findByPk.mockResolvedValue(lead);
-    models.Event.findOne.mockResolvedValue(null);
-    models.CalendarDate.findOne.mockResolvedValue(null);
+    models.Event.findOne.mockResolvedValue(existingEvent);
+    models.Reservation.findOne.mockResolvedValue(seniaPagada);
+    models.CalendarDate.findOne.mockResolvedValue({ id: 'cal-1', fecha: '2026-06-15', estado_fecha: 'Confirmada', evento_id: 'evt-1', update: jest.fn() });
+    models.Proposal.findOne.mockResolvedValue(proposal);
+    models.Payment.findOne.mockResolvedValue({ id: 'pay-1' });
 
     await PUT(makeRequest({ estado: 'Firmada' }), makeParams('prop-1'));
 
     expect(models.Event.create).not.toHaveBeenCalled();
-  });
-
-  test('NO crea CalendarDate duplicado si ya existe: la pasa a Confirmada', async () => {
-    const proposal = mockProposal({ estado: 'Aprobada' });
-    const lead = mockLead();
-    const existingEvent = { id: 'evt-1', update: jest.fn().mockResolvedValue(true) };
-    const existingCal = { update: jest.fn().mockResolvedValue(true) };
-    models.Proposal.findByPk.mockResolvedValue(proposal);
-    models.Lead.findByPk.mockResolvedValue(lead);
-    models.Event.findOne.mockResolvedValue(existingEvent);
-    models.CalendarDate.findOne.mockResolvedValue(existingCal);
-
-    await PUT(makeRequest({ estado: 'Firmada' }), makeParams('prop-1'));
-
-    expect(models.CalendarDate.create).not.toHaveBeenCalled();
-    expect(existingCal.update).toHaveBeenCalledWith(expect.objectContaining({ estado_fecha: 'Confirmada' }));
-  });
-
-  test('sincroniza precio_senia y adicionales al Event', async () => {
-    const adicionales = [{ nombre: 'DJ', opciones: [{ descripcion: 'DJ', precio: 20000 }], opcion_elegida: 0 }];
-    const proposal = mockProposal({ estado: 'Aprobada', precio_senia: 150000, adicionales });
-    const lead = mockLead();
-    const existingEvent = { id: 'evt-1', update: jest.fn().mockResolvedValue(true) };
-    models.Proposal.findByPk.mockResolvedValue(proposal);
-    models.Lead.findByPk.mockResolvedValue(lead);
-    models.Event.findOne.mockResolvedValue(existingEvent);
-    models.CalendarDate.findOne.mockResolvedValue(null);
-    models.CalendarDate.create.mockResolvedValue({});
-
-    await PUT(makeRequest({ estado: 'Firmada' }), makeParams('prop-1'));
-
-    expect(existingEvent.update).toHaveBeenCalledWith(expect.objectContaining({ precio_senia: 150000, adicionales }));
+    expect(existingEvent.update).toHaveBeenCalledWith(expect.objectContaining({ precio_senia: 150000, adicionales, servicios_contratados: ['Salón', 'DJ'] }));
+    expect(models.Payment.create).not.toHaveBeenCalled();
   });
 });
-
-// ─── Enviada / Aprobada / Rechazada → no tocan el lead ni el Event ───────────
 
 describe('PUT proposal → Enviada / Aprobada / Rechazada', () => {
   test.each(['Enviada', 'Aprobada', 'Rechazada'])('%s: NO toca el lead ni el Event', async (estado) => {

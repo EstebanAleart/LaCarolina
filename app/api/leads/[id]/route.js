@@ -23,7 +23,14 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 });
     }
 
-    return NextResponse.json(lead);
+    // Fecha del evento en el calendario (Reservada/Confirmada a nombre del lead): la ficha la usa
+    // para mostrar qué falta para confirmar la reserva (E15-03).
+    const calendar_date = await CalendarDate.findOne({
+      where: { lead_id: id, estado_fecha: ['Reservada', 'Confirmada'] },
+      order: [['fecha', 'ASC']],
+    });
+
+    return NextResponse.json({ ...lead.toJSON(), calendar_date });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
