@@ -184,10 +184,8 @@ export default function DashboardView({ onNavigate }) {
             aria-label="Alertas próximas"
           >
             <Bell className="h-5 w-5" />
-            {stats.alertas7 > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold text-white">
-                {stats.alertas7}
-              </span>
+            {(stats.alertas || []).length > 0 && (
+              <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-card" aria-hidden="true" />
             )}
           </button>
           {bellOpen && (
@@ -196,13 +194,13 @@ export default function DashboardView({ onNavigate }) {
               <div className="absolute right-0 z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-card shadow-lg">
                 <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
                   <span className="text-sm font-semibold text-card-foreground">Próximas alertas</span>
-                  <span className="text-xs text-muted-foreground">{stats.alertas.length} en 30 días</span>
+                  <span className="text-xs text-muted-foreground">{(stats.alertas || []).length} en 30 días</span>
                 </div>
-                {stats.alertas.length === 0 ? (
+                {(stats.alertas || []).length === 0 ? (
                   <p className="px-4 py-6 text-center text-sm text-muted-foreground">No hay eventos en los próximos 30 días.</p>
                 ) : (
                   <ul className="max-h-72 overflow-y-auto">
-                    {stats.alertas.slice(0, 5).map((a) => (
+                    {(stats.alertas || []).slice(0, 5).map((a) => (
                       <li key={a.event_id} className="flex items-center gap-3 border-b border-border px-4 py-2.5 last:border-0">
                         <span className={`h-2 w-2 shrink-0 rounded-full ${a.dias <= 0 ? "bg-red-600" : a.dias <= 7 ? "bg-orange-500" : "bg-sky-500"}`} />
                         <span className="min-w-0 flex-1">
@@ -260,9 +258,9 @@ export default function DashboardView({ onNavigate }) {
         <StatCard
           icon={Wallet}
           label="Por cobrar (30 días)"
-          value={"$" + (stats.porCobrar / 1000).toFixed(0) + "k"}
-          sublabel={stats.eventosConSaldo > 0 ? `${stats.eventosConSaldo} evento(s) con saldo · ${stats.alertas7} en 7 días` : "Sin saldos pendientes"}
-          color={stats.alertas7 > 0 && stats.porCobrar > 0 ? "#ef4444" : "#f59e0b"}
+          value={"$" + ((stats.porCobrar || 0) / 1000).toFixed(0) + "k"}
+          sublabel={stats.eventosConSaldo > 0 ? `${stats.eventosConSaldo} evento(s) con saldo · ${stats.alertas7 || 0} en 7 días` : "Sin saldos pendientes"}
+          color={(stats.alertas7 || 0) > 0 && (stats.porCobrar || 0) > 0 ? "#ef4444" : "#f59e0b"}
           onClick={() => go("alerts")}
         />
       </div>
