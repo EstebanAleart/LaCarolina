@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-const { Event, Lead, CalendarDate, LeadStatusHistory, Task } = require('@/lib/models/associations');
+const { Event, Lead, CalendarDate, LeadStatusHistory, Task, EventoCliente } = require('@/lib/models/associations');
 const { actualizarEstadosEventos } = require('@/lib/automations');
+const { vincularTitularAlEvento } = require('@/lib/clientes');
 
 // GET /api/events - Todos los eventos (acomoda primero los estados por fecha: Próximo / Realizado / Cerrado)
 export async function GET() {
@@ -10,6 +11,7 @@ export async function GET() {
       include: [
         { association: 'lead' },
         { association: 'calendar_date' },
+        { association: 'clientes', attributes: ['id', 'nombre', 'telefono', 'email'], through: { attributes: ['rol'] } },
       ],
       order: [['created_at', 'DESC']],
     });
@@ -95,6 +97,8 @@ export async function POST(request) {
         updated_at: new Date(),
       });
     }
+    // E15-08: el cliente del lead queda como titular del evento
+    if (lead) await vincularTitularAlEvento(EventoCliente, event, lead.cliente_id);
 
     return NextResponse.json(event, { status: 201 });
   } catch (error) {

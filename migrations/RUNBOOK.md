@@ -101,3 +101,12 @@ Solo datos: remapea `events.estado_operativo` a En planificación / Próximo eve
 & $PSQL $PROD -f "$M\007_eventos_estados.sql"
 ```
 Variables de entorno opcionales (defaults en código): `EVENTO_PROXIMO_DIAS=30`, `POSTEVENTO_AGRADECIMIENTO_DIAS=1`, `POSTEVENTO_FEEDBACK_DIAS=2`.
+
+## E15-08 — Clientes (`008_clientes.sql`)
+DDL aditivo: tabla `clientes`, `leads.cliente_id`, puente `evento_clientes(evento_id, cliente_id, rol)`. Backfill conservador: un cliente por lead, deduplicando por teléfono (solo dígitos) o email; los duplicados que queden (mismo nombre, otro teléfono) se revisan a mano. Idempotente. Ya aplicada en LOCAL.
+**Correr en develop y prod ANTES de desplegar la rama** (el modelo Lead lee `cliente_id` y las rutas usan `clientes`):
+```powershell
+& $PSQL $STG  -f "$M\008_clientes.sql"
+& $PSQL $PROD -f "$M\008_clientes.sql"
+& $PSQL $PROD -c "SELECT (SELECT count(*) FROM clientes) clientes, (SELECT count(*) FROM leads WHERE cliente_id IS NULL) leads_sin_cliente, (SELECT count(*) FROM evento_clientes) titulares;"
+```

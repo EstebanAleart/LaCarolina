@@ -16,6 +16,7 @@ export async function GET(request, { params }) {
         { association: 'status_history', order: [['changed_at', 'DESC']] },
         { association: 'reservation' },
         { association: 'event' },
+        { association: 'cliente' },
       ],
     });
 

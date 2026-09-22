@@ -13,6 +13,7 @@ function makeModel(name) {
     update:    jest.fn(),
     destroy:   jest.fn(),
     count:     jest.fn(),
+    findOrCreate: jest.fn(),
   };
 }
 
@@ -27,4 +28,6 @@ module.exports = {
   Interaction:       makeModel('Interaction'),
   Visit:             makeModel('Visit'),
   Payment:           makeModel('Payment'),
+  Cliente:           makeModel('Cliente'),
+  EventoCliente:     makeModel('EventoCliente'),
 };

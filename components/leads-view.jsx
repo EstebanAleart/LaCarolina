@@ -38,6 +38,7 @@ import {
   MOTIVOS_PERDIDA,
   METODOS_PAGO,
   apiRegistrarSenia,
+  fetchClientes,
 } from "@/lib/api"
 import MoneyInput from "@/components/ui/money-input"
 
@@ -90,6 +91,16 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
   )
   const [submitting, setSubmitting] = useState(false)
   const [fechaOcupadaWarning, setFechaOcupadaWarning] = useState("")
+  // E15-08: cliente existente (segunda fiesta) o nuevo desde los datos de contacto
+  const [clienteQ, setClienteQ] = useState("")
+  const [clienteOpts, setClienteOpts] = useState([])
+  const [clienteSel, setClienteSel] = useState(initial?.cliente || null)
+  useEffect(() => {
+    const q = clienteQ.trim()
+    if (q.length < 2) { setClienteOpts([]); return }
+    const t = setTimeout(() => { fetchClientes(q).then(setClienteOpts).catch(() => setClienteOpts([])) }, 250)
+    return () => clearTimeout(t)
+  }, [clienteQ])
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -147,6 +158,7 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
         invitados_estimados: form.invitados_estimados === '' ? null : parseInt(String(form.invitados_estimados).replace(/\./g, ""), 10) || null,
         notas:               form.notas,
         es_historico:        !!form.es_historico,
+        cliente_id:          clienteSel?.id || null,
       })
     } finally { setSubmitting(false) }
   }
@@ -173,6 +185,37 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
           <span className="block text-xs text-orange-700/80">No es un lead nuevo: es un cliente previo que se ingresa al sistema. No cuenta para conversión ni pipeline.</span>
         </span>
       </label>
+
+      {/* Cliente existente (E15-08): si ya es cliente, elegilo y el lead queda atado a él */}
+      {!initial && (
+        <div className="rounded-lg border border-border bg-secondary/40 p-3">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">¿Ya es cliente?</p>
+          {clienteSel ? (
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-card-foreground">{clienteSel.nombre}{clienteSel.telefono ? ` · ${clienteSel.telefono}` : ""}</span>
+              <button type="button" onClick={() => setClienteSel(null)} className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-secondary">Quitar</button>
+            </div>
+          ) : (
+            <div className="relative">
+              <input value={clienteQ} onChange={(e) => setClienteQ(e.target.value)} placeholder="Buscar por nombre, teléfono o mail..." className={`w-full ${inputCls}`} />
+              {clienteOpts.length > 0 && (
+                <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto scrollbar-none rounded-md border border-border bg-card shadow-lg">
+                  {clienteOpts.map((c) => (
+                    <li key={c.id}>
+                      <button type="button" onClick={() => { setClienteSel(c); setClienteQ(""); setClienteOpts([]); setForm((f) => ({ ...f, nombre: f.nombre || c.nombre, telefono: f.telefono || c.telefono || "", email: f.email || c.email || "" })) }}
+                        className="flex w-full flex-col px-3 py-2 text-left hover:bg-secondary">
+                        <span className="text-sm text-card-foreground">{c.nombre}</span>
+                        <span className="text-xs text-muted-foreground">{[c.telefono, c.email].filter(Boolean).join(" · ")}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">Si no lo encontrás, seguí cargando: el cliente se crea solo con los datos de contacto.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Datos de contacto */}
       <div>
@@ -476,6 +519,13 @@ function LeadDetail({ lead: initialLead, onClose, onRefresh }) {
             {lead.estado_actual === "Perdido" && lead.motivo_perdida && (
               <div className="col-span-2 flex items-center gap-2 text-red-700">
                 <span className="font-medium">Motivo de pérdida:</span> {lead.motivo_perdida}
+              </div>
+            )}
+            {leadFull?.cliente && (
+              <div className="col-span-2 flex flex-wrap items-center gap-2 text-muted-foreground">
+                <span className="font-medium text-card-foreground">Cliente:</span> {leadFull.cliente.nombre}
+                {leadFull.cliente.telefono && <span>· {leadFull.cliente.telefono}</span>}
+                {leadFull.cliente.email && <span>· {leadFull.cliente.email}</span>}
               </div>
             )}
           </div>
