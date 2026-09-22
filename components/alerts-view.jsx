@@ -63,9 +63,9 @@ export default function AlertsView() {
               <div className="grid gap-2 sm:grid-cols-2">
                 {items.map(a => (
                   <div key={a.event_id} className={cn("rounded-lg border p-3", style.ring)}>
-                    <div className="flex items-center justify-between">
-                      <p className="font-bold text-foreground">{a.cliente}</p>
-                      <span className="text-xs font-semibold text-foreground">{diasTxt(a.dias)}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="min-w-0 truncate font-bold text-foreground">{a.cliente}</p>
+                      <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-foreground">{diasTxt(a.dias)}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">{fmtFecha(a.fecha)}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
@@ -74,17 +74,17 @@ export default function AlertsView() {
                       )}
                       {a.combo && (
                         <span className="flex items-center gap-1 rounded bg-rose-100 px-1.5 py-0.5 font-medium text-rose-800">
-                          <PartyPopper className="h-3 w-3" /> {a.combo}
+                          <PartyPopper className="h-3 w-3 shrink-0" /> {a.combo}
                         </span>
                       )}
                     </div>
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className={cn("flex items-center gap-1 text-sm font-bold", a.saldo > 0 ? "text-red-700" : "text-green-700")}>
-                        <DollarSign className="h-3.5 w-3.5" /> Saldo: {fmt(a.saldo)}
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <span className={cn("flex items-center gap-1 whitespace-nowrap text-sm font-bold", a.saldo > 0 ? "text-red-700" : "text-green-700")}>
+                        <DollarSign className="h-3.5 w-3.5 shrink-0" /> Saldo: {fmt(a.saldo)}
                       </span>
                       {a.telefono && (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Phone className="h-3 w-3" /> {a.telefono}
+                        <span className="flex items-center gap-1 whitespace-nowrap text-xs text-muted-foreground">
+                          <Phone className="h-3 w-3 shrink-0" /> {a.telefono}
                         </span>
                       )}
                     </div>

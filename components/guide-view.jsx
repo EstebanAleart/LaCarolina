@@ -136,7 +136,7 @@ const PAGES = [
     ],
     notas: [
       "No hay que cargar nada acá: se arma sola con los eventos y sus fechas.",
-      "Solo aparecen eventos de los próximos 30 días (y los recién vencidos que todavía no marcaste como 'Realizado').",
+      "Solo aparecen eventos de los próximos 30 días. Los que ya pasaron se marcan solos como 'Realizado' y dejan de aparecer.",
       "Si un evento ya está 'Realizado' o 'Cancelado', no molesta más en las alertas.",
     ],
   },
@@ -186,7 +186,7 @@ export default function GuideView() {
             key={i}
             onClick={() => setPage(i)}
             className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+              "rounded-full px-3 py-2.5 text-xs font-medium transition-colors sm:py-1",
               i === page ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:bg-secondary/70"
             )}
           >
@@ -196,9 +196,9 @@ export default function GuideView() {
       </div>
 
       {/* Página actual */}
-      <div className="rounded-lg border border-border bg-card p-6">
+      <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
         <div className="flex items-center gap-3 border-b border-border pb-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
             <Icon className="h-5 w-5 text-primary" />
           </div>
           <div>
@@ -238,7 +238,7 @@ export default function GuideView() {
         <button
           onClick={() => setPage(p => Math.max(0, p - 1))}
           disabled={page === 0}
-          className="flex items-center gap-1 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-40"
+          className="flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-40 sm:flex-none sm:py-2"
         >
           <ChevronLeft className="h-4 w-4" /> Anterior
         </button>
@@ -246,7 +246,7 @@ export default function GuideView() {
         <button
           onClick={() => setPage(p => Math.min(total - 1, p + 1))}
           disabled={page === total - 1}
-          className="flex items-center gap-1 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-40"
+          className="flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-40 sm:flex-none sm:py-2"
         >
           Siguiente <ChevronRight className="h-4 w-4" />
         </button>

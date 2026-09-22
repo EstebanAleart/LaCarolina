@@ -57,7 +57,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-[100dvh] overflow-hidden bg-background">
       {/* Desktop sidebar */}
       <div className="hidden md:block">
         <AppSidebar
@@ -74,7 +74,7 @@ export default function Home() {
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-foreground/20" onClick={() => setMobileMenuOpen(false)} />
-          <div className="relative z-50">
+          <div className="relative z-50 h-[100dvh]">
             <AppSidebar
               activeView={activeView}
               onNavigate={handleNavigate}
@@ -88,12 +88,12 @@ export default function Home() {
       )}
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
         {/* Mobile header */}
         <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-card px-4 py-3 md:hidden">
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="rounded-md p-1.5 text-foreground hover:bg-secondary transition-colors"
+            className="rounded-md p-2.5 text-foreground hover:bg-secondary transition-colors"
             aria-label="Abrir menu"
           >
             <Menu className="h-5 w-5" />

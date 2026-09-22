@@ -84,7 +84,12 @@ export default function DashboardView() {
           fetchEvents(),
           fetchAllProposals(),
         ])
-        const [leads, calendar, tasks, events, proposals] = results.map(r => r.status === 'fulfilled' ? r.value : [])
+        const [leadsTodos, calendar, tasks, events, proposals] = results.map(r => r.status === 'fulfilled' ? r.value : [])
+
+        // Cartera histórica (cargada ya firmada en la puesta en marcha): fuera de conversión y pipeline.
+        const histIds = new Set(leadsTodos.filter((l) => l.es_historico).map((l) => l.id))
+        const leads = leadsTodos.filter((l) => !histIds.has(l.id))
+        const eventsOperativos = events.filter((e) => !histIds.has(e.lead_id))
 
         const byState = {}
         LEAD_STATES.forEach((s) => (byState[s] = 0))
@@ -119,11 +124,12 @@ export default function DashboardView() {
 
         const conversionRate =
           leads.length > 0
-            ? Math.round((events.length / leads.length) * 100)
+            ? Math.round((eventsOperativos.length / leads.length) * 100)
             : 0
 
         setStats({
-          totalLeads: leads.length,
+          totalLeads: leadsTodos.length,
+          historicos: histIds.size,
           totalEvents: events.length,
           totalValue,
           confirmedDates,
@@ -164,7 +170,7 @@ export default function DashboardView() {
           icon={Users}
           label="Total Leads"
           value={stats.totalLeads}
-          sublabel={`${stats.conversionRate}% conversion`}
+          sublabel={`${stats.conversionRate}% conversión${stats.historicos ? ` · ${stats.historicos} históricos` : ""}`}
           color="#3b82f6"
         />
         <StatCard
@@ -195,6 +201,7 @@ export default function DashboardView() {
         <div className="rounded-lg border border-border bg-card p-5">
           <h3 className="text-sm font-semibold text-card-foreground mb-4">
             Pipeline Comercial
+            {stats.historicos > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">sin {stats.historicos} históricos</span>}
           </h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -283,7 +290,7 @@ export default function DashboardView() {
           <TrendingUp className="h-5 w-5 text-primary" />
           <div>
             <p className="text-lg font-bold text-card-foreground">{stats.conversionRate}%</p>
-            <p className="text-xs text-muted-foreground">Tasa de conversion</p>
+            <p className="text-xs text-muted-foreground">Tasa de conversión{stats.historicos ? " (sin históricos)" : ""}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-4">

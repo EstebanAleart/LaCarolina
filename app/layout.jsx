@@ -1,6 +1,7 @@
 import { Inter } from "next/font/google"
 import "./globals.css"
 import ToasterProvider from "@/components/providers/toaster-provider"
+import NumberInputGuard from "@/components/providers/number-input-guard"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 
@@ -16,7 +17,7 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="es" className={inter.variable}>
-      <body className="font-sans antialiased" suppressHydrationWarning>{children}<ToasterProvider /></body>
+      <body className="font-sans antialiased" suppressHydrationWarning>{children}<ToasterProvider /><NumberInputGuard /></body>
     </html>
   )
 }
