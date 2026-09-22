@@ -36,21 +36,11 @@ import {
 } from "@/lib/api"
 
 const STATE_COLORS = {
-  "Lead nuevo":                "bg-slate-100 text-slate-700",
-  "Contactado":                "bg-blue-100 text-blue-800",
-  "Esperando visita":          "bg-sky-100 text-sky-800",
-  "Visita al salón realizada": "bg-cyan-100 text-cyan-800",
-  "Enviar propuesta":          "bg-purple-100 text-purple-800",
-  "Propuesta enviada":         "bg-violet-100 text-violet-800",
-  "Propuesta Aceptada":        "bg-lime-100 text-lime-800",
-  "Propuesta Rechazada":       "bg-rose-100 text-rose-800",
-  "Esperando Reserva":         "bg-orange-100 text-orange-800",
-  "Reserva tomada":            "bg-amber-100 text-amber-800",
-  "Contrato firmado":          "bg-emerald-100 text-emerald-800",
-  "Cliente activo":            "bg-green-100 text-green-800",
-  "Evento realizado":          "bg-teal-100 text-teal-800",
-  "Post-evento / cerrado":     "bg-gray-100 text-gray-600",
-  "Perdido":                   "bg-red-100 text-red-800",
+  "Lead nuevo":         "bg-slate-100 text-slate-700",
+  "Visita agendada":    "bg-sky-100 text-sky-800",
+  "Visita realizada":   "bg-cyan-100 text-cyan-800",
+  "Reserva confirmada": "bg-emerald-100 text-emerald-800",
+  "Perdido":            "bg-red-100 text-red-800",
 }
 
 function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
@@ -266,8 +256,8 @@ function LeadForm({ onSubmit, onCancel, initial, calendarDates = [] }) {
         </div>
       </div>
 
-      {/* Segunda instancia — solo al editar, desde "Visita al salón realizada" en adelante */}
-      {initial && LEAD_STATES.indexOf(initial.estado_actual) >= LEAD_STATES.indexOf("Visita al salón realizada") && (
+      {/* Segunda instancia — solo al editar, desde "Visita realizada" en adelante */}
+      {initial && LEAD_STATES.indexOf(initial.estado_actual) >= LEAD_STATES.indexOf("Visita realizada") && (
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Segunda instancia</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

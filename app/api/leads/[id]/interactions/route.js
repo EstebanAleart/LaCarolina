@@ -36,20 +36,7 @@ export async function POST(request, { params }) {
       created_by_user_id: body.created_by_user_id || null,
     });
 
-    // Auto-avanzar estado a "Contactado" si es una interacción saliente y el lead está en "Lead nuevo"
-    if (direction === 'OUT') {
-      const lead = await Lead.findByPk(id);
-      if (lead && lead.estado_actual === 'Lead nuevo') {
-        await LeadStatusHistory.create({
-          lead_id: lead.id,
-          estado_anterior: lead.estado_actual,
-          estado_nuevo: 'Contactado',
-          motivo: `Primera interacción saliente (${canal})`,
-          changed_by_user_id: body.created_by_user_id || null,
-        });
-        await lead.update({ estado_actual: 'Contactado', updated_at: new Date() });
-      }
-    }
+    // E15-01: las interacciones no mueven el estado del lead (ya no existe "Contactado").
 
     return NextResponse.json(interaction, { status: 201 });
   } catch (error) {

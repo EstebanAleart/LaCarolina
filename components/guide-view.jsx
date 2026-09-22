@@ -155,9 +155,9 @@ const PAGES = [
     icon: Zap, title: "10. Cosas que el sistema hace solo",
     intro: "Para que no te olvides de nada, el sistema hace varias cosas automáticamente.",
     steps: [
-      "Cuando anotás que le escribiste a un cliente nuevo, pasa solo a 'Contactado'.",
-      "Cuando marcás 'Enviar propuesta', te crea una tarea para acordarte.",
-      "Cuando firmás el contrato, crea el evento y reserva la fecha solo.",
+      "Cuando cargás la fecha de visita al salón, el lead pasa solo a 'Visita agendada'.",
+      "Cuando tomás la seña en el calendario, el lead pasa solo a 'Reserva confirmada'.",
+      "Cuando firmás el contrato, crea el evento y confirma la fecha solo.",
       "Cuando cargás pagos, el evento pasa solo de 'Pendiente' a 'Parcial' y a 'Completo'.",
     ],
     notas: [

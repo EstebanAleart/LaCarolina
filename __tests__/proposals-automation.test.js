@@ -1,6 +1,7 @@
 /**
  * Tests para PUT /api/proposals/:id
- * Verifica automatizaciones de estado y prevención de duplicados.
+ * E15-01: el estado del contrato NO mueve el estado del lead. Al firmar: fecha de firma,
+ * Event con los datos del contrato y fecha "Confirmada" en el calendario.
  */
 
 // Mocks antes de importar el route
@@ -9,17 +10,13 @@ jest.mock('@/lib/models/associations', () => require('./__mocks__/models'));
 const { PUT } = require('../app/api/proposals/[id]/route');
 const models = require('./__mocks__/models');
 
-// Helper para crear un mock Request
 function makeRequest(body) {
   return { json: jest.fn().mockResolvedValue(body) };
 }
-
-// Helper params (Next.js await params)
 function makeParams(id) {
   return { params: { id } };
 }
 
-// Factory de propuesta mock
 function mockProposal(overrides = {}) {
   const obj = {
     id: 'prop-1',
@@ -47,11 +44,10 @@ function mockProposal(overrides = {}) {
   return obj;
 }
 
-// Factory de lead mock
 function mockLead(overrides = {}) {
   const obj = {
     id: 'lead-1',
-    estado_actual: 'Propuesta enviada',
+    estado_actual: 'Visita realizada',
     fecha_tentativa: '2026-06-15',
     fecha_firma_contrato: null,
     nombre: 'Test Lead',
@@ -66,28 +62,24 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-// ─── Firmada → sincronización al Event ──────────────────────────────────────
+// ─── Firmada → Event + fecha Confirmada, sin tocar el estado del lead ────────
 
 describe('PUT proposal → Firmada', () => {
-  test('cambia estado del lead a "Contrato firmado"', async () => {
+  test('NO cambia el estado del lead y setea fecha_firma_contrato', async () => {
     const proposal = mockProposal({ estado: 'Aprobada' });
-    const lead = mockLead({ estado_actual: 'Propuesta Aceptada' });
+    const lead = mockLead();
     models.Proposal.findByPk.mockResolvedValue(proposal);
     models.Lead.findByPk.mockResolvedValue(lead);
-    models.LeadStatusHistory.create.mockResolvedValue({});
-    models.Event.findOne.mockResolvedValue(null); // no existe evento
+    models.Event.findOne.mockResolvedValue(null);
+    models.Event.create.mockResolvedValue({ id: 'evt-1' });
     models.CalendarDate.findOne.mockResolvedValue(null);
     models.CalendarDate.create.mockResolvedValue({});
-    models.Event.create.mockResolvedValue({ id: 'evt-1' });
 
     await PUT(makeRequest({ estado: 'Firmada' }), makeParams('prop-1'));
 
-    expect(models.LeadStatusHistory.create).toHaveBeenCalledWith(
-      expect.objectContaining({ estado_nuevo: 'Contrato firmado' })
-    );
-    expect(lead.update).toHaveBeenCalledWith(
-      expect.objectContaining({ estado_actual: 'Contrato firmado' })
-    );
+    expect(models.LeadStatusHistory.create).not.toHaveBeenCalled();
+    expect(lead.update).not.toHaveBeenCalledWith(expect.objectContaining({ estado_actual: expect.anything() }));
+    expect(lead.update).toHaveBeenCalledWith(expect.objectContaining({ fecha_firma_contrato: expect.any(Date) }));
   });
 
   test('NO crea Event duplicado si ya existe', async () => {
@@ -96,8 +88,7 @@ describe('PUT proposal → Firmada', () => {
     const existingEvent = { id: 'evt-existente', update: jest.fn().mockResolvedValue(true) };
     models.Proposal.findByPk.mockResolvedValue(proposal);
     models.Lead.findByPk.mockResolvedValue(lead);
-    models.LeadStatusHistory.create.mockResolvedValue({});
-    models.Event.findOne.mockResolvedValue(existingEvent); // ya existe
+    models.Event.findOne.mockResolvedValue(existingEvent);
     models.CalendarDate.findOne.mockResolvedValue(null);
     models.CalendarDate.create.mockResolvedValue({});
 
@@ -112,8 +103,7 @@ describe('PUT proposal → Firmada', () => {
     const lead = mockLead({ fecha_tentativa: '2026-06-15' });
     models.Proposal.findByPk.mockResolvedValue(proposal);
     models.Lead.findByPk.mockResolvedValue(lead);
-    models.LeadStatusHistory.create.mockResolvedValue({});
-    models.Event.findOne.mockResolvedValue(null); // no existe
+    models.Event.findOne.mockResolvedValue(null);
     models.Event.create.mockResolvedValue({ id: 'evt-nuevo' });
     models.CalendarDate.findOne.mockResolvedValue(null);
     models.CalendarDate.create.mockResolvedValue({});
@@ -130,7 +120,6 @@ describe('PUT proposal → Firmada', () => {
     const lead = mockLead({ fecha_tentativa: null });
     models.Proposal.findByPk.mockResolvedValue(proposal);
     models.Lead.findByPk.mockResolvedValue(lead);
-    models.LeadStatusHistory.create.mockResolvedValue({});
     models.Event.findOne.mockResolvedValue(null);
     models.CalendarDate.findOne.mockResolvedValue(null);
 
@@ -139,23 +128,20 @@ describe('PUT proposal → Firmada', () => {
     expect(models.Event.create).not.toHaveBeenCalled();
   });
 
-  test('NO crea CalendarDate duplicado si ya existe', async () => {
+  test('NO crea CalendarDate duplicado si ya existe: la pasa a Confirmada', async () => {
     const proposal = mockProposal({ estado: 'Aprobada' });
     const lead = mockLead();
     const existingEvent = { id: 'evt-1', update: jest.fn().mockResolvedValue(true) };
     const existingCal = { update: jest.fn().mockResolvedValue(true) };
     models.Proposal.findByPk.mockResolvedValue(proposal);
     models.Lead.findByPk.mockResolvedValue(lead);
-    models.LeadStatusHistory.create.mockResolvedValue({});
     models.Event.findOne.mockResolvedValue(existingEvent);
     models.CalendarDate.findOne.mockResolvedValue(existingCal);
 
     await PUT(makeRequest({ estado: 'Firmada' }), makeParams('prop-1'));
 
     expect(models.CalendarDate.create).not.toHaveBeenCalled();
-    expect(existingCal.update).toHaveBeenCalledWith(
-      expect.objectContaining({ estado_fecha: 'Confirmada' })
-    );
+    expect(existingCal.update).toHaveBeenCalledWith(expect.objectContaining({ estado_fecha: 'Confirmada' }));
   });
 
   test('sincroniza precio_senia y adicionales al Event', async () => {
@@ -165,69 +151,45 @@ describe('PUT proposal → Firmada', () => {
     const existingEvent = { id: 'evt-1', update: jest.fn().mockResolvedValue(true) };
     models.Proposal.findByPk.mockResolvedValue(proposal);
     models.Lead.findByPk.mockResolvedValue(lead);
-    models.LeadStatusHistory.create.mockResolvedValue({});
     models.Event.findOne.mockResolvedValue(existingEvent);
     models.CalendarDate.findOne.mockResolvedValue(null);
     models.CalendarDate.create.mockResolvedValue({});
 
     await PUT(makeRequest({ estado: 'Firmada' }), makeParams('prop-1'));
 
-    expect(existingEvent.update).toHaveBeenCalledWith(
-      expect.objectContaining({ precio_senia: 150000, adicionales })
-    );
+    expect(existingEvent.update).toHaveBeenCalledWith(expect.objectContaining({ precio_senia: 150000, adicionales }));
   });
 });
 
-// ─── Aprobada → solo cambia estado del lead ──────────────────────────────────
+// ─── Enviada / Aprobada / Rechazada → no tocan el lead ni el Event ───────────
 
-describe('PUT proposal → Aprobada', () => {
-  test('cambia estado del lead a "Propuesta Aceptada"', async () => {
-    const proposal = mockProposal({ estado: 'Enviada' });
-    const lead = mockLead({ estado_actual: 'Propuesta enviada' });
+describe('PUT proposal → Enviada / Aprobada / Rechazada', () => {
+  test.each(['Enviada', 'Aprobada', 'Rechazada'])('%s: NO toca el lead ni el Event', async (estado) => {
+    const proposal = mockProposal({ estado: 'Creada' });
     models.Proposal.findByPk.mockResolvedValue(proposal);
-    models.Lead.findByPk.mockResolvedValue(lead);
-    models.LeadStatusHistory.create.mockResolvedValue({});
 
-    await PUT(makeRequest({ estado: 'Aprobada' }), makeParams('prop-1'));
+    await PUT(makeRequest({ estado }), makeParams('prop-1'));
 
-    expect(models.LeadStatusHistory.create).toHaveBeenCalledWith(
-      expect.objectContaining({ estado_nuevo: 'Propuesta Aceptada' })
-    );
-  });
-
-  test('NO toca el Event al aprobar (solo al firmar)', async () => {
-    const proposal = mockProposal({ estado: 'Enviada' });
-    const lead = mockLead();
-    models.Proposal.findByPk.mockResolvedValue(proposal);
-    models.Lead.findByPk.mockResolvedValue(lead);
-    models.LeadStatusHistory.create.mockResolvedValue({});
-
-    await PUT(makeRequest({ estado: 'Aprobada' }), makeParams('prop-1'));
-
+    expect(proposal.update).toHaveBeenCalledWith(expect.objectContaining({ estado }));
+    expect(models.Lead.findByPk).not.toHaveBeenCalled();
+    expect(models.LeadStatusHistory.create).not.toHaveBeenCalled();
     expect(models.Event.findOne).not.toHaveBeenCalled();
     expect(models.Event.create).not.toHaveBeenCalled();
   });
-});
 
-// ─── Rechazada ───────────────────────────────────────────────────────────────
-
-describe('PUT proposal → Rechazada', () => {
-  test('cambia estado del lead a "Propuesta Rechazada"', async () => {
-    const proposal = mockProposal({ estado: 'Enviada' });
-    const lead = mockLead({ estado_actual: 'Propuesta enviada' });
+  test('Enviada setea fecha_envio una sola vez', async () => {
+    const proposal = mockProposal({ estado: 'Creada', fecha_envio: null });
     models.Proposal.findByPk.mockResolvedValue(proposal);
-    models.Lead.findByPk.mockResolvedValue(lead);
-    models.LeadStatusHistory.create.mockResolvedValue({});
 
-    await PUT(makeRequest({ estado: 'Rechazada' }), makeParams('prop-1'));
+    await PUT(makeRequest({ estado: 'Enviada' }), makeParams('prop-1'));
+    expect(proposal.update).toHaveBeenCalledWith(expect.objectContaining({ fecha_envio: expect.any(Date) }));
 
-    expect(models.LeadStatusHistory.create).toHaveBeenCalledWith(
-      expect.objectContaining({ estado_nuevo: 'Propuesta Rechazada' })
-    );
+    const ya = mockProposal({ estado: 'Enviada', fecha_envio: new Date('2026-01-01') });
+    models.Proposal.findByPk.mockResolvedValue(ya);
+    await PUT(makeRequest({ estado: 'Enviada' }), makeParams('prop-1'));
+    expect(ya.update).toHaveBeenCalledWith(expect.not.objectContaining({ fecha_envio: expect.anything() }));
   });
 });
-
-// ─── Propuesta no encontrada ──────────────────────────────────────────────────
 
 describe('PUT proposal → errores', () => {
   test('retorna 404 si la propuesta no existe', async () => {

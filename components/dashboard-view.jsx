@@ -11,6 +11,8 @@ import {
   Clock,
   XCircle,
   FileText,
+  Bell,
+  Wallet,
 } from "lucide-react"
 import {
   fetchLeads,
@@ -18,6 +20,7 @@ import {
   fetchTasks,
   fetchEvents,
   fetchAllProposals,
+  fetchAlerts,
   LEAD_STATES,
 } from "@/lib/api"
 import {
@@ -33,26 +36,22 @@ import {
 } from "recharts"
 
 const PIPELINE_COLORS = {
-  "Lead nuevo":                "#94a3b8",
-  "Contactado":                "#3b82f6",
-  "Esperando visita":          "#0ea5e9",
-  "Visita al salón realizada": "#06b6d4",
-  "Enviar propuesta":          "#a855f7",
-  "Propuesta enviada":         "#8b5cf6",
-  "Propuesta Aceptada":        "#84cc16",
-  "Propuesta Rechazada":       "#f43f5e",
-  "Esperando Reserva":         "#f97316",
-  "Reserva tomada":            "#f59e0b",
-  "Contrato firmado":          "#10b981",
-  "Cliente activo":            "#059669",
-  "Evento realizado":          "#14b8a6",
-  "Post-evento / cerrado":     "#6b7280",
-  "Perdido":                   "#ef4444",
+  "Lead nuevo":         "#94a3b8",
+  "Visita agendada":    "#0ea5e9",
+  "Visita realizada":   "#06b6d4",
+  "Reserva confirmada": "#10b981",
+  "Perdido":            "#ef4444",
 }
 
-function StatCard({ icon: Icon, label, value, sublabel, color }) {
+// onClick: la tarjeta lleva con un click a la vista de donde sale el dato
+function StatCard({ icon: Icon, label, value, sublabel, color, onClick }) {
+  const Tag = onClick ? "button" : "div"
   return (
-    <div className="flex items-start gap-4 rounded-lg border border-border bg-card p-5">
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={`flex w-full items-start gap-4 rounded-lg border border-border bg-card p-5 text-left ${onClick ? "cursor-pointer transition-shadow hover:shadow-md hover:border-primary/40" : ""}`}
+    >
       <div
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
         style={{ backgroundColor: color + "18", color }}
@@ -66,13 +65,15 @@ function StatCard({ icon: Icon, label, value, sublabel, color }) {
           <span className="text-xs text-muted-foreground mt-0.5">{sublabel}</span>
         )}
       </div>
-    </div>
+    </Tag>
   )
 }
 
-export default function DashboardView() {
+export default function DashboardView({ onNavigate }) {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [bellOpen, setBellOpen] = useState(false)
+  const go = (view) => onNavigate?.(view)
 
   useEffect(() => {
     async function loadStats() {
@@ -83,8 +84,14 @@ export default function DashboardView() {
           fetchTasks(),
           fetchEvents(),
           fetchAllProposals(),
+          fetchAlerts(),
         ])
-        const [leadsTodos, calendar, tasks, events, proposals] = results.map(r => r.status === 'fulfilled' ? r.value : [])
+        const [leadsTodos, calendar, tasks, events, proposals, alertas] = results.map(r => r.status === 'fulfilled' ? r.value : [])
+
+        // Alertas (≤30 días): próximas para la campanita y saldo por cobrar para la tarjeta
+        const conSaldo = alertas.filter((a) => (a.saldo || 0) > 0)
+        const porCobrar = conSaldo.reduce((acc, a) => acc + a.saldo, 0)
+        const alertas7 = alertas.filter((a) => a.dias <= 7).length
 
         // Cartera histórica (cargada ya firmada en la puesta en marcha): fuera de conversión y pipeline.
         const histIds = new Set(leadsTodos.filter((l) => l.es_historico).map((l) => l.id))
@@ -133,8 +140,10 @@ export default function DashboardView() {
           totalEvents: events.length,
           totalValue,
           confirmedDates,
-          pendingTasks,
-          overdueTasks,
+          alertas,
+          alertas7,
+          porCobrar,
+          eventosConSaldo: conSaldo.length,
           conversionRate,
           pipelineData,
           channelData,
@@ -158,11 +167,69 @@ export default function DashboardView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard Ejecutivo</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Vista general del estado comercial y operativo
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard Ejecutivo</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Vista general del estado comercial y operativo
+          </p>
+        </div>
+
+        {/* Campanita: resumen de las próximas alertas + "Ver más" a la vista de Alertas */}
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setBellOpen((v) => !v)}
+            className="relative rounded-full border border-border bg-card p-2.5 text-foreground hover:bg-secondary"
+            aria-label="Alertas próximas"
+          >
+            <Bell className="h-5 w-5" />
+            {stats.alertas7 > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold text-white">
+                {stats.alertas7}
+              </span>
+            )}
+          </button>
+          {bellOpen && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setBellOpen(false)} />
+              <div className="absolute right-0 z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-card shadow-lg">
+                <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                  <span className="text-sm font-semibold text-card-foreground">Próximas alertas</span>
+                  <span className="text-xs text-muted-foreground">{stats.alertas.length} en 30 días</span>
+                </div>
+                {stats.alertas.length === 0 ? (
+                  <p className="px-4 py-6 text-center text-sm text-muted-foreground">No hay eventos en los próximos 30 días.</p>
+                ) : (
+                  <ul className="max-h-72 overflow-y-auto">
+                    {stats.alertas.slice(0, 5).map((a) => (
+                      <li key={a.event_id} className="flex items-center gap-3 border-b border-border px-4 py-2.5 last:border-0">
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${a.dias <= 0 ? "bg-red-600" : a.dias <= 7 ? "bg-orange-500" : "bg-sky-500"}`} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-card-foreground">{a.cliente}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {new Date(String(a.fecha).substring(0, 10) + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}
+                            {" · "}{a.dias < 0 ? `hace ${-a.dias} día(s)` : a.dias === 0 ? "hoy" : `en ${a.dias} día(s)`}
+                          </span>
+                        </span>
+                        <span className={`shrink-0 text-xs font-semibold ${a.saldo > 0 ? "text-red-700" : "text-green-700"}`}>
+                          ${Math.round(a.saldo || 0).toLocaleString("es-AR")}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { setBellOpen(false); go("alerts") }}
+                  className="w-full border-t border-border px-4 py-2.5 text-center text-sm font-medium text-primary hover:bg-secondary"
+                >
+                  Ver más →
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -172,6 +239,7 @@ export default function DashboardView() {
           value={stats.totalLeads}
           sublabel={`${stats.conversionRate}% conversión${stats.historicos ? ` · ${stats.historicos} históricos` : ""}`}
           color="#3b82f6"
+          onClick={() => go("leads")}
         />
         <StatCard
           icon={CheckCircle2}
@@ -179,6 +247,7 @@ export default function DashboardView() {
           value={stats.totalEvents}
           sublabel={`${stats.confirmedDates} fechas ocupadas`}
           color="#10b981"
+          onClick={() => go("events")}
         />
         <StatCard
           icon={DollarSign}
@@ -186,13 +255,15 @@ export default function DashboardView() {
           value={"$" + (stats.totalValue / 1000).toFixed(0) + "k"}
           sublabel="Pipeline total"
           color="#8b5cf6"
+          onClick={() => go("reports")}
         />
         <StatCard
-          icon={AlertCircle}
-          label="Tareas Pendientes"
-          value={stats.pendingTasks}
-          sublabel={stats.overdueTasks > 0 ? `${stats.overdueTasks} vencidas` : "Al dia"}
-          color={stats.overdueTasks > 0 ? "#ef4444" : "#f59e0b"}
+          icon={Wallet}
+          label="Por cobrar (30 días)"
+          value={"$" + (stats.porCobrar / 1000).toFixed(0) + "k"}
+          sublabel={stats.eventosConSaldo > 0 ? `${stats.eventosConSaldo} evento(s) con saldo · ${stats.alertas7} en 7 días` : "Sin saldos pendientes"}
+          color={stats.alertas7 > 0 && stats.porCobrar > 0 ? "#ef4444" : "#f59e0b"}
+          onClick={() => go("alerts")}
         />
       </div>
 

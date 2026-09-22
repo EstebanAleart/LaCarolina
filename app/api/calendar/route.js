@@ -83,7 +83,8 @@ export async function POST(request) {
     if (finalLeadId && (finalEstado === 'Reservada' || finalEstado === 'Confirmada')) {
       const lead = await Lead.findByPk(finalLeadId);
       if (lead) {
-        const nuevoEstadoLead = finalEstado === 'Reservada' ? 'Reserva tomada' : 'Contrato firmado';
+        // E15-01: seña (Reservada) o contrato (Confirmada) → el lead queda "Reserva confirmada"
+        const nuevoEstadoLead = 'Reserva confirmada';
 
         if (lead.estado_actual !== nuevoEstadoLead) {
           await LeadStatusHistory.create({

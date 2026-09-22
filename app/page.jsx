@@ -104,7 +104,7 @@ export default function Home() {
         </div>
 
         <div className="p-4 md:p-6 lg:p-8">
-          {activeView === "dashboard" && <DashboardView />}
+          {activeView === "dashboard" && <DashboardView onNavigate={handleNavigate} />}
           {activeView === "leads" && <LeadsView />}
           {activeView === "calendar" && <CalendarView />}
           {activeView === "proposals" && <ProposalsView />}
